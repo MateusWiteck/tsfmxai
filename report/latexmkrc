@@ -1,0 +1,8 @@
+use Cwd qw(abs_path);
+
+my $repository_root = abs_path('..');
+my $path_separator = ($^O eq 'MSWin32') ? ';' : ':';
+my $existing_bibinputs = $ENV{'BIBINPUTS'} // '';
+
+$ENV{'BIBINPUTS'} =
+    $repository_root . '/references' . $path_separator . $existing_bibinputs;

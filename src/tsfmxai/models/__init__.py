@@ -1,0 +1,1 @@
+"""Forecast-model adapter interfaces."""

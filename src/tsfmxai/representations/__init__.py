@@ -1,0 +1,1 @@
+"""Canonical symbolic mechanism representations."""

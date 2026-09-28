@@ -1,0 +1,10 @@
+{
+  "formula_round_trip_passed": true,
+  "series_recurrence_check_passed": true,
+  "object_plot_method_passed": true,
+  "formula_instructions_available": true,
+  "invalid_formula_guidance_passed": true,
+  "maximum_absolute_recurrence_residual": 0.0,
+  "ast_node_count": 9,
+  "generated_value_count_including_initial_condition": 41
+}

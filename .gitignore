@@ -1,0 +1,58 @@
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
+
+*.egg-info/
+build/
+dist/
+
+# Local exploratory work and generated artifacts
+/experiments_local/
+/outputs/
+/site/
+
+# Reproducible data are regenerated from configurations and seeds
+/data/external/
+/data/raw/
+/data/interim/
+/data/processed/
+
+# LaTeX build products
+/report/build/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+*.pkl
+*.pt
+*.ckpt
+*.csv
+*.gz
+
+# Third-party papers and supplementary archives remain local. Their reviewed
+# Markdown summaries and canonical bibliography are versioned.
+/references/**/*.pdf
+/references/**/*.zip

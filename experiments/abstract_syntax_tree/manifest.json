@@ -1,0 +1,15 @@
+{
+  "experiment_id": "abstract_syntax_tree_001",
+  "status": "executed",
+  "notebook": "1_formula_to_ast_and_series.ipynb",
+  "configuration": "config.json",
+  "metrics": "metrics.json",
+  "summary": "summary.md",
+  "python_target": "3.11.9",
+  "execution_backend": "nbclient",
+  "execution_date": "2026-09-28",
+  "hardware": "CPU",
+  "seed": 20260928,
+  "seed_usage": "Recorded for forward compatibility; the current recurrence is deterministic.",
+  "reproduction": ".venv\\Scripts\\python.exe -c \"from pathlib import Path; import nbformat; from nbclient import NotebookClient; p=Path(r'experiments/abstract_syntax_tree/1_formula_to_ast_and_series.ipynb'); n=nbformat.read(p, as_version=4); NotebookClient(n, timeout=120, kernel_name='python3').execute(cwd=str(p.parent)); nbformat.write(n, p)\""
+}

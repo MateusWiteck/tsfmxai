@@ -1,0 +1,57 @@
+Dear Mateus,
+
+thank you for your interest in our work, and sorry for the late reply, I was out of office for the last two weeks.
+
+We plan to share the ground truth generation code in a future version of the repository. I send you the corresponding files attached, so that you can already inspect and use them.
+
+The procedure works as follows (your description is correct, but the following might help to understand the code):
+- For creating a synthetic example, we sample the following features: a load profile (consisting of three daily load patterns for workdays, Saturdays, and Sundays/holidays), month, hour of day, day of week, holidays, and a temperature curve.
+- The function generate_from_components() creates the ground truth load curve for the next week.
+- PermutationSHAP creates alternative load curves for each feature coalition, by re-sampling the absent features and running generate_from_components() with the re-sampled features. It respects dependencies between features, e.g., the hour of day is not re-sampled when the day-of-week feature is known, because this would produce an unrealistic example where the hour-of-day-feature does not match with the day boundaries (and more dependencies, see the paper).
+
+I hope this helps. Let me know if something does not work as expected or if you have questions.
+
+I'd also be interested in reading your thesis once you are finished, if you are willing to share it.
+
+All the best for your thesis work!
+
+Best regards,
+Matthias
+
+-----Original Message-----
+From: Mateushenrique Sotoriva Witeck S335079 <s335079@studenti.polito.it>
+Sent: Thursday, May 28, 2026 1:40 PM
+To: Hertel, Matthias (IAI) <matthias.hertel@kit.edu>
+Cc: Pütz, Sebastian (IAI) <sebastian.puetz@kit.edu>
+Subject: Question about SHAPformer synthetic ground-truth generation code
+
+Dear Matthias Hertel,
+
+I hope you are doing well.
+
+My name is Mateus Witeck, and I am currently working on my Master’s thesis on explainability for time-series forecasting models. More specifically, I am studying how to evaluate explanation methods for forecasting models when reliable ground-truth explanations are available.
+
+In this context, I have been reading your SHAPformer paper and exploring the accompanying GitHub repository. I found your synthetic benchmark particularly relevant, because it provides ground-truth explanations for a time-series forecasting task, which is exactly the kind of setup I am looking for in order to compare and validate explanation methods.
+
+I found the precomputed ground-truth explanations in the synthetic dataset, especially the file:
+
+data/synthetic/test_ground_truth.json
+
+I also inspected the repository and found that:
+
+notebooks/ground_truth_explanations.ipynb
+
+loads and visualizes these explanations. However, I could not find the code that generates the synthetic dataset and computes the ground-truth SHAP explanations from scratch.
+
+ From Section 4.3 of the paper, I understood that the ground truth is obtained by applying the SHAP Permutation Explainer directly to the data-generation process, including resampling of absent inputs and averaging alternative generated target curves. I would like to better understand and potentially reproduce this process for my thesis work.
+
+I would also like to inspect the generation code so that I can understand the methodology correctly and cite your work in the most accurate and appropriate way in my thesis.
+
+Would it be possible to share the script used to generate test_ground_truth.json, or provide any additional implementation details about the synthetic generator and the ground-truth SHAP computation?
+
+This would be very useful for my thesis, since I am interested in building or adapting reproducible synthetic benchmarks with known ground-truth explanations for explainable time-series forecasting.
+
+Thank you very much for your time, and congratulations on the work.
+
+Best regards,
+Mateus Witeck
