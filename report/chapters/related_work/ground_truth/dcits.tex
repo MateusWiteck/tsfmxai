@@ -1,0 +1,277 @@
+\subsubsection{Interpretable Deep Convolutional Model for Nonlinear Multivariate Time Series in Complex Systems}
+
+\citet{baric2026dcits} propose the Deep Convolutional Interpreter for Time
+Series (DCIts), an intrinsically interpretable model for one-step multivariate
+forecasting. The paper continues the benchmark of
+\citet{baric2021benchmarking}: it reuses Datasets 1--8, modifies the switching
+process in Dataset 8, and adds controlled VAR(2) and cubic processes. In all
+these experiments, the equations used to generate the observations supply the
+reference target--source--lag structure and, where applicable, the exact signed
+coefficients, biases, regimes, and polynomial orders.
+
+\begin{landscape}
+\begingroup
+\scriptsize
+\setlength{\LTpre}{0.4\baselineskip}
+\setlength{\LTpost}{0.4\baselineskip}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.10\linewidth}
+>{\raggedright\arraybackslash}p{0.49\linewidth}
+>{\raggedright\arraybackslash}p{0.35\linewidth}@{}}
+\caption{Exact transcription of Table~III in
+\citet{baric2026dcits}: benchmarking datasets used in the study.}
+\label{tab:dcits-datasets-exact}\\
+\toprule
+Name & Model & Parameters \\
+\midrule
+\endfirsthead
+\multicolumn{3}{@{}l}{\small\emph{Table~\thetable\ continued}}\\
+\toprule
+Name & Model & Parameters \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r@{}}{\small\emph{Continued on the next page}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+
+Dataset 1 &
+$X_{n,t}=\alpha_n^{\mathrm{gt}}+\varepsilon_{n,t}$ &
+$\alpha_n^{\mathrm{gt}}\sim\mathcal{N}(0,1)$ \\
+
+Dataset 2 &
+$X_{n,t}=\alpha_{n,n,l}^{\mathrm{gt}}X_{n,t-l}+\varepsilon_{n,t}$ &
+$\alpha_{n,n,3}^{\mathrm{gt}}=\alpha_{n,n,7}^{\mathrm{gt}}=1/2$ \\
+
+Dataset 3 &
+$X_{n,t}=\tanh\!\left(\alpha_{n,n,l}^{\mathrm{gt}}X_{n,t-l}\right)
++\varepsilon_{n,t}$ &
+$\alpha_{n,n,3}^{\mathrm{gt}}=5/7,\quad
+ \alpha_{n,n,7}^{\mathrm{gt}}=\alpha_{n,n,9}^{\mathrm{gt}}=1/7$ \\
+
+Dataset 4 &
+$\begin{aligned}
+X_{1,t}&=\alpha_{1,2,l}^{\mathrm{gt}}X_{2,t-l}+\varepsilon_{1,t},\\
+X_{2,t}&=\alpha_{2,1,l}^{\mathrm{gt}}X_{1,t-l}+\varepsilon_{2,t}
+\end{aligned}$ &
+$\begin{aligned}
+\alpha_{1,2,2}^{\mathrm{gt}}&=\alpha_{1,2,9}^{\mathrm{gt}}=2/5,
+&\alpha_{1,2,5}^{\mathrm{gt}}&=1/5,\\
+\alpha_{2,1,2}^{\mathrm{gt}}&=\alpha_{2,1,9}^{\mathrm{gt}}=2/5,
+&\alpha_{2,1,5}^{\mathrm{gt}}&=1/5
+\end{aligned}$ \\
+
+Dataset 5 &
+$X_{n,t}=\alpha_{n,1,l}^{\mathrm{gt}}X_{1,t-l}+\varepsilon_{n,t}$ &
+$\begin{aligned}
+\alpha_{1,1,3}^{\mathrm{gt}}&=1/2,&
+\alpha_{1,1,4}^{\mathrm{gt}}&=1/2,&
+\alpha_{2,1,9}^{\mathrm{gt}}&=1,\\
+\alpha_{3,1,2}^{\mathrm{gt}}&=1/2,&
+\alpha_{3,1,7}^{\mathrm{gt}}&=1/2,\\
+\alpha_{4,1,3}^{\mathrm{gt}}&=1/10,&
+\alpha_{4,1,4}^{\mathrm{gt}}&=1/10,&
+\alpha_{4,1,8}^{\mathrm{gt}}&=4/5,\\
+\alpha_{5,1,2}^{\mathrm{gt}}&=1/3,&
+\alpha_{5,1,5}^{\mathrm{gt}}&=2/9,&
+\alpha_{5,1,8}^{\mathrm{gt}}&=4/9
+\end{aligned}$ \\
+
+Dataset 6 &
+$X_{n,t}=\tanh\!\left(\alpha_{n,1,l}^{\mathrm{gt}}X_{1,t-l}\right)
++\varepsilon_{n,t}$ &
+Identical to Dataset 5 \\
+
+Dataset 7 &
+$\begin{aligned}
+X_{1,t}&=\alpha_{1,1,1}^{\mathrm{gt}}X_{1,t-1}
+       +\alpha_{1,1,5}^{\mathrm{gt}}X_{1,t-5}+\varepsilon_{1,t},\\
+X_{2,t}&=1+\alpha_{2,1,2}^{\mathrm{gt}}X_{1,t-2}+\varepsilon_{2,t},\\
+X_{3,t}&=\alpha_{3,2,1}^{\mathrm{gt}}X_{2,t-1}
+       +\alpha_{3,4,4}^{\mathrm{gt}}X_{4,t-4}+\varepsilon_{3,t},\\
+X_{4,t}&=1+\alpha_{4,3,4}^{\mathrm{gt}}X_{3,t-4}
+       +\alpha_{4,5,1}^{\mathrm{gt}}X_{5,t-1}+\varepsilon_{4,t},\\
+X_{5,t}&=\alpha_{5,5,4}^{\mathrm{gt}}X_{5,t-4}
+       +\alpha_{5,2,1}^{\mathrm{gt}}X_{2,t-1}+\varepsilon_{5,t}
+\end{aligned}$ &
+$\begin{aligned}
+\alpha_{1,1,1}^{\mathrm{gt}}&=1/4,&
+\alpha_{1,1,5}^{\mathrm{gt}}&=3/4,\\
+\alpha_{2,1,2}^{\mathrm{gt}}&=-1,\\
+\alpha_{3,2,1}^{\mathrm{gt}}&=1,&
+\alpha_{3,4,4}^{\mathrm{gt}}&=1,\\
+\alpha_{4,3,4}^{\mathrm{gt}}&=-2/7,&
+\alpha_{4,5,1}^{\mathrm{gt}}&=-5/7,\\
+\alpha_{5,5,4}^{\mathrm{gt}}&=12/22,&
+\alpha_{5,2,1}^{\mathrm{gt}}&=10/22
+\end{aligned}$ \\
+
+Dataset 8 &
+$\begin{aligned}
+&\text{if }X_{1,t-5}>1/2:\\
+&X_{1,t}=b_{\mathrm{high}}+\varepsilon_{1,t},\\
+&X_{2,t}=\alpha_{2,1,5}^{\mathrm{gt}}X_{1,t-5}+\varepsilon_{2,t},\\
+&X_{3,t}=\alpha_{3,1,4}^{\mathrm{gt}}X_{1,t-4}+\varepsilon_{3,t},\\
+&X_{4,t}=\alpha_{4,4,1}^{\mathrm{gt}}X_{4,t-1}
+       +\alpha_{4,4,4}^{\mathrm{gt}}X_{4,t-4}+\varepsilon_{4,t},\\
+&\text{else:}\\
+&X_{1,t}=b_{\mathrm{low}}+\varepsilon_{1,t},\\
+&X_{2,t}=\alpha_{2,4,2}^{\mathrm{gt}}X_{4,t-2}+\varepsilon_{2,t},\\
+&X_{3,t}=\alpha_{3,4,4}^{\mathrm{gt}}X_{4,t-4}+\varepsilon_{3,t},\\
+&X_{4,t}=\alpha_{4,4,1}^{\mathrm{gt}}X_{4,t-1}
+       +\alpha_{4,4,4}^{\mathrm{gt}}X_{4,t-4}+\varepsilon_{4,t}
+\end{aligned}$ &
+$\begin{aligned}
+\alpha_{2,1,5}^{\mathrm{gt}}&=4/5,&
+\alpha_{2,4,2}^{\mathrm{gt}}&=2/3,\\
+\alpha_{3,1,4}^{\mathrm{gt}}&=2/3,&
+\alpha_{3,4,4}^{\mathrm{gt}}&=4/5,\\
+\alpha_{4,4,1}^{\mathrm{gt}}&=1/2,&
+\alpha_{4,4,4}^{\mathrm{gt}}&=2/5,\\
+b_{\mathrm{high}}&=7/10,&
+b_{\mathrm{low}}&=2/10
+\end{aligned}$
+
+\medskip
+$b_{\mathrm{high}}$ and $b_{\mathrm{low}}$ switch, based on a persistence
+duration, $P$.
+
+\medskip
+$P\sim\max\!\left(P_{\min},\mathcal{N}(\mu_P,\sigma_P)\right)$ \\
+
+\end{longtable}
+\endgroup
+\end{landscape}
+
+\paragraph{Reading the original benchmarking-dataset table.}
+Table~\ref{tab:dcits-datasets-exact} above transcribes Table~III in Appendix~A
+of \citet{baric2026dcits}. The DCIts paper presents these as the corrected
+specifications of Datasets~1--8 and explicitly modifies the switching process
+of Dataset~8 relative to \citet{baric2021benchmarking}. The notation
+$\alpha^{\mathrm{gt}}$ is retained because the table uses each generator
+coefficient directly as an explanation ground truth.
+
+For an input window $Q_t\in\mathbb{R}^{N\times L}$, DCIts predicts target series
+$k$ one step ahead through the following re-indexed form of the paper's
+prediction equation:
+
+\begin{equation}
+    \widehat{x}_{k,t+1}
+    = \sum_{j=1}^{N}\sum_{\ell=1}^{L}
+    (\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}\,(Q_t)_{j,\ell},
+\end{equation}
+
+where $(\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}$ is a sample-specific coefficient
+linking source series $j$ at lag $\ell$ to target series $k$. DCIts orders the
+window as $Q_t=(X_t,X_{t-1},\ldots,X_{t-L+1})$. Accordingly,
+$(Q_t)_{j,1}=x_{j,t}$ is the latest observed input and the forecast is
+$x_{k,t+1}$. On the common axis this is $\tau=t$: the latest input is relative
+time 0 and the one-step target is relative time $+1$. The model factorizes
+this transition tensor as
+
+\begin{equation}
+    \alpha^{\mathrm{DCI}}_t = C_t \odot F_t,
+\end{equation}
+
+where the Focuser $F_t\in(0,1)^{N\times N\times L}$ softly selects relevant
+source--lag entries and the Modeler $C_t\in\mathbb{R}^{N\times N\times L}$
+assigns their signed local magnitudes. The coefficient
+$(\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}$ describes the learned local interaction,
+while $(\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}\,(Q_t)_{j,\ell}$ is the realized
+numerical contribution of that entry to the current forecast. Thus,
+coefficient recovery evaluates the learned transition mechanism, and the
+coefficient--input product explains how that mechanism contributes to one
+particular output.
+
+The generator equations permit evaluation of support, lag, sign, and magnitude.
+For example, if the generator contains
+$x_{2,t}=1-x_{1,t-2}+\varepsilon_{2,t}$, the reference specifies target
+$x_2$, source $x_1$, lag 2, coefficient $-1$, and bias $1$.
+
+\paragraph{Evaluation calculations and reported comparisons.}
+DCIts first checks forecast quality with test-set MSE. Table~II of
+\citet{baric2026dcits} reports the mean and standard deviation of MSE over
+repeated training runs for DCIts and IMV-LSTM. Figure~3 displays the
+coefficient of variation
+$\operatorname{sd}(\mathrm{MSE})/\operatorname{mean}(\mathrm{MSE})$ to compare
+prediction stability; Fig.~4 varies noise frequency and the number of series.
+In selected coefficient-recovery experiments, the model is also trained with
+MAE loss to check sensitivity to the loss function. Figure~5 plots normalized
+test loss against candidate input-window lengths; inspection of stable
+coefficients at successive lags provides the complementary estimate of
+effective memory depth.
+
+For explanation recovery, the authors first average the sample-specific
+$(\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}$ over held-out windows within each run.
+Let $\bar\alpha^{\mathrm{DCI},(r)}_{k,j,\ell}$ denote that reported coefficient
+for run $r$. Across $R=5$ runs with different random seeds, paper
+Eqs.~11--12 calculate
+
+\begin{equation}
+\begin{aligned}
+    \mu_{k,j,\ell}
+    &= \frac{1}{R}\sum_{r=1}^{R}
+       \bar\alpha^{\mathrm{DCI},(r)}_{k,j,\ell}, \\
+    \sigma_{k,j,\ell}
+    &= \sqrt{\frac{1}{R-1}\sum_{r=1}^{R}
+       \left(
+       \bar\alpha^{\mathrm{DCI},(r)}_{k,j,\ell}
+       -\mu_{k,j,\ell}
+       \right)^2}.
+\end{aligned}
+\end{equation}
+
+Their visualization retains a coefficient when
+
+\begin{equation}
+    I^{\mathrm{stable}}_{k,j,\ell}
+    =\mathbb{I}\!\left[
+        |\mu_{k,j,\ell}|>1.95\,\sigma_{k,j,\ell}
+      \right]=1.
+\end{equation}
+
+This descriptive reproducibility filter retains coefficients whose across-run
+mean dominates their variability. Ground-truth accuracy is assessed separately
+by comparing the retained values or support with the generator. The official
+code additionally applies
+$|\mu_{k,j,\ell}|\geq 0.01$ when printing ``significant'' coefficients and
+labels retained entries as present or absent in the nonzero ground-truth
+support.\footnote{Official DCIts code:
+\url{https://github.com/hc-xai/dcits}; see \texttt{src/utils.py}, especially
+\texttt{collect\_multiple\_runs},
+\texttt{calculate\_multiple\_run\_statistics}, and
+\texttt{print\_significant\_alpha}.}
+One implementation detail matters for exact replication: paper Eq.~12 uses the
+sample standard deviation (denominator $R-1$), whereas the official code's
+multiple-run statistics routine calls NumPy's default \texttt{std}, which uses
+denominator $R$. This slightly changes the filter threshold for a fixed set
+of runs.
+The paper then compares mean learned coefficients with the exact generating
+values in selected slices: Figs.~6--10 show lag-resolved patterns and
+source-to-target summaries; the VAR(2) example prints each true lag-matrix
+entry beside its learned mean $\pm$ standard deviation. In the cubic
+experiment, Fig.~13 checks known negative linear and positive cubic
+coefficients by polynomial branch. The lag-aggregated score
+$\beta^{\mathrm{DCI}}_{t,k,j}$ is obtained from paper Eqs.~9--10 as
+
+\begin{equation}
+    \widetilde\beta^{\mathrm{DCI}}_{t,k,j}
+    =\sum_{\ell=1}^{L}
+      \left|(\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}\right|,
+    \qquad
+    \beta^{\mathrm{DCI}}_{t,k,j}
+    =\frac{\widetilde\beta^{\mathrm{DCI}}_{t,k,j}}
+    {\sum_{j'=1}^{N}\widetilde\beta^{\mathrm{DCI}}_{t,k,j'}}.
+\end{equation}
+
+It tests which source series matters locally, but deliberately discards lag
+and sign. For reported source-to-target summaries, the implementation applies
+the same equations to $\alpha^{\mathrm{DCI}}$ after averaging it over held-out
+windows, at which point the index $t$ is suppressed. The published explanation
+assessment combines these numerical entrywise comparisons and plots. A single
+coefficient-tensor MAE/RMSE, support F1, sign-accuracy, or local-contribution
+error would extend the reported benchmark metrics.
+

@@ -1,0 +1,152 @@
+\paragraph{Comparison of ground-truth forms.}
+Taken together, these works instantiate three complementary forms of explanation
+ground truth. The benchmarks of \citet{baric2021benchmarking},
+\citet{almaghrabi2024multidimensional}, and
+\citet{delibasoglu2025crossscale} derive structural or binary relevance from
+known variables and lags. DCIts compares learned local transition coefficients
+with the exact signed coefficients of the generator. SHAPformer derives
+value-level ground truth by applying a conditional Shapley-value procedure
+directly to the generating function. The corresponding evaluations are,
+respectively, localization or ranking against structural masks, signed
+coefficient recovery, and comparison of Shapley attribution
+sign, magnitude, and forecast-horizon dependence.
+
+\paragraph{Incremental contribution of each benchmark.}
+Table~\ref{tab:incremental-gt-contributions} orders the works chronologically
+and reports only the capability introduced beyond the rows above it. The label
+\emph{explainable by design} identifies a model that exposes an explanation as
+part of its own computation. A direct mechanism-recovery error additionally
+requires this exposed object to have the same mathematical meaning and indexing
+as the generator mechanism. Consequently, intrinsic attention and saliency
+scores can be evaluated against support locations or relevant regions, while an
+explicit transition tensor such as DCIts can be compared coefficient by
+coefficient. A post-hoc attribution can also be compared with process-level
+ground truth; that result measures the combined ability of the forecaster to
+learn the process and of the explainer to describe the forecaster, unless a
+separate model-level reference explanation is available.
+
+\begingroup
+\footnotesize
+\setlength{\LTpre}{0.5\baselineskip}
+\setlength{\LTpost}{0.5\baselineskip}
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.18\textwidth}
+>{\raggedright\arraybackslash}p{0.35\textwidth}
+>{\raggedright\arraybackslash}p{0.39\textwidth}@{}}
+\caption{Incremental contributions to ground-truth generation and explanation
+evaluation. Each row states what is new relative to the papers listed above it.}
+\label{tab:incremental-gt-contributions}\\
+\toprule
+Paper and ground-truth family &
+New ground-truth-generation capability &
+Explanation source and comparison with ground truth \\
+\midrule
+\endfirsthead
+
+\multicolumn{3}{@{}l}{\small\emph{Table~\thetable\ continued}}\\
+\toprule
+Paper and ground-truth family &
+New ground-truth-generation capability &
+Explanation source and comparison with ground truth \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{3}{r@{}}{\small\emph{Continued on the next page}}\\
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\citet{baric2021benchmarking}
+
+\emph{Structural binary support} &
+Establishes the baseline family: ten transparent multivariate generators define
+a binary target--source--lag mask from the terms that occur in each equation.
+The suite varies autoregression, cross-series dependence, nonlinearity, and
+switching behavior. &
+The evaluated outputs are architecture-bound: seq2graph, IMV-LSTM, and DA-RNN
+expose intrinsic attention; TCDF returns detected directed relations and delays.
+Mean/standard-deviation heatmaps and TCDF retrieval frequencies are checked
+against the known support. This introduces source and lag localization with
+run-to-run stability. The reported explanation assessment consists of
+model-specific visual alignment, attention statistics, and retrieval frequency;
+nonnegative attention supports location and ranking, while signed coefficients
+lie outside this explanation space. \\
+\addlinespace
+
+\citet{almaghrabi2024multidimensional}
+
+\emph{Structural binary support, as in Bari\'c et al.} &
+Keeps Bari\'c et al.'s binary variable--lag family and adds a forecast-horizon
+axis for sequence-to-sequence prediction. The relevant locations shift by one
+time step for each horizon, and nonlinear multiplicative terms test whether the
+method identifies interacting inputs. &
+MDA is explainable by design: its dynamic attention weights participate in
+filtering the input for each prediction step. The variable and temporal scores
+are multiplied (paper Eq.~12), and the resulting maps are visually checked
+against known source--lag locations for Toy1 at $h=1,2,4$ and Toy2 at
+$h=2,20$ (Figs.~7--8). This adds horizon-specific inspection to Bari\'c et
+al.'s support-localization approach; no numerical ground-truth explanation
+error is reported. MAE/RMSE and architecture ablations assess forecasting;
+explanation agreement remains map-based. \\
+\addlinespace
+
+\citet{delibasoglu2025crossscale}
+
+\emph{Structural saliency regions, in the same binary-support family as Bari\'c
+et al. and MDA} &
+Adds controlled multi-scale temporal regions---recent, distant, scattered, and
+mixed---together with predefined relevant feature sets across SYN1--SYN8. The
+ground truth therefore tests the spatial resolution and long-range localization
+of a saliency method rather than coefficient magnitude. &
+CrossScaleNet is explainable by design through intrinsic cross-scale attention.
+As in the preceding works, predicted saliency maps are visually compared with
+known support, now at the level of multi-scale regions (Figs.~8--9). Feature
+Ablation and Integrated Gradients provide post-hoc feature-importance checks
+on synthetic data (Fig.~5). Sufficiency and comprehensiveness add numerical,
+ground-truth-free faithfulness tests on real data (Table~4). Synthetic
+mask agreement remains a visual assessment. \\
+\addlinespace
+
+\citet{hertel2026shapformer}
+
+\emph{Signed local contribution} &
+Introduces a different family: conditional Shapley values are computed directly
+for the vector-valued load generator. Dependency-aware resampling supplies
+absent feature groups, producing signed, sample-specific contributions for each
+feature group and forecast step. This adds contribution magnitude, direction,
+feature dependence, interactions, and horizon variation to the earlier support
+masks. &
+SHAPformer is explainable by design through masked training that yields
+sampling-free SHAP-style values; the experiments also use post-hoc SHAP for a
+standard Transformer. Global absolute-importance bars, dependence and
+interaction plots, and local contribution curves are compared with generator
+SHAP. This is the first row to compare signed contribution values instead of
+only support. Agreement is reported graphically across the global, dependence,
+interaction, and local views. Because the reference explains the generator, the
+comparison includes both process learning and explanation recovery. \\
+\addlinespace
+
+\citet{baric2026dcits}
+
+\emph{Signed coefficient and realized local contribution} &
+Reuses and extends Bari\'c et al.'s generators, then promotes the reference from
+a binary occurrence mask to exact signed coefficients, biases, regimes, and
+polynomial orders. Multiplying a coefficient by the observed source--lag value
+also yields a sample-specific numerical contribution. &
+DCIts is explainable by design and exposes the transition tensor that directly
+forms its forecast. It is therefore the first row permitting a clean,
+coefficient-by-coefficient mechanism-recovery comparison in the generator's own
+parameter space. The paper compares selected learned and exact coefficients
+with lag-resolved heatmaps and across-run mean $\pm$ standard deviation;
+$|\mu|>1.95\sigma$ filters unstable entries. VAR matrices and polynomial
+branches test sign, magnitude, lag, and order. Test MSE and its across-run
+variation assess forecasting separately. The coefficient comparisons are
+reported individually rather than combined into one full-tensor explanation
+score. \\
+
+\end{longtable}
+\endgroup
+

@@ -1,0 +1,20 @@
+\paragraph{Differences among the four approaches in Section~1.2.}
+D'Ascoli et al. directly sample a discrete lagged recurrence, execute it to
+produce a sequence, and train a Transformer to recover the recurrence from that
+sequence. Me\v{z}nar et al. learn an unconditional continuous prior over general
+expression trees and search that latent space for equations fitting numerical
+data. Bendinelli et al. retain an explicit random-tree prior for pretraining and
+learn the conditional inverse map
+$p_{\phi}(e\mid\mathcal D,\mathcal H)$, allowing hypotheses to steer which
+equation is recovered. NSRwH is therefore a direct extension of the NeSymReS
+family and contributes controlled recovery; D'Ascoli's construction supplies
+the discrete temporal-generator role. ODEFormer retains random unary--binary
+trees and prefix decoding, but interprets each tree as one component of a
+continuous-time vector field and uses numerical integration to connect the
+equation with observations. For this thesis, the four contributions compose
+naturally: D'Ascoli supplies the lagged grammar and executable recurrence, HVAE
+offers an optional learned prior over plausible recurrence trees, NSRwH supplies
+a retriever that can be tested with different amounts and qualities of known
+mechanism information, and ODEFormer supplies the continuous-time extension in
+which evaluation must include trajectory reconstruction and generalization.
+

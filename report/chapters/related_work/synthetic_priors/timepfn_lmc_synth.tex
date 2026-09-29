@@ -1,0 +1,78 @@
+\subsubsection{TimePFN and LMC-Synth as a related multivariate design}
+
+\paragraph{LMC-Synth generation.}
+TimePFN constructs cross-channel structure with a linear model of
+coregionalization \citep{taga2025timepfn}. It first samples
+$N_{\mathrm{lat}}$ from a clipped Weibull distribution. Each latent function
+$z_a(t)$ is an independent KernelSynth draw with its own randomly composed GP
+kernel. For each observed channel $j$, a Dirichlet vector supplies nonnegative
+weights that sum to one:
+
+\begin{equation}
+\begin{aligned}
+N_{\mathrm{lat}}
+    &\sim \operatorname{clip}
+      \bigl(\operatorname{Weibull}(\beta,\lambda),m,N\bigr),\\
+z_a(t)&\sim\operatorname{KernelSynth}(J_K,T_{\mathrm{syn}}),
+      \qquad a=1,\ldots,N_{\mathrm{lat}},\\
+(\lambda_{j,1},\ldots,\lambda_{j,N_{\mathrm{lat}}})
+    &\sim\operatorname{Dirichlet}(d\mathbf 1),\\
+x_j(t)&=\sum_{a=1}^{N_{\mathrm{lat}}}\lambda_{j,a}z_a(t),
+      \qquad j=1,\ldots,N.
+\end{aligned}
+\label{eq:lmc-synth}
+\end{equation}
+
+Channels become correlated when they reuse latent functions. Small Dirichlet
+concentration produces channel-specific mixtures; larger concentration makes
+the mixtures more uniform. The authors also generate an independent-channel
+case, $N_{\mathrm{lat}}=N$ and $x_j(t)=z_j(t)$, so the training distribution
+covers examples both with and without useful cross-channel dependence.
+
+The reported corpus contains 15,000 synthetic datasets, each with length 1024
+and 160 channels. Sliding windows of length 192 are split into 96 context and
+96 forecast steps, yielding approximately 1.5 million multivariate training
+examples. Independent-channel examples amount to approximately 25\% of the
+correlated corpus. Training begins with independent channels and later
+introduces correlated mixtures, forming a curriculum from univariate pattern
+recognition to cross-channel inference. Multiplicative Gaussian noise with
+mean 1 and standard deviation 0.1 regularizes the examples.
+
+\paragraph{Generation and model architecture.}
+The released LMC-Synth implementation parallelizes independent multivariate
+datasets over all CPU cores with \texttt{joblib}, uses eigendecomposition for
+GP sampling, performs the latent-to-channel mixture as a matrix product, and
+writes compressed Arrow data. The TimePFN model then processes these data in
+four stages:
+
+\begin{enumerate}
+    \item each standardized channel passes through shared 1D convolutions and
+    magnitude max pooling; nine filtered rows are concatenated with the
+    original channel;
+    \item overlapping patches of length 16 and stride 8 are flattened and
+    mapped to 256-dimensional token embeddings;
+    \item two-dimensional sinusoidal encodings identify both time and channel,
+    and all channel tokens enter the same eight-layer Transformer encoder, so
+    attention performs channel mixing;
+    \item a shared two-layer feedforward head maps each reconstructed channel
+    representation directly to the 96-step forecast.
+\end{enumerate}
+
+The released configuration has approximately 8.5M parameters, accepts a
+variable number of channels, and fixes context and prediction lengths to 96.
+The paper reports about ten hours of pretraining on one NVIDIA L40S GPU; a
+32-core CPU and 128GB RAM support synthetic-data preparation. This is a
+compact prior-data-fitted network: many mechanism samples are generated
+offline, and one model amortizes forecasting over that prior.
+
+\paragraph{Relevance to the proposed benchmark.}
+LMC-Synth retains both the composite kernel of every latent process and the
+mixing matrix $[\lambda_{j,a}]$. These objects provide exact ground truth for
+latent sharing and covariance between channels. GP dependence is generally
+dense over time, so its native reference is a dense temporal covariance rather
+than a sparse variable--lag mask. Applying the conditional-mean construction in
+Eq.~\eqref{eq:gp-conditional-mean} to the block multivariate covariance would,
+however, produce a known horizon--source--time forecasting function and its
+exact Jacobian. LMC-Synth is therefore a useful stochastic complement to the
+thesis's sparse recurrence generators.
+

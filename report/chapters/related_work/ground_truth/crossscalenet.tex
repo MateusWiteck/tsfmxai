@@ -1,0 +1,89 @@
+\subsubsection{Learning Temporal Saliency for Time Series Forecasting with Cross-Scale Attention}
+
+\citet{delibasoglu2025crossscale} propose eight synthetic forecasting datasets,
+SYN1--SYN8, with predefined relevant feature sets and lag regions. The designs
+cover recent contiguous windows, scattered lags, distant windows, and mixtures
+of temporal scales. As in the structural-support benchmarks above, the
+declared feature--lag locations provide a binary \emph{support} reference:
+a location is relevant when used by the synthetic generator. For example, SYN1 assigns
+relevance to features 0 and 1 over lags 1--15,
+whereas SYN5 assigns relevance to features 1 and 2 over the distant lag window
+71--77. The target is constructed from the designated inputs with added
+Gaussian noise, which makes the selected regions available as ground-truth
+temporal and feature--time saliency. The ground-truth saliency heatmaps in
+Figs.~8--9 also show varying color intensity. The binary support inferred from
+Table~1 captures membership in the relevant regions, while those plotted colors
+contain an additional visual intensity dimension. The paper writes each input
+window chronologically and labels its plotted columns $0,\ldots,L-1$, from the
+oldest displayed point to the latest. Thus column 0 is an array position at the
+old end of the window, whereas the latest input is column $L-1$ and becomes
+$\tau=0$ on the common relative-time axis. The paper describes small values in
+its separate ``Important Lags'' field as recent; because the synthetic
+generation equation and code are absent from the available paper and
+repository, an exact algebraic mapping from those lag labels to plot columns
+remains unspecified.
+
+\paragraph{Original synthetic-dataset table.}
+Table~\ref{tab:crossscale-datasets-exact} reproduces Table~1 of
+\citet{delibasoglu2025crossscale}. The source text defines ``Target Noise
+level'' as the standard deviation of the Gaussian noise added to the target
+$y$. The asterisk attached to SYN8 is retained exactly as displayed in the
+source table.
+
+\begin{table}[htbp]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.08}
+\caption{Exact transcription of Table~1 in
+\citet{delibasoglu2025crossscale}: characteristics of synthetic datasets.}
+\label{tab:crossscale-datasets-exact}
+\begin{tabular}{@{}
+>{\raggedright\arraybackslash}p{0.11\textwidth}
+>{\centering\arraybackslash}p{0.45\textwidth}
+>{\centering\arraybackslash}p{0.18\textwidth}
+>{\centering\arraybackslash}p{0.15\textwidth}@{}}
+\toprule
+Dataset & Important lags & Important Features & Target Noise level \\
+\midrule
+SYN1 & 1--15 & $\{0,1\}$ & 0.01 \\
+SYN2 & 1--5, 9--10, 15--16, 18, 20, 25--26, 35--36, 50--52, 91--95
+     & $\{0,2\}$ & 0.05 \\
+SYN3 & 9--10, 15--16, 18, 20--25, 31, 34, 60--65
+     & $\{1,2\}$ & 0.08 \\
+SYN4 & 9--10, 15--16, 18--21, 41--42, 45--46
+     & $\{1,2\}$ & 0.10 \\
+SYN5 & 71--77 & $\{1,2\}$ & 0.06 \\
+SYN6 & 48--57 & $\{0,2\}$ & 0.05 \\
+SYN7 & 60, 62--69 & $\{0,1\}$ & 0.02 \\
+SYN8$^{*}$ & mixture of SYN5 and SYN6 & $\{0,1,2\}$ & 0.11 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{How CrossScaleNet is evaluated.}
+On SYN1--SYN8, Figs.~8--9 of \citet{delibasoglu2025crossscale} place the
+intrinsic temporal-attention maps of CrossScaleNet and baseline models beside
+the known saliency regions. This direct synthetic-ground-truth comparison is
+visual, with mask-overlap and ranking scores left untabulated.
+Figure~5 additionally shows synthetic feature-importance scores obtained
+through post-hoc Feature Ablation and Integrated Gradients. Those plots check
+whether the models identify the known important \emph{features}, complementing
+the temporal maps, and the synthetic explanation comparison remains graphical.
+Forecast quality is measured separately by MSE
+and MAE (Fig.~4).
+
+For real Electricity and PM2.5 data, Table~4 reports sufficiency (lower is
+better) and comprehensiveness (higher is better) at 10\%, 20\%, and 50\%
+selected time-step ratios. These are perturbation-based model-faithfulness
+comparisons on datasets without a known generating explanation. Figures~6--7
+also compare attention maps visually with post-hoc ShapTime on real examples.
+The paper and its official repository provide the reported
+sufficiency/comprehensiveness values, while the masking baseline and
+forecast-distance calculation remain underspecified for exact
+numerical implementation from these sources alone.\footnote{Official
+repository linked by the paper: \url{https://github.com/mribrahim/LMS-TSF}.}
+Thus, the synthetic reference specifies \emph{where} relevant information
+occurs in the input history, while the other tests assess model behavior
+without requiring a known generator.
+

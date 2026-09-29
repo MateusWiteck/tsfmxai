@@ -1,0 +1,486 @@
+\section{Research Plan}
+
+\subsection{Scope of the November 2026 minimum viable benchmark}
+
+The target for 30 November 2026 is a tested Python library rather than a
+single experiment script. Its minimum viable release will (i) sample valid
+discrete-time formulas, (ii) execute them to generate reproducible datasets,
+(iii) derive several explanation ground truths from the retained formulas,
+(iv) accept forecasting models through a small adapter interface, and
+(v) produce comparable forecasting and explanation reports. The first release
+will prioritize deterministic autoregressive, cross-variable, nonlinear, and
+irrelevant-input mechanisms. Regime switching and stochastic mechanisms will
+enter the release only after the deterministic path passes its validation
+tests, because they introduce additional questions about state labels,
+innovation terms, and the object to be explained.
+
+The first stochastic generator will use additive zero-mean Gaussian
+innovations with a sampled scale. This initial restriction makes the expected
+error distribution explicit and testable. Additional innovation families,
+including heavy-tailed, heteroscedastic, and regime-dependent noise, will be
+considered after the Gaussian generator and its evaluation interface pass the
+validation gates.
+
+The intended dependency order is
+\[
+\boxed{
+\begin{gathered}
+\text{formula AST}
+\longrightarrow
+\text{executable generator}
+\longrightarrow
+\text{time-series dataset}
+\\[1mm]
+\Downarrow
+\\[1mm]
+\text{explanation ground truths}
+\longrightarrow
+\text{model adapters}
+\longrightarrow
+\text{evaluation}
+\end{gathered}
+}.
+\]
+Consequently, model experiments do not begin before both the observations and
+their references can be generated and checked. A lightweight software
+interface is specified early so that the generator does not become tied to one
+forecasting package, but the interface is exercised on real models only after
+the ground-truth layer is complete.
+
+\subsection{Formula sampler}
+
+Following the expression-first strategy of \citet{dascoli2022deep}, the
+sampler will first create an abstract syntax tree (AST) and only then execute
+it. Let $\mathcal E$ denote a valid symbolic expression, either the complete
+right-hand side of a recurrence or one of its subexpressions. A minimal
+recursive grammar is
+\[
+\begin{aligned}
+\mathcal E ::= {}& c
+&& \text{sampled constant,}\\
+&\mid \operatorname{LAG}(j,\ell)
+&& \text{series $j$ observed $\ell$ steps earlier,}\\
+&\mid \operatorname{ADD}(\mathcal E_1,\mathcal E_2)
+&& \text{sum of two valid expressions,}\\
+&\mid \operatorname{MUL}(\mathcal E_1,\mathcal E_2)
+&& \text{product of two valid expressions,}\\
+&\mid \operatorname{UNARY}_{\varphi}(\mathcal E_1)
+&& \text{unary function applied to one expression,}
+\end{aligned}
+\qquad \ell\geq 1.
+\]
+The symbol $\mathcal E$ is therefore a grammar non-terminal: it is a
+placeholder for any expression that can be constructed by repeatedly applying
+these rules. The symbols $\mathcal E_1$ and $\mathcal E_2$ are child
+expressions constructed by the same grammar, $c$ is a sampled constant, $j$
+identifies a source series, and $\varphi$ is selected from a controlled set of
+safe unary functions.
+
+For example, the symbolic tree
+\[
+\begin{aligned}
+\mathcal E={}&\operatorname{ADD}\!\bigl(
+    \operatorname{MUL}(0.7,\operatorname{LAG}(1,1)),\\
+&\hspace{38mm}\operatorname{SIN}(\operatorname{LAG}(1,3))
+\bigr)
+\end{aligned}
+\]
+is executed as the recurrence
+\[
+x_{1,t}=0.7x_{1,t-1}+\sin(x_{1,t-3}).
+\]
+Extensions will add explicit interaction, regime, multiscale, and innovation
+nodes. The AST is retained alongside every series as the canonical description
+of the mechanism; a rendered equation is a human-readable view of that same
+object.
+
+The sampler must control tree depth, operator counts, admissible domains,
+maximum lag, coefficient ranges, and duplicated or inactive branches. Candidate
+formulas are rejected when short pilot simulations diverge, collapse to an
+almost constant series, produce non-finite values, or fail to use the sampled
+dependencies. Each accepted formula is serialized with its seed and complete
+parameter record so that it can be reconstructed exactly.
+
+\subsection{Series generation and dataset contract}
+
+For target series $k$, the AST is compiled into an executable recurrence
+\[
+x_{k,t}=g_{k,1}\!\left(x_{:,t-1},\ldots,x_{:,t-L};\theta\right)
+       +\varepsilon_{k,t}.
+\]
+Initial conditions are sampled first, a burn-in interval is discarded, and the
+remaining observations are divided chronologically into training, validation,
+and test windows. The generator records the formula, coefficients, initial
+conditions, innovations, regime sequence when applicable, seeds, window
+boundaries, and temporal convention. This metadata distinguishes the process
+that generated the observations from the input window later presented to a
+model.
+
+Multi-step reference outputs are produced by recursively executing the known
+generator. Thus $g_{k,h}$ denotes the output at horizon $h$ after unrolling the
+one-step recurrence $h$ times. The benchmark will expose the same sample through
+a canonical batch containing observed history, optional known future
+covariates, target values, horizon, masks, and metadata. An adapter may transform
+that batch into a package-specific dataframe or tensor, but it cannot silently
+change which information the model receives.
+
+\subsection{Explanation ground truths}
+
+Only after an accepted formula and its observations exist does the library
+derive explanation references. One generated example can expose four
+compatible views:
+
+\begin{enumerate}
+    \item a binary source--lag support extracted from the AST and, for
+    $h>1$, from the recursively unrolled dependency graph;
+    \item signed coefficients for mechanisms whose effect is represented by a
+    coefficient, together with realized coefficient--input terms;
+    \item a local gradient reference
+    \[
+    G^{\mathrm{grad}}_{n,h,j,d}
+      =\frac{\partial g_{k,h}(x_n)}
+             {\partial x_{j,\tau-d}},
+    \]
+    computed by automatic differentiation when the sampled operators are
+    differentiable and checked against finite differences; and
+    \item generator-level Shapley values obtained by evaluating the executable
+    generator under feature coalitions and a declared conditional resampling
+    rule; when the benchmark declares a hierarchy of player groups, the same
+    game also yields Owen values that respect that grouping.
+\end{enumerate}
+
+The raw gradient measures local sensitivity. A baseline-relative
+gradient--input quantity,
+$(x_{j,\tau-d}-b_{j,d})G^{\mathrm{grad}}_{n,h,j,d}$, may also be stored, but it
+will be named separately because it is a contribution heuristic rather than a
+Shapley value. Comparisons remain within the same explanation family: a model
+gradient is compared with the generator gradient, while a model SHAP
+explanation is compared with the generator SHAP reference. Exact Shapley
+enumeration will validate small cases; permutation sampling and caching will be
+used when the number of players makes enumeration impractical.
+
+\subsection{Model-independent evaluation layer}
+
+The public boundary of the benchmark is a \texttt{ForecastAdapter}. Every
+adapter declares its input capabilities and implements fitting, prediction,
+and, when available, access to an intrinsic mechanism or differentiable model.
+The evaluator will therefore distinguish three cases:
+
+\begin{itemize}
+    \item every adapter can be evaluated for forecast accuracy;
+    \item any callable predictor can receive model-agnostic perturbation or
+    finite-difference explanations;
+    \item mechanism-recovery metrics are computed only when a method exposes a
+    generator-compatible structure, equation, coefficient tensor, or other
+    explicit mechanism. Unsupported cells are reported as not applicable, not
+    as zero performance.
+\end{itemize}
+
+The initial integration set comprises Chronos-2
+\citep{ansari2025chronos2}, Toto 2.0 from Datadog
+\citep{khwaja2026toto2}, AutoARIMA \citep{hyndman2008auto}, and, as an
+optional explainable-by-design baseline, DCIts \citep{baric2026dcits}. The
+planning name ``Kronos-2'' is normalized here to \emph{Chronos-2}; Kronos is a
+different foundation model specialized for financial-market sequences.
+Chronos-2 and Toto 2.0 are evaluated as pretrained forecasters through their
+adapters. AutoARIMA is evaluated first with target-only history; a separate
+ARIMAX configuration can later receive declared exogenous variables. DCIts
+provides a learned transition tensor rather than a symbolic equation, so its
+native coefficients can be compared with compatible generator references.
+
+Forecast metrics will include MAE, RMSE, and MASE. Structural recovery will use
+precision, recall, and F1 over source--lag support. Coefficient recovery will
+use signed error and sign agreement when such coefficients exist. Local
+explanation comparisons will include normalized attribution error, rank
+correlation, top-$q$ overlap, and sign agreement. All results will retain the
+instance, target, horizon, source variable, lag, operator family, formula
+complexity, and random seed required for stratified analysis.
+
+\subsection{Validation gates}
+
+The release is accepted only if (i) AST parsing and serialization round-trip
+without changing a formula, (ii) seeded generation is reproducible, (iii)
+hand-derived support, coefficient, contribution, gradient, and small Shapley
+examples match the implementation, (iv) one-step and recursively unrolled
+horizon references are separated, (v) all model adapters receive the declared
+input only, and (vi) the complete pipeline runs from configuration file to
+tables without notebook-only state. These gates protect the benchmark from
+producing precise-looking metrics for an incorrectly represented mechanism.
+
+\subsection{Weekly plan}
+
+Table~\ref{tab:weekly-plan} places formula and series generation before the
+explanation layer, and places the model study after both. Each week ends in a
+testable artifact rather than an open-ended research activity.
+
+Figure~\ref{fig:research-plan-gantt} presents the same plan as a dependency-aware
+Gantt chart. Solid arrows mark hard gates. The dashed region identifies work
+that can proceed in parallel once the executable generator has passed its first
+validation gate; the adapter contract begins earlier from the frozen data
+contract, but its implementation converges with the dataset and explanation
+branches before model integration.
+
+\begin{landscape}
+\begin{figure}[H]
+    \centering
+    \resizebox{0.98\linewidth}{!}{%
+        \input{figures/manual/research_plan_gantt}%
+    }
+    \caption{Dependency-aware Gantt plan for the benchmark release on
+    30 November 2026. The explanation-ground-truth branch explicitly covers
+    binary source--lag support, signed coefficients and realized local terms,
+    automatic-differentiation gradients and gradient--input values, and
+    generator-level Shapley values or Owen values for grouped players. Exact
+    coalition enumeration is used for small games and permutation estimation
+    for larger games.}
+    \label{fig:research-plan-gantt}
+\end{figure}
+\end{landscape}
+
+\begin{landscape}
+\begin{figure}[H]
+    \centering
+    \resizebox{0.77\linewidth}{!}{%
+        \input{figures/manual/project_dependency_graph}%
+    }
+    \caption{Overall technical dependency graph for the project.  The retained
+    symbolic mechanism drives trajectory generation, difficulty characterization,
+    and structural, differential, and coalition-based explanation references.  The
+    resulting API supports two consumers: synthetic pretraining priors and a
+    model-agnostic benchmark with capability-aware forecast, mechanism-recovery,
+    and explanation evaluation.}
+    \label{fig:project-dependency-graph}
+\end{figure}
+\end{landscape}
+
+\begingroup
+\small
+\setlength{\LTpre}{0.4\baselineskip}
+\setlength{\LTpost}{0.7\baselineskip}
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.14\textwidth}
+>{\raggedright\arraybackslash}p{0.25\textwidth}
+>{\raggedright\arraybackslash}p{0.28\textwidth}
+>{\raggedright\arraybackslash}p{0.25\textwidth}@{}}
+\caption{Dependency-aware schedule for a usable benchmark by 30 November 2026.}
+\label{tab:weekly-plan}\\
+\toprule
+Dates & Main work & Deliverable & Acceptance criterion \\
+\midrule
+\endfirsthead
+\multicolumn{4}{@{}l}{\small\emph{Table~\thetable\ continued}}\\
+\toprule
+Dates & Main work & Deliverable & Acceptance criterion \\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r@{}}{\small\emph{Continued on the next page}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+
+21--27 Sep. &
+Freeze temporal semantics, AST schema, operator registry, and configuration
+contract. &
+Grammar specification, Python types, and hand-written reference formulas. &
+At least 30 representative formulas parse, serialize, and preserve their
+source--lag identities. \\
+
+28 Sep.--4 Oct. &
+Implement constrained random AST sampling and formula rejection filters. &
+Seeded formula sampler with complexity and operator labels. &
+A batch of 10,000 candidates is reproducible; every accepted formula is
+causal, finite in pilot execution, and reconstructible from metadata. \\
+
+5--11 Oct. &
+Compile ASTs and implement initial conditions, burn-in, recursive simulation,
+and multivariate output. &
+Executable deterministic generator and unit tests. &
+Repeated seeds reproduce identical series; simple AR, cross-lag, and nonlinear
+examples match hand calculations. \\
+
+12--18 Oct. &
+Create dataset splits and controlled families for interactions, irrelevant
+variables, lag ranges, and temporal scales. &
+Versioned dataset factory and data cards. &
+Every sample links back to one formula; leakage checks pass and all information
+available to a model is recorded explicitly. \\
+
+19--25 Oct. &
+Extract structural support, signed coefficients where defined, realized local
+terms, and horizon-unrolled dependencies. &
+First ground-truth API and visual sanity reports. &
+Hand-derived one-step and multi-step examples match the stored masks and
+values exactly. \\
+
+26 Oct.--1 Nov. &
+Implement generator gradients and baseline-relative gradient--input outputs. &
+Gradient reference module indexed by instance, horizon, variable, and lag. &
+Autodiff agrees with central finite differences on smooth formulas; undefined
+or non-smooth cases are flagged rather than silently scored. \\
+
+2--8 Nov. &
+Implement coalition construction, dependency-aware resampling, exact small
+Shapley cases, and permutation estimates. &
+Generator SHAP reference module with uncertainty and sampling metadata. &
+Exact and sampled results agree within a declared tolerance on small formulas,
+and efficiency is checked whenever the chosen game satisfies it. \\
+
+9--15 Nov. &
+Implement adapter protocols, forecast/mechanism/explanation metrics, capability
+checks, and result schema. &
+End-to-end library pipeline using naive and oracle test adapters. &
+One configuration produces datasets, references, predictions, explanations,
+and stratified tables without notebook state. \\
+
+16--22 Nov. &
+Integrate Chronos-2, Toto 2.0, and target-only AutoARIMA; add DCIts if the core
+path remains on schedule. &
+Model adapters and a common pilot experiment. &
+Every model sees the documented context and horizon; unsupported mechanism
+metrics are marked not applicable. \\
+
+23--29 Nov. &
+Run the comparison matrix; analyze error by operator, lag range, horizon,
+interaction, and irrelevant-variable count; finish tests and documentation. &
+Release candidate, examples, metric tables, and reproducibility manifest. &
+A clean environment can reproduce the principal tables from one command and
+all mandatory tests pass. \\
+
+30 Nov. &
+Freeze and archive version 0.1.0. &
+Installable package, tagged configuration set, generated artifacts, and usage
+example. &
+The release checklist and a full smoke test pass from installation through
+report export. \\
+\end{longtable}
+\endgroup
+
+\subsection{Final goal: using the benchmark as a library}
+
+The final user should configure a generator once and evaluate multiple models
+without changing the data-generation or scoring code. Listing~\ref{lst:final-api}
+illustrates the intended public API. The adapter classes belong to the proposed
+library; internally, they translate the canonical benchmark batch to the
+official input expected by each external package.
+
+\begin{lstlisting}[language=Python,caption={Intended end-state API for generating one benchmark and evaluating the prioritized models.},label={lst:final-api}]
+from tsxai_benchmark import Benchmark, GeneratorSpec
+from tsxai_benchmark.ground_truth import (
+    StructuralSupport,
+    SignedCoefficients,
+    LocalContributions,
+    GeneratorGradient,
+    GradientInput,
+    GeneratorShapley,
+)
+from tsxai_benchmark.models import (
+    Chronos2Adapter,
+    Toto2Adapter,
+    AutoARIMAAdapter,
+    DCItsAdapter,
+)
+from tsxai_benchmark.xai import InputGradient, PermutationSHAP
+
+# 1. Sample formulas, execute them, and retain every mechanism.
+benchmark = Benchmark.generate(
+    GeneratorSpec(
+        n_formulas=500,
+        series_length=1024,
+        context_length=256,
+        horizon=24,
+        max_lag=48,
+        operators=["add", "multiply", "sin", "square"],
+        include_irrelevant_variables=True,
+        seed=42,
+    ),
+    ground_truths=[
+        StructuralSupport(unroll_horizon=True),
+        SignedCoefficients(when_defined=True),
+        LocalContributions(),
+        GeneratorGradient(),
+        GradientInput(baseline="training_mean"),
+        GeneratorShapley(
+            masker="generator_conditional",
+            permutations=512,
+        ),
+    ],
+)
+
+# 2. Model-specific details are isolated inside adapters.
+models = [
+    Chronos2Adapter(model_id="amazon/chronos-2"),
+    Toto2Adapter(model_id="Datadog/Toto-2.0-22m"),
+    AutoARIMAAdapter(
+        season_length=24,
+        input_mode="target_only",
+    ),
+    # Optional explainable-by-design baseline.
+    DCItsAdapter(context_length=48),
+]
+
+# 3. Like is compared with like: gradients with gradients,
+#    and SHAP values with generator-level Shapley values.
+report = benchmark.evaluate(
+    models=models,
+    explainers={
+        "gradient": InputGradient(fallback="finite_difference"),
+        "shap": PermutationSHAP(
+            masker=benchmark.conditional_sampler,
+            permutations=512,
+        ),
+    },
+    forecast_metrics=["mae", "rmse", "mase"],
+    mechanism_metrics=["support_f1", "coefficient_error"],
+    explanation_metrics=[
+        "normalized_error",
+        "rank_correlation",
+        "top_k_f1",
+        "sign_accuracy",
+    ],
+)
+
+# 4. Diagnose which mechanisms are difficult for each model.
+table = report.table(
+    groupby=["model", "operator", "lag_band", "horizon"]
+)
+table.to_csv("results/by_mechanism.csv", index=False)
+\end{lstlisting}
+
+The evaluator consults each adapter's capability record. Forecast metrics apply
+to all four models. Model-level gradient and SHAP comparisons apply when the
+selected explainer can query the fitted predictor. Direct mechanism recovery
+applies to DCIts and to future symbolic system-identification adapters that
+return an explicit compatible object; it is not imputed for Chronos-2 or Toto
+2.0. AutoARIMA's selected orders and coefficients are stored for analysis, but
+they are interpreted against the generator only under a declared compatible
+linear setting.
+
+A new forecasting model is added by implementing the same narrow contract:
+
+\begin{lstlisting}[language=Python,caption={Minimal extension point for an arbitrary forecasting model.}]
+class MyModelAdapter(ForecastAdapter):
+    capabilities = {
+        "multivariate": True,
+        "known_future_covariates": False,
+        "native_mechanism": False,
+        "autograd": False,
+    }
+
+    def fit(self, train_batch):
+        self.model.fit(train_batch.history, train_batch.targets)
+        return self
+
+    def predict(self, context_batch, horizon):
+        return self.model.forecast(context_batch.history, horizon=horizon)
+
+report = benchmark.evaluate(models=[MyModelAdapter()])
+\end{lstlisting}
+
+This boundary is the practical final goal: formula generation, dataset
+construction, reference explanations, metrics, and stratification remain fixed,
+while only the adapter changes. The resulting report can then show not merely
+which model forecasts best, but which operators, lag structures, horizons, and
+interaction patterns each model uses or fails to recover.
+

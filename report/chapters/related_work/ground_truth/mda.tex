@@ -1,0 +1,138 @@
+\subsubsection{Multidimensional Dynamic Attention (MDA)}
+
+\citet{almaghrabi2024multidimensional} construct two synthetic forecasting
+systems to evaluate whether multidimensional dynamic attention recovers the
+lagged variables used by the target equation. The two systems deliberately
+pose different identification problems.
+
+\paragraph{Toy1: controlled relevance with independent inputs.}
+Toy1 contains six predictor series sampled independently from uniform ranges:
+$x_1\in[2,5]$, $x_2\in[10,30]$, $x_3\in[5,10]$, $x_4\in[30,70]$,
+$x_5\in[100,200]$, and $x_6\in[65,85]$. From these predictors, the paper
+generates 20,000 target samples with
+
+\begin{equation}
+    y_t
+    = x_{1,t-1}x_{2,t-2}
+    + x_{3,t-5}
+    + \sum_{\ell\in\{1,4,5,7,8\}}x_{4,t-\ell}
+    + \varepsilon_t,
+\end{equation}
+
+where $\varepsilon_t$ is Gaussian white noise with mean zero and standard
+deviation 0.1 (paper Eq.~15). The exact relevant locations are $x_1$ at lag 1,
+$x_2$ at lag 2, $x_3$ at lag 5, and $x_4$ at lags 1, 4, 5, 7, and 8. The
+product $x_{1,t-1}x_{2,t-2}$ also tests whether the explanation identifies both
+participants in a nonlinear interaction. Variables $x_5$ and $x_6$ are
+deliberately included as irrelevant predictors. Thus, the reported $V=7$
+counts six predictors plus the target series $y$. Historical values of $y$ can
+therefore be supplied to the forecaster even though they are not explicit terms
+of paper Eq.~15; the experiment uses an input length of 20 and predicts eight
+future target values.
+
+\paragraph{Toy2: relevance within chaotic time-dependent inputs.}
+Toy2 replaces the independently sampled predictors with four independently
+generated Mackey--Glass series. These inputs have their own nonlinear delayed
+temporal dynamics. The paper uses the parameter triples $(\beta,\gamma,\tau)$
+$x_1=(0.1,0.2,17)$, $x_2=(0.2,0.3,17)$, $x_3=(0.1,0.2,20)$, and
+$x_4=(0.2,0.4,5)$, and then generates the target through
+
+\begin{equation}
+    y_t
+    = x_{1,t-2}x_{2,t-6}
+    + x_{3,t-4}
+    + x_{4,t-1}x_{4,t-2}
+    + \varepsilon_t,
+\end{equation}
+
+which is paper Eq.~16. Its binary reference marks $x_1$ at lag 2, $x_2$ at
+lag 6, $x_3$ at lag 4, and $x_4$ at lags 1 and 2. All four predictor series
+participate in the target equation; unlike Toy1, Toy2 has no deliberately
+irrelevant predictor among $x_1,\ldots,x_4$. The two products introduce two
+interactions, including an interaction between two lags of the same series
+$x_4$. Here $V=5$ counts the four Mackey--Glass predictors plus $y$; the longer
+input window contains 60 values and the model predicts 20 future target values.
+In the discussion of Fig.~8, the authors call the target the fifth series
+$x_5$ and state that its lagged values are also model inputs. Those target lags
+may be predictively useful because of temporal dependence, but they are not
+explicit driver terms in the structural reference obtained from Eq.~16.
+
+The central distinction is therefore that Toy1 tests sparse lag recovery and
+suppression of irrelevant variables when the predictors themselves are
+independently sampled, whereas Toy2 tests lag recovery in predictor series that
+already contain chaotic delayed dynamics, using a longer input window and
+forecast horizon. Toy1 contains eight relevant variable--lag locations and two
+irrelevant variables; Toy2 contains five relevant variable--lag locations and
+uses every predictor, although all remaining variable--lag locations are still
+irrelevant.
+
+For both equations, $t$ denotes the target time. The latest available input for
+the one-step target $y_t$ is at $t-1$: this is $x_{1,t-1}$ and $x_{4,t-1}$ in
+Toy1, and $x_{4,t-1}$ in Toy2. With forecast origin $\tau=t-1$, those samples
+have relative position 0, while $t-2$ has relative position $-1$. For a later
+forecast step, the same generator lags shift by one position in the fixed input
+window for every additional step into the horizon.
+
+Both equations yield a binary structural reference over the variable--lag
+grid: every location occurring in the applicable target equation is relevant,
+and every other location is irrelevant. The reference records participation,
+including both inputs of each multiplicative term, but does not assign a signed
+local contribution magnitude. SHAPformer's reference instead assigns a signed
+local contribution to every component and forecast step.
+
+\paragraph{Original dataset-configuration table.}
+Table~\ref{tab:mda-dataset-settings-exact} reproduces Table~4 of
+\citet{almaghrabi2024multidimensional}. The two synthetic datasets are
+$Toy_1$ and $Toy_2$; NSW, QLD, and Pollution are the three real datasets listed
+in the same source table. The generating mechanisms for $Toy_1$ and $Toy_2$
+are supplied separately by Eqs.~15--16 of the paper, while this table fixes the
+input length, output horizon, and number of variables used in the experiments.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Exact transcription of Table~4 in
+\citet{almaghrabi2024multidimensional}: summary of the length of input data
+($X$), the length of predicted output data ($Y$), and the number of variables
+($V$) in the input sequence for each dataset.}
+\label{tab:mda-dataset-settings-exact}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Dataset & $Toy_1$ & $Toy_2$ & NSW & QLD & Pollution \\
+\midrule
+$\operatorname{len}(X)$ & 20 & 60 & 27 & 54 & 48 \\
+$\operatorname{len}(Y)$ & 8  & 20 & 27 & 27 & 24 \\
+$V$                     & 7  & 5  & 14 & 14 & 8  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{How MDA is evaluated.}
+The final feature--time score for forecast step $h$ is the elementwise product
+of variable and temporal attention scores,
+$\alpha^{\mathrm{c}}_{h,j,\ell}
+=\alpha^{\mathrm{va}}_{h,j,\ell}\alpha^{\mathrm{ta}}_{h,j,\ell}$
+(Eq.~12 of \citet{almaghrabi2024multidimensional}). The authors plot these
+scores for Toy1 at $h=1,2,4$ (Fig.~7) and Toy2 at $h=2,20$ (Fig.~8), alongside
+RF, MAFS, and TFT. They inspect whether high weights coincide with known
+variable--lag locations, whether the deliberately irrelevant Toy1 variables
+$x_5,x_6$ receive little weight, and whether the location changes with $h$
+as expected from the equation. This is a visual comparison of continuous
+scores with known structural support; precision, recall, F1, correlation, and
+other numerical attention-to-ground-truth errors lie outside the reported
+evaluation. The
+multiplicative Toy1 term establishes that $x_{1,t-1}$ and $x_{2,t-2}$ both
+belong to the reference support; the plots treat them as two relevant locations
+and leave recovery of their interaction effect unquantified.
+
+Separately, MAE and RMSE compare predicted and observed target values
+(Eqs.~17--18; Table~5); attention agreement is assessed through the maps above.
+The architecture
+ablation removes variable attention, temporal attention, or dynamic
+representation learning and compares forecasting MAE/RMSE (Table~6).
+In the official implementation, these metrics are computed after selecting
+the last forecast step from each predicted sequence; the explanation evaluation
+therefore remains map-based.\footnote{Official MDA code:
+\url{https://github.com/sarah-almaghrabi/MDA-Multidimensional-Dynamic-Attention};
+the horizon selection is in \texttt{main.py}.}
+

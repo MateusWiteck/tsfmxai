@@ -1,0 +1,321 @@
+\section*{Meaning of the notation}
+
+The papers reviewed below reuse some letters for different internal
+quantities. To make the comparison unambiguous, this chapter adopts the common
+notation in Table~\ref{tab:notation}. Every displayed equation is restated with
+this notation, even when the cited paper uses different letters. For temporal
+comparisons, $\tau$ is the common forecast origin (the latest observed sample)
+and $d$ is a backward offset from that origin. Setting $\tau=0$ therefore puts
+the latest observed value at relative time $0$, the preceding values at
+$-1,-2,\ldots$, and the first forecast at $+1$. The paper-specific rows in the
+table translate each original convention to this common axis. The other index
+roles remain fixed throughout: $k$ denotes a target series, $j$ a source
+series, $h$ a forecast horizon, $i$ an explained SHAP component, $n$ a test
+example, and $r$ a training run. Superscripts distinguish quantities that the
+original papers denote by the same Greek letter; for example, attention
+coefficients and DCIts transition coefficients are written as
+$\alpha^{\mathrm{att}}$ and $\alpha^{\mathrm{DCI}}$, respectively. These
+superscripts clarify the cross-paper comparison without changing the
+underlying definitions.
+
+\begingroup
+\small
+\setlength{\LTpre}{0.4\baselineskip}
+\setlength{\LTpost}{0.7\baselineskip}
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.24\textwidth}
+>{\raggedright\arraybackslash}p{0.69\textwidth}@{}}
+\caption{Common notation and time-origin conventions used across the reviewed
+benchmarks.}
+\label{tab:notation}\\
+\toprule
+Symbol & Meaning \\
+\midrule
+\endfirsthead
+\multicolumn{2}{@{}l}{\small\emph{Table~\thetable\ continued}}\\
+\toprule
+Symbol & Meaning \\
+\midrule
+\endhead
+\midrule
+\multicolumn{2}{r@{}}{\small\emph{Continued on the next page}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+
+$\tau$, $h$, $H$ &
+$\tau$ is the common forecast origin and latest observed time;
+$h\in\{1,\ldots,H\}$ is a forecast step; and $H$ is the complete forecast
+horizon. The forecasted time is $\tau+h$. On the relative axis $\tau=0$, the
+first unseen target is $h=1$, at time $+1$. \\
+
+$d$, $L$ &
+$d\in\{0,\ldots,L-1\}$ is the backward offset from the common origin and $L$
+is the input-window length. Thus $x_{j,\tau-d}$ denotes a historical input,
+with $d=0$ denoting the latest observed sample. \\
+
+$t$, $\ell$ &
+$t$ and $\ell$ reproduce the indexing used in a paper's own equation. In the
+target-time form $x_{j,t-\ell}\rightarrow x_{k,t}$, $\ell=1$ is the immediately
+preceding sample. For one-step prediction, $t=\tau+1$ and the common offset is
+$d=\ell-1$. Paper-specific uses of $t$ are listed below. \\
+
+$j$, $k$, $N$ &
+$j$ indexes a source or input series, $k$ indexes a target series, and $N$ is
+the number of series. \\
+
+$i$, $P$ &
+$i$ indexes one of the $P$ feature groups or components treated as players in
+the SHAP calculation. \\
+
+$n$, $m$; $r$, $R$ &
+$n$ indexes one of $m$ explained test examples; $r$ indexes one of $R$
+repeated training runs. \\
+
+$x$, $x^{(n)}$, $X$ &
+$x$ is a fixed forecasting input, $x^{(n)}$ is test example $n$, and $X$ is a
+random replacement input drawn by a background or dependency-aware sampler. \\
+
+$x_{j,\tau-d}$; $x_{j,t-\ell}$; $x_{k,t}$; $y_t$ &
+$x_{j,\tau-d}$ uses the common origin convention. $x_{j,t-\ell}$ uses the
+target-time convention in the Bari\'c and MDA generator equations;
+$x_{k,t}$ is target series $k$ at time $t$; and $y_t$ denotes a scalar target
+when a paper separates the target from its input series. \\
+
+$u_n$, $d_{\mathrm{rec}}$ &
+$u_n$ is term $n$ of a recurrent sequence and $d_{\mathrm{rec}}$ is the
+effective recurrence degree: the largest backward dependency allowed by the
+sampled expression. The subscript ``rec'' distinguishes recurrence degree from
+the common forecast-origin offset $d$. \\
+
+$\mathcal{T}$, $o$, $F_{\mathcal{T}}$ &
+$\mathcal{T}$ is a sampled unary--binary expression tree, $o$ is its number of
+operator nodes, and $F_{\mathcal{T}}$ is the recurrence function obtained by
+executing that tree. \\
+
+$\mathbf z$, $\mathbf h_v$, $\boldsymbol\pi_v$, $s_v$, $a(s_v)$ &
+$\mathbf z$ is a continuous latent code for an expression tree;
+$\mathbf h_v$ is the decoder state at tree node $v$;
+$\boldsymbol\pi_v$ is the predicted distribution over the symbol library;
+$s_v$ is the selected symbol; and $a(s_v)\in\{0,1,2\}$ is its arity. These
+symbols describe the hierarchical variational autoencoder of
+\citet{meznar2023efficient}. \\
+
+$e$, $\mathcal D$, $\mathcal H$; $\mathbf z_{\mathrm{num}}$,
+$\mathbf z_{\mathrm{hyp}}$, $\mathbf z_{\mathrm{fuse}}$ &
+$e$ is a symbolic expression; $\mathcal D=\{(\mathbf x_i,y_i)\}_{i=1}^{n}$ is
+its numerical support; and $\mathcal H$ is a tokenized set of structural
+hypotheses. In NSRwH, the numerical and hypothesis encoders produce
+$\mathbf z_{\mathrm{num}}$ and $\mathbf z_{\mathrm{hyp}}$, whose elementwise
+sum $\mathbf z_{\mathrm{fuse}}$ conditions expression decoding. \\
+
+$D_{\mathrm{ode}}$, $\mathbf x(t)$, $\mathbf f$, $\widehat{\mathbf f}$,
+$\Phi_{\mathbf f}$ &
+$D_{\mathrm{ode}}$ is the number of state variables in an ODE system;
+$\mathbf x(t)\in\mathbb R^{D_{\mathrm{ode}}}$ is its state;
+$\dot{\mathbf x}=\mathbf f(\mathbf x)$ is the sampled vector field; and
+$\widehat{\mathbf f}$ is the equation recovered from observations. The flow
+$\Phi_{\mathbf f}(\Delta;\mathbf x_0)$ is the state reached after elapsed time
+$\Delta$ by integrating $\mathbf f$ from initial condition $\mathbf x_0$. \\
+
+$M_{\mathrm{S^2}}$, $N_{\mathrm{S^2}}$, $T_{\mathrm{S^2}}$;
+$\mathbf X$, $\mathbf Y$, $\mathbf f_{\mathrm{S^2}}$ &
+$M_{\mathrm{S^2}}$ and $N_{\mathrm{S^2}}$ are the numbers of input and output
+channels in S$^2$Generator; $T_{\mathrm{S^2}}$ is the generated sequence
+length; $\mathbf X\in\mathbb R^{M_{\mathrm{S^2}}\times T_{\mathrm{S^2}}}$
+is the sampled temporal input; and
+$\mathbf Y=\mathbf f_{\mathrm{S^2}}(\mathbf X)\in
+\mathbb R^{N_{\mathrm{S^2}}\times T_{\mathrm{S^2}}}$ is the pointwise
+symbolic response. The S$^2$ subscripts prevent collision with the common
+series count $N$ and input-window length $L$. \\
+
+$\mathcal K$, $J_K$, $R_K$, $\kappa_r$, $\kappa_\star$ &
+$\mathcal K$ is a bank of Gaussian-process covariance kernels; $J_K$ is the
+maximum number selected for one synthetic series; $R_K$ is the sampled number;
+$\kappa_r$ is selected kernel $r$; and $\kappa_\star$ is their composite
+kernel. These symbols are used for KernelSynth and its descendants. \\
+
+$T_{\mathrm{syn}}$, $N_{\mathrm{lat}}$, $z_a(t)$,
+$\lambda_{j,a}$ &
+$T_{\mathrm{syn}}$ is the generated-series length; $N_{\mathrm{lat}}$ is the
+number of latent functions in LMC-Synth; $z_a(t)$ is latent function $a$; and
+$\lambda_{j,a}$ is its nonnegative mixing weight in observed channel $j$,
+with $\sum_a\lambda_{j,a}=1$. \\
+
+$P_{\mathrm{patch}}$, $D_{\mathrm{model}}$ &
+$P_{\mathrm{patch}}$ is the number of consecutive observations represented by
+one model token and $D_{\mathrm{model}}$ is the token-embedding dimension.
+The subscript distinguishes patch length from the $P$ SHAP feature groups
+defined above. \\
+
+$\mathbf x_C$, $\mathbf K_{CC}$, $\mathbf k_{hC}$,
+$\mu_{h\mid C}$ &
+$\mathbf x_C$ is an observed Gaussian-process context; $\mathbf K_{CC}$ is
+its covariance matrix under $\kappa_\star$; $\mathbf k_{hC}$ contains the
+covariances between future step $h$ and the context; and $\mu_{h\mid C}$ is
+the conditional predictive mean at that step. \\
+
+\addlinespace
+\multicolumn{2}{@{}l}{\textit{Time-origin convention in each reviewed paper}}\\
+\addlinespace
+
+SHAPformer (2026) &
+The task contains 168 observed hours followed by 168 forecast hours. In the
+authors' generator arrays, past positions are $0,\ldots,167$ and future
+positions are $168,\ldots,335$. Re-centering at raw position 167 gives
+$\tau=0$: raw position 167 is the latest observation, raw position 168 is
+$h=1$, and output-array position 0 also denotes $h=1$. \\
+
+Bari\'c et al. (2021) &
+The generator is written at the target time:
+$x_{k,t}\leftarrow x_{j,t-\ell}$. Hence $t-1$ is the latest available sample
+for predicting $t$. Under the common origin, $\tau=t-1$, so that sample is
+relative time 0 and the target $t$ is relative time $+1$; paper lag $\ell$
+maps to $d=\ell-1$. Zero-based heatmap columns are array positions rather than
+signed relative times. \\
+
+D'Ascoli et al. (2022) &
+The recurrence target is $u_n$ and its admissible historical leaves are
+$u_{n-i}$ for $i\in\{1,\ldots,d_{\mathrm{rec}}\}$. For a one-step forecast of
+$u_n$, the common origin is $\tau=n-1$: $u_{n-1}$ has relative position 0,
+$u_{n-2}$ has position $-1$, and $u_n$ is at $h=1$. \\
+
+Me\v{z}nar et al. (2023) &
+The paper's coordinate is the static input vector in expressions such as
+$y=f(x_1,\ldots,x_p)$. When adapted to this thesis, a leaf
+$\operatorname{LAG}(j,\ell)$ follows the
+common convention: $\ell=1$ is the latest value available for a one-step
+forecast and maps to $d=0$. \\
+
+Bendinelli et al. (2023) &
+NSRwH also learns static expressions $y=e(\mathbf x)$ from unordered numerical
+input--output pairs. A time-series adaptation would construct each row of
+$\mathbf x$ from lagged observations; under the common convention, a feature
+$\operatorname{LAG}(j,1)$ contains the latest observation at $d=0$. \\
+
+ODEFormer (2024) &
+The observations have continuous timestamps $t_i$. After selecting an origin
+$t_0$, the initial state $\mathbf x(t_0)$ lies at elapsed time $\Delta=0$ and
+future states lie at $\Delta=t-t_0>0$. The sampled tree defines the
+instantaneous derivative $\dot{\mathbf x}(t)$ at the current state; numerical
+integration converts that local law into an entire future trajectory. \\
+
+MDA (2024) &
+The synthetic equations also use target-time indexing:
+$y_t\leftarrow x_{j,t-\ell}$. Therefore the latest input is $t-1$ and becomes
+$\tau=0$ after setting $\tau=t-1$. The paper labels the first forecast as
+$h=1$; the implementation stores it at output-array index 0. \\
+
+CrossScaleNet (2025) &
+The input is written chronologically as $[x_1,\ldots,x_T]$, and the saliency
+figures use zero-based window positions $0,\ldots,L-1$: position 0 is the
+oldest displayed input and position $L-1$ the latest, which becomes $\tau=0$.
+Table~1 calls small important-lag numbers ``recent''. The paper and repository
+leave the exact synthetic generator equation unpublished, so the conversion
+between each lag label and each plotted column remains unspecified. \\
+
+S$^2$Generator and SymTime (2025) &
+The symbolic stage uses aligned timestamps:
+$y_{i,t}=f_i(x_{1,t},\ldots,x_{M_{\mathrm{S^2}},t})$. If an aligned sample is
+chosen as the origin, $\mathbf x_{\tau}$ and $\mathbf y_{\tau}$ both have
+relative time 0. Temporal lags belong to the separately sampled ARMA process
+that can generate an input channel $x_j$; the leaves of $f_i$ refer to current
+inputs $x_{j,t}$. \\
+
+DCIts (2026) &
+The paper anchors time at the end of the observed window:
+$Q_t=(X_t,X_{t-1},\ldots,X_{t-L+1})$ and predicts $X_{t+1}$. Thus the latest
+sample is already $t=\tau$ (relative time 0), and the target is $t+1$
+($h=1$). With the paper's one-based lag coordinate,
+$(Q_t)_{j,\ell}=x_{j,t-\ell+1}$; hence $\ell=1$ is the latest sample and maps
+to $d=0$. \\
+
+$g=(g_1,\ldots,g_H)$; $f$; $\widehat g$ &
+$g$ is the known synthetic generator and $g_h(x)$ its output at horizon $h$;
+$f$ is a forecaster learned from data generated by $g$; and $\widehat g$ is a
+symbolic mechanism identified independently from the generated observations. \\
+
+$S$, $\bar S$, $q(\cdot\mid x_S)$ &
+$S\subseteq\{1,\ldots,P\}$ is a coalition of retained components, $\bar S$ is
+its complement, and $q$ is the dependency-aware distribution used to resample
+the absent components conditional on the retained values. \\
+
+$v_{g,h}(S;x)$; $\phi_{i,h}(x)$; $G_i$ &
+$v_{g,h}$ is the expected generator output for coalition $S$ at horizon $h$;
+$\phi_{i,h}$ is the signed local SHAP contribution of component $i$; $G_i$ is
+its global absolute-importance percentage. \\
+
+$M^{\mathrm{GT}}_{k,j,\ell}$; $B^{\mathrm{GT}}_{k,j}$ &
+Binary generator-derived references: $M^{\mathrm{GT}}$ marks active
+target--source--lag entries and $B^{\mathrm{GT}}$ marks target--source edges
+after collapsing the lag axis. \\
+
+$\mathbb{I}[\cdot]$ &
+Indicator function: it equals 1 when the statement in brackets is true and 0
+otherwise. \\
+
+$b_k$, $c_{k,j,\ell}$, $\varepsilon_{k,t}$ or $\varepsilon_t$ &
+Generator bias, signed source--lag coefficient, and innovation or noise; the
+target index is omitted for a scalar target. \\
+
+$\odot$ &
+Elementwise (Hadamard) multiplication of arrays with compatible shapes. \\
+
+$\widehat{\mathcal E}_k$, $\widehat\ell_{k,j}$ &
+TCDF's retrieved directed source--target edges for target $k$ and the retrieved
+delay from source $j$. \\
+
+$\alpha^{\mathrm{att}}$, $\beta^{\mathrm{att}}$ &
+Temporal and source-variable attention quantities, respectively, in the
+seq2graph/IMV-LSTM discussion; both are nonnegative normalized weights. \\
+
+$\alpha^{\mathrm{va}}$, $\alpha^{\mathrm{ta}}$,
+$\alpha^{\mathrm{c}}$ &
+MDA variable-attention, temporal-attention, and combined feature--time scores;
+$\alpha^{\mathrm{c}}=\alpha^{\mathrm{va}}\odot\alpha^{\mathrm{ta}}$. \\
+
+$Q_t$, $F_t$, $C_t$, $\alpha^{\mathrm{DCI}}_t$;
+$(\alpha^{\mathrm{DCI}}_t)_{k,j,\ell}$ &
+DCIts input window, Focuser mask, signed Modeler tensor, and final signed
+transition tensor, with $\alpha^{\mathrm{DCI}}_t=C_t\odot F_t$; the indexed
+entry links source $j$ at lag $\ell$ to target $k$. In the paper's ordering,
+$(Q_t)_{j,\ell}=x_{j,t-\ell+1}$, so $\ell=1$ contains the latest observation
+$x_{j,t}$. \\
+
+$\bar\alpha^{\mathrm{DCI},(r)}_{k,j,\ell}$ &
+DCIts coefficient averaged over held-out windows within training run $r$; the
+bar and run superscript make the two aggregation levels explicit. \\
+
+$\mu_{k,j,\ell}$, $\sigma_{k,j,\ell}$,
+$I^{\mathrm{stable}}_{k,j,\ell}$ &
+Across-run mean, across-run standard deviation, and DCIts stability indicator
+for a reported transition coefficient. \\
+
+$\widetilde\beta^{\mathrm{DCI}}_{t,k,j}$,
+$\beta^{\mathrm{DCI}}_{t,k,j}$ &
+DCIts local absolute coefficient strength aggregated over lags and its
+source-wise normalized form; aggregation removes lag and sign. The index $t$
+is omitted when the same calculation is applied to a coefficient tensor that
+has already been averaged over held-out windows. \\
+
+$\mathcal M(g)$, $\mathcal M(\widehat g)$ &
+Comparable representations of the true and identified mechanisms, such as
+their source--target--lag support, signed coefficients, regimes, or symbolic
+terms. \\
+
+$E_g(x)$, $E_f(x)$, $E_{\widehat g}(x)$, $A(f,x)$ &
+Explanation of the known generator, model-level reference explanation of the
+trained forecaster, explanation of the independently identified symbolic
+model, and explanation estimated for $f$ by an XAI method, respectively. \\
+
+$d_y$, $d_{\mathcal M}$, $d_{\mathcal E}$ &
+Task-appropriate distances for outputs, mechanism representations, and
+explanations. Their concrete forms depend on the reference family: for
+example, MSE for forecasts, precision/recall for structural support, coefficient
+error for signed mechanisms, or attribution error and rank agreement for local
+explanations. \\
+
+\end{longtable}
+\endgroup
+

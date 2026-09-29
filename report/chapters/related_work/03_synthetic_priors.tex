@@ -1,0 +1,16 @@
+\subsection{Synthetic Priors for Time-Series Foundation Models}
+
+This subsection examines a second use of synthetic time series: constructing a
+large pretraining distribution for a forecasting foundation model. The central
+object in these works is a \emph{prior over possible series}. Sampling many
+independent mechanisms and trajectories exposes one model to a wider range of
+trends, seasonalities, correlations, regime changes, and noise processes than
+is available in a single real dataset. This objective complements the
+explanation benchmarks in Section~1.1: the same generator can provide training
+diversity, while a benchmark additionally retains the sampled mechanism and
+derives an explicit reference explanation from it.
+
+\input{chapters/related_work/synthetic_priors/kernelsynth_chronos2}
+\input{chapters/related_work/synthetic_priors/tempopfn_toto2}
+\input{chapters/related_work/synthetic_priors/timepfn_lmc_synth}
+\input{chapters/related_work/synthetic_priors/symtime_s2generator}

@@ -1,0 +1,102 @@
+\subsubsection{TempoPFN synthetic prior used by Toto 2.0}
+
+\paragraph{Terminological distinction.}
+Two similarly named works must be separated. \emph{TempoPFN}, by
+\citet{moroshan2025tempopfn}, is the synthetic-data method cited and used by
+Toto 2.0 \citep{khwaja2026toto2}. \emph{TimePFN}, by
+\citet{taga2025timepfn}, is a different multivariate forecasting model based on
+LMC-Synth; it is analyzed in the next subsection. Toto 2.0 consumes data from
+the TempoPFN prior, rather than the TimePFN/LMC-Synth corpus.
+
+\paragraph{How the TempoPFN prior generates series.}
+TempoPFN defines a portfolio of complementary generator families rather than
+one equation family \citep{moroshan2025tempopfn}. Adapted generators include
+ForecastPFN component compositions, KernelSynth, a broader GP prior, and
+CauKer structural causal models. New procedural families add sawtooth waves,
+piecewise-constant steps, anomaly and spike processes, configurable sine
+mixtures, and audio-inspired stochastic rhythms, financial volatility,
+network traffic, and multiscale fractal signals. Its most structured stochastic
+generator is a regime-switching, time-inhomogeneous Ornstein--Uhlenbeck process,
+
+\begin{equation}
+ d y_t
+ =\theta(t,r_t)\bigl(\mu(t,r_t)-y_t\bigr)\,dt
+  +\sigma(t,r_t)\,dW_t,
+\label{eq:tempopfn-ou}
+\end{equation}
+
+where the latent regime $r_t\in\{0,1\}$ follows a Markov chain. The mean-
+reversion speed, time-varying mean, and volatility can change between regimes
+and evolve through polynomial, sinusoidal, logistic, or piecewise-linear
+trends. Seasonal effects can modify the mean and volatility, and fractional
+Brownian motion can replace $W_t$ to introduce long memory.
+
+After a base trajectory is generated, an offline augmentation cascade expands
+the prior. It optionally normalizes the source, applies an early convex
+TS-Mixup, samples transformations from invariance, structure, seasonality,
+signal-processing, discrete-effect, and measurement-artifact categories,
+optionally applies random 1D convolution filters, performs a late TS-Mixup,
+and finishes with scaling and low-amplitude noise. Examples include time
+reversal, sign inversion, change points, shocks with exponential recovery,
+calendar effects, amplitude modulation, differentiation or integration,
+censoring, quantization, and resampling artifacts. An online stage injects
+missing-value patterns. Consequently, one stored trajectory may combine a
+sampled base mechanism with several independently recorded transformations.
+
+\paragraph{High-throughput data construction.}
+TempoPFN reports a corpus of approximately 10 million series with lengths up to
+2048. Most procedural generators run on CPU, while neural generators such as
+CauKer use a GPU. On the authors' dual 32-core AMD EPYC system, throughput for
+length-2048 series ranges from $0.32$ series/s for exact KernelSynth and $0.66$
+for CauKer to more than $100$ series/s for step, sine, anomaly, spike, and
+sawtooth generators. This heterogeneous architecture is deliberate: expensive
+GP/causal priors contribute structural richness, while inexpensive procedural
+priors supply volume. During training, the loader samples a total length from
+$\{128,256,512,1024,1536,2048\}$, favors length 2048, shortens by cutting or
+subsampling, and then samples a history--future split. Mixed batches therefore
+cover several mechanisms, context lengths, and forecast horizons.
+
+\paragraph{How Toto 2.0 uses this prior.}
+The Toto 2.0 report states that its base models are pretrained on 42.5\%
+Datadog observability data and 57.5\% TempoPFN synthetic data
+\citep{khwaja2026toto2}. The three larger models see 5.04 trillion points, of
+which 2.90 trillion are synthetic; the 4M- and 22M-parameter models see 3.40
+trillion points with the same proportions. The report identifies the
+TempoPFN method and its coverage of nonstationary trends, abrupt change points,
+and long-range dependencies. It reports the final mixture rather than an
+itemized count for each TempoPFN generator inside the Toto corpus.
+
+Toto 2.0 uses a decoder-only patched Transformer with patch size
+$P_{\mathrm{patch}}=32$. Transformer blocks alternate causal attention along
+time with full attention across variates. Contiguous patch masking replaces
+autoregressive patch generation: during training, the model reconstructs
+random contiguous masked spans; during inference, mask tokens occupy the
+complete future horizon and the Transformer predicts that horizon in one
+forward pass. A block-decoding mode remains available for very long horizons.
+The output head predicts nine quantiles and is trained with pinball loss.
+
+Three engineering choices support large-scale training. First, robust causal
+$\operatorname{asinh}$ normalization controls the extreme scales and spikes
+found in observability metrics. Second, NorMuon optimizes internal matrix
+parameters while AdamW handles projections, biases, and normalization
+parameters. Third, unit-scaled maximal-update parametrization (u-$\mu$P) lets
+the authors tune a 10M-parameter proxy and transfer its learning configuration
+to 4M, 22M, 313M, 1B, and 2.5B variants. Their released
+\texttt{dd\_unit\_scaling} layer preserves this parametrization through
+\texttt{torch.compile}, FSDP2 sharding, and data/tensor parallelism. All model
+sizes train with 4096-step contexts, 32 variates per sample, and global batch
+size 64. The generator portfolio provides data diversity; patch masking,
+alternating attention, u-$\mu$P, and distributed sharding provide model-
+training scale.
+
+\paragraph{Explanation information available from the TempoPFN pipeline.}
+The generator identity, sampled parameters, regime path, and augmentation
+sequence can form a hierarchical mechanism record. For example,
+Eq.~\eqref{eq:tempopfn-ou} supplies regime- and time-dependent drift and
+diffusion parameters, while a step generator supplies exact change-point
+locations. Their current use in Toto 2.0 is forecasting pretraining. For the
+present thesis, retaining this metadata would permit evaluation by mechanism
+family and controlled difficulty, whereas local gradient or Shapley ground
+truth would be calculated from an explicitly selected executable forecasting
+functional, such as the conditional mean of the sampled process.
+

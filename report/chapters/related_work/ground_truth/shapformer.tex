@@ -1,0 +1,93 @@
+\subsubsection{SHAPformer: Explainable Time-Series Forecasting with Sampling-Free SHAP for Transformers}
+
+\paragraph{Ground-truth construction.}
+\citet{hertel2026shapformer} construct a synthetic electricity-load forecasting
+benchmark. Each example represents the task of predicting the hourly
+electricity demand for the following week: the known data-generating function
+$g$ returns a 168-hour load curve. Its inputs include a load profile composed
+of separate daily patterns for workdays, Saturdays, and Sundays or holidays;
+calendar information such as month, hour, weekday, and holiday status; a
+temperature curve; and noise components. The calendar variables place the
+appropriate daily pattern along the future week, while temperature and the
+remaining components modify the resulting demand. The same electricity-load
+generator is treated as the function to be explained by SHAP. Therefore, the
+reference explanation states how much each input component contributes to the
+generated electrical load at each hour of the forecast week. In the authors'
+generation arrays, positions $0$--$167$ form the observed week and positions
+$168$--$335$ form the future week. With the common origin placed at position
+167, the final observed load is at $\tau=0$, the future value stored at
+position 168 is $h=1$, and the first element of the 168-dimensional output is
+therefore the first unseen hour.
+
+For a coalition of known components $S$, the absent components are repeatedly
+resampled while respecting the dependencies encoded in the generation process.
+The corresponding horizon-specific coalition value is estimated by the
+Monte Carlo average represented as
+
+\begin{equation}
+    v_{g,h}(S;x)
+    =
+    \mathbb{E}_{X_{\bar S}\sim q(\cdot\mid x_S)}
+    \!\left[g_h\!\left(x_S,X_{\bar S}\right)\right],
+\end{equation}
+
+where $x_S$ contains the component values retained from the example and
+$X_{\bar S}$ represents alternative values sampled for the absent components.
+Here $q$ names the conditional resampling law implemented by the authors'
+dependency-aware procedure; the expectation is approximated with repeated
+samples from that procedure.
+Shapley values are subsequently calculated from the marginal differences
+$v_{g,h}(S\cup\{i\};x)-v_{g,h}(S;x)$. This construction yields signed, local
+ground-truth contributions for every feature group and every step of the
+forecast horizon. At forecast step $h$, $\phi_{i,h}(x)>0$ means that, averaged
+over the coalition contexts in the Shapley sum, inserting the observed value
+of component $i$ increases the expected load generated at $h$; conversely,
+$\phi_{i,h}(x)<0$ means that it decreases the expected generated load. Thus, the
+sign records the direction of the component's contribution relative to the
+resampling reference, whereas $\lvert\phi_{i,h}(x)\rvert$ records its strength.
+By Shapley efficiency, these signed contributions reconstruct the example
+relative to the empty-coalition baseline,
+
+\begin{equation}
+    v_{g,h}(\varnothing;x)
+    + \sum_{i=1}^{P}\phi_{i,h}(x)
+    = g_h(x).
+\end{equation}
+
+These reference contributions can then be compared with the explanations
+produced for a trained forecasting model.
+
+\paragraph{SHAPformer evaluation.}
+The synthetic validation compares SHAPformer's learned explanations with the
+generator-based SHAP values at three levels. First, local explanations from
+$m$ test samples are converted into a global importance percentage for feature
+group $i$ by summing absolute SHAP values over samples and forecast steps,
+
+\begin{equation}
+    G_i
+    = 100\,
+    \frac{\sum_{n=1}^{m}\sum_{h=1}^{H}
+    \left|\phi_{i,h}\!\left(x^{(n)}\right)\right|}
+    {\sum_{i'=1}^{P}\sum_{n=1}^{m}\sum_{h=1}^{H}
+    \left|\phi_{i',h}\!\left(x^{(n)}\right)\right|},
+\end{equation}
+
+and the resulting feature-importance bars are placed beside the corresponding
+ground-truth bars. Because this aggregation uses absolute values, the bars
+summarize total contribution strength after positive and negative effects have
+been combined; dependence plots and local explanation curves retain the sign
+and therefore preserve the direction of each effect. Second, dependence plots
+compare feature values with their
+SHAP values for the 24-hour forecast step and use color to indicate the
+strongest interacting variable. The SHAPformer plots are examined alongside
+the generator plots to determine whether known daily, weekly, holiday, month,
+and multiplier effects are recovered. Third, selected local explanation curves
+are compared with ground-truth curves in Appendix C. The paper reports close
+agreement for most features, successful suppression of the two noise features,
+and an underestimated month effect. Consequently, SHAPformer supplies
+numerical ground-truth attribution values, while the published explanation
+validation judges their proximity primarily through global bars, dependence
+plots, and local-curve inspection rather than a single automatic agreement
+metric. Forecast RMSE and explanation inference time are reported separately as
+quantitative predictive-performance and computational-efficiency measures.
+

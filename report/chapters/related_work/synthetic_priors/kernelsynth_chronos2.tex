@@ -1,0 +1,174 @@
+\subsubsection{KernelSynth and its role in Chronos-2}
+
+\paragraph{Provenance and role.}
+KernelSynth was introduced with the original Chronos model by
+\citet{ansari2024chronos}. Chronos-2 subsequently uses KernelSynth as one of
+four base univariate generators---AR, ETS, TSI, and KernelSynth---before
+imposing multivariate structure through additional transformations
+\citep{ansari2025chronos2}. Thus, KernelSynth supplies elementary stochastic
+trajectories; the Chronos-2 data pipeline supplies the cross-series structure
+needed for multivariate and covariate-informed tasks.
+
+\paragraph{How KernelSynth generates one series.}
+KernelSynth reverses the compositional-kernel-search idea. Instead of observing
+a series and searching for a Gaussian-process kernel that describes it, the
+method first samples a composite kernel and then draws a function from the
+corresponding Gaussian-process prior. Let $\mathcal K$ be the kernel bank and
+let $J_K=5$ be the maximum number of kernels in one composition. The procedure
+is
+
+\begin{equation}
+\begin{aligned}
+R_K &\sim \mathcal U\{1,\ldots,J_K\},\\
+\kappa_1,\ldots,\kappa_{R_K}
+    &\overset{\mathrm{i.i.d.}}{\sim}\mathcal K,\\
+\kappa_\star
+    &=(((\kappa_1\circ_2\kappa_2)\circ_3\kappa_3)\cdots)
+      \circ_{R_K}\kappa_{R_K},
+      \qquad \circ_r\sim\mathcal U\{+,\times\},\\
+x_{1:T_{\mathrm{syn}}}
+    &\sim \operatorname{GP}(0,\kappa_\star),
+    \qquad T_{\mathrm{syn}}=1024.
+\end{aligned}
+\label{eq:kernelsynth}
+\end{equation}
+
+The final line means that the implementation evaluates $\kappa_\star$ on the
+chosen time grid to obtain a covariance matrix $\mathbf K_\star$, then samples
+the complete vector
+$\mathbf x\sim\mathcal N(\mathbf 0,\mathbf K_\star)$. Every draw is therefore
+a different trajectory even when the same composite kernel is reused. The
+kernel bank in the paper and released implementation is summarized in
+Table~\ref{tab:kernelsynth-bank}.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{@{}p{0.19\textwidth}p{0.36\textwidth}p{0.36\textwidth}@{}}
+\toprule
+Kernel family & Temporal behavior represented & Values used in the bank \\
+\midrule
+Constant & Shared level covariance & $C=1$ \\
+White noise & Independent short-scale variation & noise level $0.1$ or $1$ \\
+Linear & Globally varying trend-like functions & offset scale $0$, $1$, or $10$ \\
+RBF & Smooth local variation & length scale $0.1$, $1$, or $10$ \\
+Rational quadratic & Variation over a mixture of smoothness scales &
+shape $0.1$, $1$, or $10$ \\
+Periodic & Repeating patterns over common temporal frequencies &
+hourly-, daily-, weekly-, monthly-, quarterly-, and yearly-inspired periods \\
+\bottomrule
+\end{tabular}
+\caption{Basis-kernel families used by KernelSynth. The released code stores
+several parameterized instances of each family in $\mathcal K$, so sampling is
+over kernel type and parameterization.}
+\label{tab:kernelsynth-bank}
+\end{table}
+
+Kernel addition and multiplication have distinct meanings. If
+$\kappa_\star=\kappa_a+\kappa_b$, a GP draw can be interpreted as the sum of
+independent functions with the two covariance structures. A linear-plus-
+periodic composition can consequently express trend-like and seasonal
+variation together. If
+$\kappa_\star=\kappa_a\kappa_b$, similarity must be supported by both factors;
+an RBF-times-periodic composition produces locally periodic behavior whose
+correlation weakens with temporal distance. Repeated random compositions
+therefore create a broad stochastic prior from a small kernel vocabulary.
+
+\paragraph{How Chronos-2 constructs multivariate training tasks.}
+Chronos-2 uses separate synthetic mechanisms at two levels
+\citep{ansari2025chronos2}. Its univariate corpus is enlarged with TSI, which
+randomly combines trend, seasonality, and irregularity components, and TCM,
+which samples temporal causal graphs and generates series autoregressively.
+For multivariate and covariate-informed pretraining, the data are synthetic.
+A \emph{multivariatizer} first samples several base series from AR, ETS, TSI,
+or KernelSynth and then introduces one of two dependency classes:
+
+\begin{itemize}
+    \item a contemporaneous multivariatizer jointly transforms several series,
+    linearly or nonlinearly, at each time step. This creates instantaneous
+    cross-series dependence;
+    \item a sequential multivariatizer introduces dependence across different
+    time steps, including lead--lag effects and cointegration-like behavior.
+\end{itemize}
+
+The resulting channels are used either as joint targets or are divided into
+targets, past-only covariates, and known-future covariates. This construction
+is important for interpreting the phrase ``KernelSynth in Chronos-2'':
+KernelSynth creates a base univariate GP draw, while the multivariatizer is the
+stage that creates the multivariate forecasting problem. The Chronos-2 paper
+specifies these two classes and their purpose; the exact sampled transformation
+families and parameter distributions remain outside the report's description.
+
+\paragraph{Generation implementation and computational scaling.}
+The official Chronos KernelSynth script exposes the generation as an
+embarrassingly parallel offline job. Independent series are dispatched over
+all available CPU workers with \texttt{joblib.Parallel}, configured with
+\texttt{n\_jobs=-1}, and the
+result is written to an Apache Arrow file with LZ4 compression. A composite
+kernel is evaluated as a dense $T_{\mathrm{syn}}\times T_{\mathrm{syn}}$
+covariance matrix. Exact GP sampling therefore retains cubic factorization
+cost in $T_{\mathrm{syn}}$ and quadratic memory, while process-level parallelism
+raises corpus throughput by generating different series concurrently. The
+released script also defines an eigendecomposition-based sampling alternative;
+its main generation path uses scikit-learn's GP sampler. This implementation
+detail matters for the proposed benchmark: GP examples can be generated in
+parallel, but long trajectories require either bounded length, approximate GP
+sampling, structured kernels, or a different procedural generator.
+
+\paragraph{Architecture that consumes the synthetic corpus efficiently.}
+Chronos-2 is a 120M-parameter encoder-only Transformer derived from the T5
+encoder \citep{ansari2025chronos2}. Each target or covariate dimension is
+standardized from its observed context and transformed with $\operatorname{asinh}$
+to compress extreme values while preserving sign. The normalized values, a
+relative-time feature, and an observed/missing mask are divided into
+non-overlapping patches of length $P_{\mathrm{patch}}$ and mapped by a residual
+network into $D_{\mathrm{model}}$-dimensional tokens. The Transformer then
+alternates:
+
+\begin{enumerate}
+    \item \emph{time attention}, which attends across patches belonging to the
+    same series and uses rotary positional embeddings; and
+    \item \emph{group attention}, which attends across related series at the
+    same patch index, using group IDs to isolate independent forecasting tasks.
+\end{enumerate}
+
+A residual quantile head maps all requested future-patch embeddings directly
+to 21 quantiles for every target and forecast step. Direct multi-patch output
+avoids token-by-token trajectory sampling. Training first uses contexts up to
+2048 observations and then extends them to 8192 while increasing the number of
+output patches. The report measures approximately 300 series per second on one
+NVIDIA A10G for a batch of 1024 series with context 2048 and horizon 64. These
+designs make the \emph{forecasting model} efficient; CPU-parallel GP sampling
+is the separate mechanism that constructs the original KernelSynth corpus.
+
+\paragraph{Explanation information available from KernelSynth.}
+The sampled composite kernel $\kappa_\star$ is an exact record of the stochastic
+mechanism. For an observed context $\mathbf x_C$, the GP conditional-mean
+forecast at horizon $h$ is
+
+\begin{equation}
+g_h(\mathbf x_C;\kappa_\star)
+=\mu_{h\mid C}
+=\mathbf k_{hC}
+  (\mathbf K_{CC}+\sigma_n^2\mathbf I)^{-1}\mathbf x_C,
+\label{eq:gp-conditional-mean}
+\end{equation}
+
+so its exact input gradient is the horizon-specific row vector
+
+\begin{equation}
+\nabla_{\mathbf x_C}g_h
+=\mathbf k_{hC}
+ (\mathbf K_{CC}+\sigma_n^2\mathbf I)^{-1}.
+\label{eq:gp-gradient}
+\end{equation}
+
+Equations~\eqref{eq:gp-conditional-mean}--\eqref{eq:gp-gradient} show how a
+KernelSynth variant could enter this thesis as a dense stochastic benchmark:
+the kernel composition is the mechanism ground truth, while the conditional
+mean supplies an executable forecasting function and an exact gradient
+reference. The future GP draw additionally contains conditional stochastic
+variation, which belongs to irreducible forecast uncertainty rather than to a
+deterministic input contribution.
+

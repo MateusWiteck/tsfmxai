@@ -1,0 +1,290 @@
+\subsubsection{Benchmarking Attention-Based Interpretability of Deep Learning in Multivariate Time Series Predictions}
+
+\citet{baric2021benchmarking} introduce ten synthetic multivariate time-series
+systems with progressively more complex dynamics. The collection includes
+independent autoregressive series, nonlinear autoregressive equations,
+cross-series interactions, switching rules, a two-dimensional Ising system, and
+a logistic-map-inspired system. For a target series $x_{k,t}$, the known
+generating equation defines a \textbf{binary feature--lag mask}: each entry is
+1 when the corresponding lagged source occurs in the equation and 0 when it
+does not. This structural ground-truth explanation can be represented as
+
+\begin{equation}
+    M^{\mathrm{GT}}_{k,j,\ell}
+    =
+    \mathbb{I}\!\left[
+        x_{j,t-\ell}\text{ occurs in the generating equation for }x_{k,t}
+    \right],
+\end{equation}
+
+where $j$ identifies the source series and $\ell$ identifies its lag. For
+example, an autoregressive equation containing lags 3 and 7 defines those two
+lags as the expected temporal explanation. Cross-series equations similarly
+define the expected source-variable explanation. This equation is anchored at
+the target time $t$: lag 1 refers to $t-1$, the latest input available for that
+target. Equivalently, setting the forecast origin to $\tau=t-1$ places that
+sample at relative time 0 and the target $x_{k,t}$ at relative time $+1$.
+
+\begin{landscape}
+\begingroup
+\scriptsize
+\setlength{\LTpre}{0pt}
+\setlength{\LTpost}{0pt}
+\setlength{\LTcapwidth}{0.92\linewidth}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.94}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.10\linewidth}
+>{\raggedright\arraybackslash}p{0.46\linewidth}
+>{\raggedright\arraybackslash}p{0.38\linewidth}@{}}
+\caption{Exact dataset definitions from Table~1 of
+\citet{baric2021benchmarking}: models used for benchmarking.}
+\label{tab:baric-datasets-exact}\\
+\toprule
+Name & Formula & Parameters \\
+\midrule
+\endfirsthead
+\multicolumn{3}{@{}l}{\small\emph{Table~\thetable\ continued}}\\
+\toprule
+Name & Formula & Parameters \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r@{}}{\small\emph{Continued on the next page}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+
+Dataset 1 &
+$X_{n,t}=C_n+\varepsilon_t$ &
+$C_n=\mathcal{N}(0,1)$ \\
+
+Dataset 2 &
+$X_{n,t}=c_{t_{\mathrm{lag}}}X_{n,t-t_{\mathrm{lag}}}+\varepsilon_t$ &
+$c_3=1/2,\ c_7=1/2$ \\
+
+Dataset 3 &
+$X_{n,t}=\tanh\!\left(c_{t_{\mathrm{lag}}}X_{n,t-t_{\mathrm{lag}}}+\varepsilon_t\right)$ &
+$c_3=5/7,\ c_7=1/7,\ c_9=1/7$ \\
+
+Dataset 4 &
+$X_{1-n,t}=c_{t_{\mathrm{lag}}}X_{n,t-t_{\mathrm{lag}}}+\varepsilon_t$ &
+$c_2=2/5,\ c_5=1/5,\ c_9=2/5$ \\
+
+Dataset 5 &
+$X_{n,t}=c_{n,t_{\mathrm{lag}}}X_{0,t-t_{\mathrm{lag}}}+\varepsilon_t$ &
+$\begin{aligned}
+c_{0,3}&=1/2,&c_{0,4}&=1/2,\\
+c_{1,9}&=1,\\
+c_{2,2}&=1/2,&c_{2,7}&=1/2,\\
+c_{3,3}&=1/10,&c_{3,4}&=1/10,&c_{3,8}&=4/5,\\
+c_{4,2}&=1/3,&c_{4,5}&=2/9,&c_{3,8}&=4/9
+\end{aligned}$ \\
+
+Dataset 6 &
+$X_{n,t}=\tanh\!\left(C_{n,t_{\mathrm{lag}}}X_{0,t-t_{\mathrm{lag}}}+\varepsilon_t\right)$ &
+$\begin{aligned}
+c_{0,3}&=1/2,&c_{0,4}&=1/2,\\
+c_{1,9}&=1,\\
+c_{2,2}&=1/2,&c_{2,7}&=1/2,\\
+c_{3,3}&=1/10,&c_{3,4}&=1/10,&c_{3,8}&=4/5,\\
+c_{4,2}&=1/3,&c_{4,5}&=2/9,&c_{3,8}&=4/9
+\end{aligned}$ \\
+
+Dataset 7 &
+$\begin{aligned}
+X_{0,t}&=c_{0,1}X_{0,t-1}+c_{0,5}X_{0,t-5}+\varepsilon_t,\\
+X_{1,t}&=1+c_{1,2}X_{0,t-2}+\varepsilon_t,\\
+X_{2,t}&=c_{2,1}X_{1,t-1}+c_{2,4}X_{3,t-4}+\varepsilon_t,\\
+X_{3,t}&=1+c_{3,4}X_{2,t-4}+c_{3,1}X_{0,t-1}+\varepsilon_t,\\
+X_{4,t}&=c_{4,4}X_{4,t-4}+c_{4,1}X_{1,t-1}+\varepsilon_t
+\end{aligned}$ &
+$\begin{aligned}
+c_{0,1}&=1/4,&c_{0,5}&=3/4,\\
+c_{1,2}&=-1,\\
+c_{2,1}&=1,&c_{2,4}&=1,\\
+c_{3,4}&=-2/7,&c_{3,1}&=5/7,\\
+c_{4,4}&=12/22,&c_{4,1}&=10/22
+\end{aligned}$ \\
+
+Dataset 8 &
+$\begin{aligned}
+&\text{if }X_{0,t-5}>1/2:\\
+&X_{0,t}=c_{0,1}X_{0,t-1}+c_{0,3}X_{0,t-3}+\varepsilon_t,\\
+&X_{1,t}=X_{0,t-5}+\varepsilon_t,\\
+&X_{2,t}=X_{0,t-4}+\varepsilon_t,\\
+&X_{3,t}=c_{3,1}X_{3,t-1}+c_{3,4}X_{3,t-4}+\varepsilon_t,\\
+&\text{else:}\\
+&X_{0,t}=c_{0,1}X_{0,t-1}+c_{0,3}X_{0,t-3}+\varepsilon_t,\\
+&X_{1,t}=X_{3,t-2}+\varepsilon_t,\\
+&X_{2,t}=X_{3,t-4}+\varepsilon_t,\\
+&X_{3,t}=c_{3,1}X_{3,t-1}+c_{3,4}X_{3,t-4}+\varepsilon_t
+\end{aligned}$ &
+$\begin{aligned}
+c_{0,1}&=1/2,&c_{0,3}&=1/2,\\
+c_{3,1}&=1/2,&c_{3,4}&=1/2
+\end{aligned}$ \\
+
+Dataset 9 &
+$H(\sigma)=-\sum_{\langle i,j\rangle}J_{i,j}\sigma_i\sigma_j
+-\mu\sum_j h_j\sigma_j$ &
+$T=2,\ T_c,\ 2.75$ \\
+
+Dataset 10 &
+$\begin{aligned}
+X_{0,t}&=rX_{0,t-3}(1-X_{0,t-3}),\\
+X_{1,t}&=rX_{1,t-5}(1-X_{1,t-5}),\\
+X_{2,t}&=\tfrac12X_{0,t-3}+\tfrac12X_{1,t-5}
+\end{aligned}$ &
+$r=1.5,\ 2.5,\ 3.2,\ 3.55,\ 3.56996$ \\
+
+\end{longtable}
+\endgroup
+\end{landscape}
+
+\paragraph{Reading the original synthetic-dataset table.}
+Table~\ref{tab:baric-datasets-exact} above transcribes the formulas and
+parameters in Table~1 of \citet{baric2021benchmarking}. Mathematical typography
+and line breaking have been adapted to this document; dataset names, equations,
+and parameter values are retained from the source table. The source caption
+names the logistic-map system as Dataset~9 and the Ising system as Dataset~10,
+while the table rows and the paper's later experimental discussion associate
+the Ising Hamiltonian with Dataset~9 and the logistic-map equations with
+Dataset~10. The row definitions preserve the operational specification shown
+by the authors.
+
+\paragraph{How each model produces an explanation.}
+The benchmark reads the explanations from internal attention or
+dependency-discovery quantities learned during forecasting. The four outputs
+have different meanings and therefore require model-specific interpretation.
+
+\textbf{seq2graph.}
+In seq2graph \citep{dang2018seq2graph}, a dual-purpose recurrent unit first
+processes every component series separately. Its temporal attention produces
+$\alpha^{\mathrm{att}}$ coefficients over the $L$ positions of the input
+window. For source series $j$, $\alpha^{\mathrm{att}}_{j,\ell}$ indicates how much the representation attends to
+lag $\ell$, with the temporal weights summing to one. The lag-weighted
+representations of all series are then concatenated and passed to a decoder.
+The decoder produces $\beta^{\mathrm{att}}_{k,j}$ coefficients over source
+series for target $k$, again summing to one. Thus, the benchmark interprets
+$\alpha^{\mathrm{att}}$ as a soft lag or autocorrelation explanation and
+$\beta^{\mathrm{att}}$ as a directed source-variable or cross-series
+explanation.
+
+\textbf{IMV-LSTM.}
+IMV-LSTM \citep{guo2019imvlstm} preserves a hidden-state matrix whose row $j$
+contains the representation of input variable $j$. Temporal attention over
+this matrix yields $\alpha^{\mathrm{att}}_{j,\ell}$ and therefore identifies the historical
+positions emphasized inside each variable representation. The model combines
+the temporally weighted hidden state with the original hidden state, and a
+mixture-attention layer then produces $\beta^{\mathrm{att}}_{k,j}$, the
+importance assigned to source variable $j$
+when forecasting target $k$. A separate target-specific model is trained in
+the benchmark, and stacking its $\beta^{\mathrm{att}}$ vectors produces a
+target-by-source importance matrix. Together, $\alpha^{\mathrm{att}}$
+describes when the model attends and $\beta^{\mathrm{att}}$ describes which
+variable it uses.
+
+\textbf{TCDF.}
+TCDF \citep{nauta2019tcdf} trains one attention-based temporal convolutional
+network for every target series. A learned attention vector gates the $N$ input
+channels and supplies candidate source variables. Semi-binarization converts
+these soft channel weights into a selected set of potential causes. In the full
+TCDF procedure, permutation-importance validation tests whether perturbing a
+candidate source reduces prediction quality, and the largest relevant
+depthwise-convolution kernel weight supplies its delay. The final explanation
+is therefore a set of directed pairs with delays,
+
+\begin{equation}
+    \widehat{\mathcal{E}}_k
+    = \{(j,\widehat{\ell}_{k,j}) :
+    x_j\text{ is retrieved as a cause of }x_k\},
+\end{equation}
+
+rather than a normalized heatmap of soft attention. Bari\'c et al. summarize
+this discrete output by the percentage of repeated experiments in which each
+target--source relation is retrieved.
+
+\textbf{DA-RNN.}
+DA-RNN \citep{qin2017darnn} uses two attention stages. At encoder step $t$, the
+input-attention layer assigns weights to the driving series and multiplies each
+current input by its weight before the LSTM update. Aggregating these weights
+over time and examples produces a source-variable score comparable to a
+$\beta^{\mathrm{att}}$ matrix. In the decoder, temporal attention weights the
+sequence of encoder hidden states. Aggregating these weights produces an
+$\alpha^{\mathrm{att}}$-like
+temporal score. These temporal weights index encoder representations, each of
+which already combines the selected driving variables; consequently, they
+provide a time-only explanation rather than a source-specific feature--lag
+map. The target history also enters outside the driving-series attention, so
+the variable-attention matrix lacks a directly comparable self-dependency entry
+on its diagonal.
+
+\paragraph{How the outputs are compared with the generating formula.}
+For the linear generators, write the known mechanism as
+
+\begin{equation}
+    x_{k,t}
+    = b_k + \sum_{j=1}^{N}\sum_{\ell=1}^{L}
+      c_{k,j,\ell}x_{j,t-\ell} + \varepsilon_{k,t}.
+\end{equation}
+
+The nonzero coefficients define two reference objects. The feature--lag mask
+$M^{\mathrm{GT}}_{k,j,\ell}=\mathbb{I}[c_{k,j,\ell}\neq 0]$ specifies exactly
+which source and lag occur in the equation, and the source-only adjacency map
+is obtained by collapsing the lag axis, meaning that all lag entries for a
+fixed target--source pair $(k,j)$ are reduced to one binary value that equals 1
+when at least one of those lags is active,
+
+\begin{equation}
+    B^{\mathrm{GT}}_{k,j}
+    = \mathbb{I}\!\left[\sum_{\ell=1}^{L}
+      M^{\mathrm{GT}}_{k,j,\ell}>0\right].
+\end{equation}
+
+The nonlinear and switching datasets use the same occurrence rule: a source--lag
+pair belongs to the reference when it participates in the active generating
+equation. The paper then aligns each model output with the compatible projection
+of this reference:
+
+\begin{itemize}
+    \item seq2graph and IMV-LSTM $\beta^{\mathrm{att}}$ heatmaps are compared
+    with $B^{\mathrm{GT}}$. Their $\alpha^{\mathrm{att}}$ heatmaps are compared
+    with the nonzero lag locations in $M^{\mathrm{GT}}$.
+    \item TCDF target--source retrieval frequencies are compared with
+    $B^{\mathrm{GT}}$, while its retrieved delays are checked against the
+    nonzero lag indices of $M^{\mathrm{GT}}$.
+    \item aggregated DA-RNN input attention is compared with
+    $B^{\mathrm{GT}}$. Its temporal attention is compared only at the time axis
+    because the encoder-state index cannot be resolved back to an individual
+    input variable.
+\end{itemize}
+
+The expected patterns are obtained directly from the equations. In Dataset 2,
+every series depends only on its own lags 3 and 7, so the expected source matrix
+is the identity and the expected temporal peaks occur at lags 3 and 7. In
+Dataset 4, each series is generated from the other series, so the expected
+source matrix has high values on the anti-diagonal. In Dataset 5, the first
+series drives the remaining series, so the expected source matrix concentrates
+on its first column.
+
+For the soft-attention models, the authors average the learned coefficients and
+display target--source or target--lag heatmaps beside the equation-derived
+pattern. Standard deviations across repeated training experiments indicate
+whether the displayed explanation is stable. The benchmark uses five runs for
+seq2graph, three for IMV-LSTM, ten for TCDF, and three for DA-RNN. For TCDF,
+each heatmap cell is instead a retrieval frequency, so a value of $0.7$ means
+that the corresponding directed relation was found in 70\% of runs; a row may
+sum to less than one when some runs retrieve no cause.
+
+This evaluation tests whether high importance or retrieved edges occur at the
+correct support locations. Since the attention coefficients are nonnegative
+and normalized, their numerical values represent relative importance rather
+than the signed coefficients $c_{k,j,\ell}$ of the generator. Consequently,
+positive and negative generating effects share the same relevance target. The
+published comparison is primarily visual and qualitative: correctness is judged
+from agreement between the learned heatmap and the expected support pattern,
+while mean, standard deviation, and TCDF retrieval percentages measure
+confidence and reproducibility. A single tensor-level distance, F1 score, or
+rank-correlation score is outside the reported benchmark evaluation.
+
