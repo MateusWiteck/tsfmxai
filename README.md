@@ -19,6 +19,7 @@ benchmarks for forecasting, mechanism recovery, and explainability.
 | `experiments_local/` | Exploratory notebooks, cloned repositories, and temporary analyses | ignored |
 | `data/` | Data lifecycle and small samples | generated/full data ignored |
 | `outputs/` | Generated reports and artifacts | ignored |
+| `frontend/` | Local mechanism and trajectory visualization | tracked |
 
 ## Start here
 
@@ -32,3 +33,15 @@ benchmarks for forecasting, mechanism recovery, and explainability.
 The reusable library is currently a scaffold. Existing exploratory analyses
 have deliberately remained in `experiments_local/` until their interfaces and
 tests are stable enough to promote into `src/`.
+
+## Local visualization
+
+Run the mechanism studio from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe frontend\app.py
+```
+
+Then open <http://127.0.0.1:8000>. The interface samples a canonical mechanism
+and generates multiple reproducible trajectories while keeping that mechanism
+fixed.

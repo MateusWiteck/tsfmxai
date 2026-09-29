@@ -17,8 +17,16 @@ behavior only inside notebooks or experiment directories. Add tests under
 ## Experiments
 
 Exploratory work belongs under ignored `experiments_local/`. A result becomes
-part of `experiments/` only after it has a configuration, manifest, metrics,
-summary, and reproduction instructions.
+part of `experiments/` only after its configuration, provenance, explicit
+seeds, metrics, scientific summary, and reproduction instructions are
+recorded.
+
+For an executed notebook experiment, keep that complete experiment record in
+one clearly labelled cell inside the notebook. Save only the executed notebook
+and do not create README, configuration, manifest, metrics, or summary sidecar
+files that duplicate its contents. Sidecars are appropriate for non-notebook
+experiments or when external artifacts require their own machine-readable
+manifest.
 
 ## Scientific references
 

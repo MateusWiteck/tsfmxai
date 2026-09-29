@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Visualização local de mecanismos e séries sintéticas do tsfmxai" />
+    <title>tsfmxai · Mechanism Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-mark">τ</div>
+      <div>
+        <p class="eyebrow">TSFMXAI / LABORATÓRIO LOCAL</p>
+        <h1>Mechanism Studio</h1>
+      </div>
+      <div class="scope-chip"><span></span> AST binária · mecanismo univariado</div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="kicker">Do mecanismo às observações</p>
+          <h2>Sorteie a regra. Fixe a árvore.<br />Observe suas trajetórias.</h2>
+        </div>
+        <p class="hero-copy">
+          A árvore define uma recorrência para uma série <code>x₀</code>. Cada trajetória usa
+          a mesma fórmula e os mesmos parâmetros, mas recebe condições iniciais e inovações
+          sorteadas de maneira reproduzível.
+        </p>
+      </section>
+
+      <section class="workspace">
+        <aside class="controls panel">
+          <div class="panel-heading">
+            <div><span class="step">01</span><h3>Configurar árvore</h3></div>
+            <button class="icon-button" id="randomize-tree-seed" title="Sortear outra seed">↻</button>
+          </div>
+
+          <div class="field full">
+            <label for="tree-seed">Seed do mecanismo</label>
+            <input id="tree-seed" type="number" value="20260930" min="0" />
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="min-operators">Operadores mín.</label>
+              <input id="min-operators" type="number" value="1" min="0" max="12" />
+            </div>
+            <div class="field">
+              <label for="max-operators">Operadores máx.</label>
+              <input id="max-operators" type="number" value="5" min="0" max="12" />
+            </div>
+            <div class="field">
+              <label for="min-lag">Lag mínimo</label>
+              <input id="min-lag" type="number" value="1" min="1" max="48" />
+            </div>
+            <div class="field">
+              <label for="max-lag">Lag máximo</label>
+              <input id="max-lag" type="number" value="8" min="1" max="48" />
+            </div>
+          </div>
+
+          <details>
+            <summary>Distribuição dos nós</summary>
+            <div class="field-grid nested">
+              <div class="field"><label for="p-parameter">P(parâmetro)</label><input id="p-parameter" type="number" value="0.45" min="0" max="1" step="0.05" /></div>
+              <div class="field"><label for="p-time">P(tempo)</label><input id="p-time" type="number" value="0.10" min="0" max="1" step="0.05" /></div>
+              <div class="field"><label for="p-lag">P(lag)</label><input id="p-lag" type="number" value="0.45" min="0" max="1" step="0.05" /></div>
+              <div class="field"><label for="p-add">P(adição)</label><input id="p-add" type="number" value="0.65" min="0" max="1" step="0.05" /></div>
+            </div>
+            <label class="check"><input id="require-lag" type="checkbox" checked /><span>Exigir ao menos um lag</span></label>
+            <label class="check"><input id="require-time" type="checkbox" /><span>Exigir o terminal tempo</span></label>
+          </details>
+
+          <button class="primary" id="generate-tree">Gerar árvore</button>
+
+          <div class="divider"></div>
+          <div class="panel-heading compact">
+            <div><span class="step">02</span><h3>Sortear trajetórias</h3></div>
+            <button class="icon-button" id="randomize-series-seed" title="Sortear outra seed">↻</button>
+          </div>
+          <div class="field full"><label for="series-seed">Seed das trajetórias</label><input id="series-seed" type="number" value="314159" min="0" /></div>
+          <div class="field-grid">
+            <div class="field"><label for="trajectory-count">Trajetórias</label><input id="trajectory-count" type="number" value="12" min="1" max="80" /></div>
+            <div class="field"><label for="generated-steps">Passos gerados</label><input id="generated-steps" type="number" value="60" min="1" max="500" /></div>
+            <div class="field"><label for="initial-min">Inicial mín.</label><input id="initial-min" type="number" value="-1" step="0.1" /></div>
+            <div class="field"><label for="initial-max">Inicial máx.</label><input id="initial-max" type="number" value="1" step="0.1" /></div>
+          </div>
+          <div class="field full range-field">
+            <label for="innovation">Desvio da inovação <output id="innovation-value">0.00</output></label>
+            <input id="innovation" type="range" value="0" min="0" max="1" step="0.01" />
+          </div>
+          <button class="secondary" id="generate-series" disabled>Sortear trajetórias</button>
+          <p class="control-note"><strong>num_series = 1</strong> nesta etapa. “Trajetórias” são realizações diferentes do mesmo mecanismo, não novas variáveis.</p>
+        </aside>
+
+        <div class="results">
+          <div id="status" class="status" role="status">Preparando o laboratório…</div>
+
+          <section class="panel formula-panel">
+            <div class="section-title"><span>MECHANISM / 001</span><h3>Fórmula sorteada</h3></div>
+            <div class="formula-grid">
+              <div><p>Estrutura sem valores</p><code id="skeleton-formula">—</code></div>
+              <div><p>Recorrência com valores</p><code id="bound-formula">—</code></div>
+            </div>
+            <div class="metrics" id="tree-metrics"></div>
+          </section>
+
+          <section class="two-column">
+            <article class="panel visual-panel">
+              <div class="section-title"><span>STRUCTURE</span><h3>Árvore sintática</h3></div>
+              <div id="tree-visualization" class="tree-stage"><p class="empty">Gere uma árvore para visualizar sua estrutura.</p></div>
+              <div class="legend"><span class="operator-dot"></span>operador <span class="lag-dot"></span>lag <span class="parameter-dot"></span>parâmetro <span class="time-dot"></span>tempo</div>
+            </article>
+            <article class="panel binding-panel">
+              <div class="section-title"><span>BINDING</span><h3>Valores separados</h3></div>
+              <p class="muted">A estrutura permanece fixa; coeficientes contínuos e lags discretos ocupam slots próprios.</p>
+              <div id="binding-table" class="binding-table"><p class="empty">Nenhum binding disponível.</p></div>
+            </article>
+          </section>
+
+          <section class="panel chart-panel">
+            <div class="section-title chart-title">
+              <div><span>TRAJECTORIES</span><h3>Realizações do mesmo mecanismo</h3></div>
+              <p id="trajectory-caption">Condições iniciais aparecem antes da linha tracejada.</p>
+            </div>
+            <div class="canvas-wrap"><canvas id="trajectory-chart"></canvas></div>
+            <div class="chart-legend"><span class="line-many"></span>trajetórias <span class="line-mean"></span>média <span class="line-start"></span>início da recorrência</div>
+          </section>
+
+          <section class="two-column lower">
+            <article class="panel heatmap-panel">
+              <div class="section-title"><span>ENSEMBLE</span><h3>Mapa das trajetórias</h3></div>
+              <div class="canvas-wrap heatmap-wrap"><canvas id="heatmap"></canvas></div>
+              <p class="muted">Cada linha é uma trajetória; a cor mostra sinal e magnitude em cada instante.</p>
+            </article>
+            <article class="panel ideas-panel">
+              <div class="section-title"><span>NEXT VIEWS</span><h3>Próximas visualizações</h3></div>
+              <ul>
+                <li><strong>Mapa variável–lag:</strong> suporte estrutural usado como ground truth.</li>
+                <li><strong>Contribuição por horizonte:</strong> propagação de cada entrada pela recursão.</li>
+                <li><strong>Mapa de estabilidade:</strong> regiões de coeficientes e condições iniciais que divergem.</li>
+                <li><strong>Árvores equivalentes:</strong> estrutura amostrada versus forma canônica.</li>
+              </ul>
+            </article>
+          </section>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

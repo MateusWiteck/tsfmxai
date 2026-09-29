@@ -7,13 +7,16 @@ name = "tsfmxai"
 version = "0.0.0"
 description = "Synthetic time-series benchmarks with known mechanisms and explanation ground truths"
 requires-python = ">=3.11,<3.12"
-dependencies = []
+dependencies = [
+    "numpy>=1.26,<3",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 target-version = "py311"
