@@ -1,0 +1,51 @@
+\section{Benchmark API and Evaluation Methodology}
+\label{sec:benchmark-evaluation}
+%
+% PURPOSE OF THIS CHAPTER
+% Present the benchmark as a reusable library that evaluates an arbitrary
+% forecaster through a narrow adapter while preserving the generated data,
+% ground truths, and metrics.
+%
+% \subsection{Public library workflow}
+% - Show the final minimal example: configure generation, create a dataset,
+%   request ground truths, wrap models, evaluate, and obtain a report.
+% - Explain configuration, result objects, provenance, and reproducible seeds.
+%
+% \subsection{Canonical sample and batch contract}
+% - Document history, targets, horizon, masks, known future covariates, mechanism
+%   identifiers, trajectory identifiers, and ground-truth references.
+% - State exactly what a model receives and prevent adapters from silently adding
+%   unavailable information.
+%
+% \subsection{ForecastAdapter and capability declaration}
+% - Specify fit/predict methods and optional access to gradients, native
+%   explanations, or explicit learned mechanisms.
+% - Explain how unsupported evaluations are recorded as not applicable.
+% - Include one compact custom-adapter example.
+%
+% \subsection{Three evaluation targets}
+% - Forecast error: compare forecast f(x) with observed/generated future g(x).
+% - Mechanism-identification error*: compare an explicitly recovered mechanism
+%   with the retained generator; mark with an asterisk and explain that this is
+%   available only for explainable-by-design or explicit system-identification
+%   methods.
+% - Explanation error: compare an explanation of the fitted predictor with the
+%   compatible generator-level reference while identifying the object each one
+%   explains.
+%
+% \subsection{Metrics by ground-truth family}
+% - Forecast: MAE, RMSE, MASE, and any probabilistic metrics used in experiments.
+% - Binary support: precision, recall, F1, AUROC/AUPRC only when continuous scores
+%   and an appropriate evaluation protocol exist.
+% - Signed coefficients/contributions: magnitude error, sign agreement, and
+%   normalized error.
+% - Ranked/local explanations: rank correlation, top-q overlap, sign agreement,
+%   and horizon-resolved summaries.
+% - Explain normalization, aggregation, and undefined cases explicitly.
+%
+% \subsection{Reproducibility and computational performance}
+% - Explain local RNG ownership and independence from the caller's global random
+%   state.
+% - Describe deterministic output ordering across worker counts.
+% - Specify CPU/GPU and parallel-worker measurements used to assess throughput,
+%   memory, and scaling for large benchmark sets.

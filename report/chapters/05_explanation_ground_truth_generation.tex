@@ -1,0 +1,52 @@
+\section{Explanation Ground-Truth Generation}
+\label{sec:ground-truth-generation}
+%
+% PURPOSE OF THIS CHAPTER
+% Define every explanation reference produced from the known generator, its
+% mathematical object, its indices, and the class of explanation that may be
+% compared with it.  Keep process explanations distinct from explanations of a
+% fitted forecasting model.
+%
+% \subsection{Ground-truth contract and shared indices}
+% - Define instance n, target k, horizon h, source series j, and lag ell once.
+% - Specify shapes, dtypes, missing/not-applicable values, and metadata.
+% - State whether a reference describes one-step structure, an h-step unrolled
+%   mechanism, a local realized effect, or an attribution under a baseline/game.
+%
+% \subsection{Structural source-lag ground truth}
+% - Explain extraction of the binary source-lag mask directly from the AST.
+% - Explain how recursively generated intermediate forecasts propagate dependencies
+%   to each horizon instead of copying the one-step mask to every horizon.
+% - Include small hand-derived one-step and multi-step examples.
+%
+% \subsection{Signed coefficients and realized local terms}
+% - Define when an AST admits an identifiable coefficient reference.
+% - Separate the signed parameter from the realized coefficient-times-input term.
+% - Mark these references not applicable for operators without the required
+%   coefficient interpretation.
+%
+% \subsection{Gradient-based references}
+% - Define the derivative of the h-step generator output with respect to every
+%   input variable-lag coordinate.
+% - Explain that recursive differentiation automatically includes paths through
+%   earlier forecast steps.
+% - Separate raw gradient (local sensitivity) from baseline-relative
+%   gradient-times-input (a contribution heuristic).
+% - Document differentiability restrictions and finite-difference validation.
+%
+% \subsection{Generator-level Shapley references}
+% - Define players, coalitions, the generator as the value-producing function,
+%   the background distribution, and the rule used when a feature is absent.
+% - Explain exact enumeration for small games and permutation estimation for
+%   larger games.
+% - Describe dependency-aware resampling and grouped/Owen-value extensions only
+%   if they are implemented in the final benchmark.
+% - Retain signed local attributions per forecast horizon before any absolute or
+%   global aggregation.
+%
+% \subsection{Validation of reference explanations}
+% - List hand-derived formulas, efficiency/additivity checks when applicable,
+%   autodiff versus finite differences, and exact versus sampled Shapley checks.
+% - Explain how seeds and estimator uncertainty are recorded.
+% - End with a compatibility table mapping each ground-truth family to valid
+%   comparison metrics and model/explainer outputs.

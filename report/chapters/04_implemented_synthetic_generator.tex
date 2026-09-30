@@ -1,0 +1,84 @@
+\section{Implemented Synthetic Time-Series Generator}
+\label{sec:implemented-generator}
+%
+% PURPOSE OF THIS CHAPTER
+% Explain the generator that was actually implemented, separating implemented
+% behavior from the broader design proposed in Chapter 3.  Connect every design
+% choice to a source file, public object, test, or executed notebook.
+%
+% \subsection{Scope and implemented pipeline}
+% - Begin with one compact pipeline diagram:
+%   user formula or sampled tree -> validated AST -> executable recurrence ->
+%   one or more trajectories -> canonical batch.
+% - State the implemented operator vocabulary and deliberately deferred features.
+% - Distinguish a mechanism (one retained AST) from a trajectory (one realization
+%   generated from that mechanism).
+%
+% \subsection{Temporal convention}
+% - Define the forecast origin, the meaning of t, and the convention that
+%   LAG(j, ell) represents x_{j,t-ell} with ell >= 1.
+% - Explain how context and future indices are represented in arrays and plots.
+% - Give one hand-computed recurrence example to remove any indexing ambiguity.
+%
+% \subsection{Abstract syntax tree and fixed grammar}
+% - Define AST at first use and show the implemented node types.
+% - Explain terminals such as constants, time t, and LAG(j, ell), and operators
+%   such as addition and multiplication.
+% - Reuse a small tree diagram and show its equivalent infix formula and
+%   recurrence.
+% - Explain that the grammar is fixed by the benchmark author in the first
+%   version rather than supplied by each library user.
+%
+% \subsection{Formula input, parsing, and representations}
+% - Show the syntax accepted from a user and how instructions are exposed by the
+%   library object.
+% - Describe conversion among text, AST, executable function, and rendered
+%   mathematical formula.
+% - Discuss canonical serialization and how commutative children are handled;
+%   do not claim full symbolic equivalence unless it has been implemented and
+%   tested.
+%
+% \subsection{Constrained random unary-binary tree sampling}
+% - Present the sampler pseudocode and cite the exact implementation file.
+% - Explain zero-operator trees, unary nodes, binary nodes, terminals, maximum
+%   depth, lags, series count, coefficients, and operator probabilities.
+% - Explain how one root seed is deterministically split into mechanism and
+%   trajectory seeds.
+% - Compare the implemented sampler with the expression-first precedents from
+%   Section 1.2, especially D'Ascoli et al. and Meznar et al.; cite only claims
+%   supported by the corresponding reviewed sources.
+%
+% \subsection{Executing a mechanism and generating trajectories}
+% - Explain initial values, recurrence execution, optional innovation terms,
+%   context length, forecast horizon, and the relationship between total length
+%   and returned windows.
+% - Show why several trajectories can share one formula while differing through
+%   their trajectory-level random draws.
+% - Describe current finite-value or pilot checks accurately.  Treat formal
+%   stability guarantees as future work unless they are implemented.
+%
+% \subsection{Jobs, parallel generation, and canonical batches}
+% - Define one job as one sampled mechanism plus its requested trajectories.
+% - Explain the minimum number of distinct mechanisms required in a batch.
+% - Describe the PyTorch-style batch-generation objective without claiming an
+%   IterableDataset/DataLoader integration before it exists.
+% - Explain that output ordering and seed derivation are independent of worker
+%   scheduling, so changing n_jobs must preserve the batch content.
+% - Report the relevant hash/reproducibility tests in the test suite rather than
+%   adding another validation experiment to the notebook.
+%
+% \subsection{User-facing visualization and executed examples}
+% - Describe the frontend interaction: sample a tree, inspect its equation, and
+%   draw several trajectories from the retained mechanism.
+% - Summarize notebooks 1--3 without reproducing all notebook prose.
+% - Include the mechanism-by-column and trajectory-by-row visualization when it
+%   becomes a stable report figure.
+%
+% \subsection{Implementation validation and current limitations}
+% - Summarize parser, serialization, reproducibility, parallelism, and batch
+%   tests with exact counts only when the final experiment snapshot is frozen.
+% - Identify unsupported operators, multivariate behavior, stochastic families,
+%   stability certification, and performance constraints from repository
+%   evidence at writing time.
+% - End by stating which retained generator information is consumed by the
+%   explanation-ground-truth layer in Chapter 5.

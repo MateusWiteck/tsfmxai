@@ -1,0 +1,59 @@
+\section{Experimental Design}
+\label{sec:experimental-design}
+%
+% PURPOSE OF THIS CHAPTER
+% Freeze the hypotheses, generated benchmark matrix, compared models, tuning
+% rules, and statistical protocol before presenting results.
+%
+% \subsection{Research hypotheses}
+% - Formulate testable hypotheses about horizon, lag distance, nonlinear
+%   operators, interactions, irrelevant variables, noise, and mechanism
+%   complexity.
+% - Separate forecasting hypotheses from mechanism-recovery and explanation
+%   hypotheses.
+%
+% \subsection{Synthetic mechanism families and difficulty axes}
+% - Define controlled easy/medium/hard strata using measurable generator
+%   properties rather than forecast error observed after the fact.
+% - Cover autoregression, cross-variable lags, interactions, nonlinearities,
+%   temporal scales, irrelevant variables, stochastic scale, and any implemented
+%   regime changes.
+% - Include random-coverage generation in addition to controlled factorial
+%   subsets and report the resulting distribution of formulas.
+%
+% \subsection{Dataset construction}
+% - Report formula counts, trajectories per formula, lengths, context, horizons,
+%   burn-in, train/validation/test construction, and seed policy.
+% - Prevent formula or trajectory leakage across evaluation partitions.
+% - State rejection rates and reasons for discarded candidate mechanisms.
+%
+% \subsection{Compared models and information received}
+% - Chronos-2 and Toto 2.0 as the prioritized pretrained forecasters.
+% - Naive and seasonal-naive baselines needed to contextualize accuracy.
+% - AutoARIMA/ARIMAX under explicitly separated target-only and exogenous-input
+%   settings.
+% - An explainable-by-design or symbolic system-identification model when the
+%   final implementation and time budget permit.
+% - Add a table showing tensor/dataframe shape, variables, lags, covariates,
+%   horizon handling, fitting, and explanation access for every model.
+%
+% \subsection{Explanation methods and comparison protocol}
+% - Match gradient with generator gradient and SHAP-like output with the declared
+%   generator Shapley game.
+% - Define baselines, backgrounds, coalition samples, random repetitions, and
+%   estimator budgets.
+% - State how intrinsic model outputs are converted to the canonical source-lag-
+%   horizon representation.
+%
+% \subsection{Statistical analysis and ablations}
+% - Specify repeated seeds, confidence intervals, paired comparisons, multiple-
+%   comparison control if used, and aggregation levels.
+% - Plan ablations for operator sets, lag bands, noise, number of mechanisms,
+%   trajectories per mechanism, and explanation sampling budget.
+% - Report both overall performance and stratified failure analysis.
+%
+% \subsection{Hardware and runtime protocol}
+% - Record hardware, software versions, precision, batch size, worker count,
+%   caching, warm-up, and timing method.
+% - Compare serial CPU, parallel CPU, and GPU paths only where the implementation
+%   offers equivalent semantics.
