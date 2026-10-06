@@ -45,10 +45,17 @@ Install [Quarto](https://quarto.org/docs/get-started/) (the workflow pins 1.8.27
 then run from the repository root:
 
 ```powershell
+python scripts/prepare_notebook_site.py
 quarto preview
 # Build only, without starting a server:
 quarto render --no-execute
 ```
+
+Run the preparation command again after adding, moving, or renaming notebooks.
+The homepage and sidebar preserve the exact directory names and notebook
+filenames from `experiments/`. Navigation is generated under ignored `outputs/`;
+the preparation command never writes to the experiment directories. Only
+committed notebooks are available to the GitHub Actions build.
 
 Generated HTML is written to ignored `site/`; Quarto state in `.quarto/` is also
 ignored. Keep experiment records and outputs inside the executed notebook as

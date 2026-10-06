@@ -7,12 +7,16 @@ on:
       - 'experiments/**'
       - '_quarto.yml'
       - 'index.qmd'
+      - 'scripts/prepare_notebook_site.py'
+      - 'src/tsfmxai/visualization/notebook_site.py'
       - '.github/workflows/publish-notebooks.yml'
   pull_request:
     paths:
       - 'experiments/**'
       - '_quarto.yml'
       - 'index.qmd'
+      - 'scripts/prepare_notebook_site.py'
+      - 'src/tsfmxai/visualization/notebook_site.py'
       - '.github/workflows/publish-notebooks.yml'
   workflow_dispatch:
 
@@ -28,6 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare directory tree
+        run: python scripts/prepare_notebook_site.py
       - uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: '1.8.27'

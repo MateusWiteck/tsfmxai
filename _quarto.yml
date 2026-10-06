@@ -1,3 +1,6 @@
+metadata-files:
+  - outputs/notebook-navigation.yml
+
 project:
   type: website
   output-dir: site
@@ -18,13 +21,6 @@ website:
     right:
       - icon: github
         href: https://github.com/MateusWiteck/tsfmxai
-  sidebar:
-    style: docked
-    contents:
-      - index.qmd
-      - section: Experimentos
-        contents: experiments/**/*.ipynb
-
 execute:
   enabled: false
 
