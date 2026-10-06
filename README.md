@@ -34,6 +34,37 @@ The reusable library is currently a scaffold. Existing exploratory analyses
 have deliberately remained in `experiments_local/` until their interfaces and
 tests are stable enough to promote into `src/`.
 
+## Published experiment notebooks
+
+The Quarto website publishes saved outputs from every notebook under
+`experiments/`, including nested directories. New notebooks are discovered
+automatically. `experiments_local/` and `notebooks/` are outside the site.
+Rendering never executes notebook cells or requires the experiment dependencies.
+
+Install [Quarto](https://quarto.org/docs/get-started/) (the workflow pins 1.8.27),
+then run from the repository root:
+
+```powershell
+quarto preview
+# Build only, without starting a server:
+quarto render --no-execute
+```
+
+Generated HTML is written to ignored `site/`; Quarto state in `.quarto/` is also
+ignored. Keep experiment records and outputs inside the executed notebook as
+described in `REPRODUCIBILITY.md`.
+
+To enable publication, select **Settings > Pages > Build and deployment >
+Source > GitHub Actions** in the GitHub repository. Commit and push the site
+configuration and notebooks to `main`. The `Publish experiment notebooks`
+workflow builds and deploys updates automatically; pull requests build without
+deploying. It can also be run manually from the Actions tab.
+
+The published URL is <https://mateuswiteck.github.io/tsfmxai/> after the first
+successful deployment. Save executed outputs before committing a notebook;
+the website displays exactly those saved results. Images or downloads linked
+from notebook Markdown must also be committed alongside the notebook.
+
 ## Local visualization
 
 Run the mechanism studio from the repository root:

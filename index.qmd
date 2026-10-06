@@ -1,0 +1,24 @@
+---
+title: Experimentos TSFMXAI
+listing:
+  contents:
+    - /experiments/**/*.ipynb
+    - '!**/.ipynb_checkpoints/**'
+  type: table
+  fields: [title, filename]
+  field-display-names:
+    title: Experimento
+    filename: Notebook
+  sort: filename
+  filter-ui: true
+  sort-ui: true
+  page-size: 50
+---
+
+Notebooks de pesquisa sobre séries temporais sintéticas, mecanismos conhecidos
+e avaliação de explicações. Use a busca ou a navegação lateral para explorar os
+experimentos organizados por pasta.
+
+As páginas mostram o código, os gráficos, as tabelas e os resultados salvos nos
+notebooks versionados em `experiments/`. A publicação não executa os experimentos;
+os resultados e o registro de reprodução ficam no próprio notebook.

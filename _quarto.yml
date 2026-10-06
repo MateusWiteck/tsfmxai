@@ -1,0 +1,42 @@
+project:
+  type: website
+  output-dir: site
+  render:
+    - index.qmd
+    - /experiments/**/*.ipynb
+    - '!**/.ipynb_checkpoints/**'
+
+website:
+  title: TSFMXAI Experiments
+  site-url: https://mateuswiteck.github.io/tsfmxai/
+  repo-url: https://github.com/MateusWiteck/tsfmxai
+  search: true
+  navbar:
+    left:
+      - href: index.qmd
+        text: Experimentos
+    right:
+      - icon: github
+        href: https://github.com/MateusWiteck/tsfmxai
+  sidebar:
+    style: docked
+    contents:
+      - index.qmd
+      - section: Experimentos
+        contents: experiments/**/*.ipynb
+
+execute:
+  enabled: false
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    toc: true
+    code-fold: true
+    code-summary: Mostrar código
+    code-tools: true
+    embed-resources: false
+
+lang: pt-BR

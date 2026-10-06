@@ -1,0 +1,55 @@
+name: Publish experiment notebooks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/**'
+      - '_quarto.yml'
+      - 'index.qmd'
+      - '.github/workflows/publish-notebooks.yml'
+  pull_request:
+    paths:
+      - 'experiments/**'
+      - '_quarto.yml'
+      - 'index.qmd'
+      - '.github/workflows/publish-notebooks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notebook-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - name: Render saved notebook outputs
+        run: quarto render --no-execute
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

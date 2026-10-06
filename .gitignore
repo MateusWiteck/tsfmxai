@@ -27,6 +27,7 @@ dist/
 /experiments_local/
 /outputs/
 /site/
+/.quarto/
 
 # Reproducible data are regenerated from configurations and seeds
 /data/external/
