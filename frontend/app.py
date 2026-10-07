@@ -22,9 +22,11 @@ sys.path.insert(0, str(SOURCE_ROOT))
 
 from tsfmxai.generators import (  # noqa: E402
     RandomTreeConfig,
-    required_history_length,
-    sample_random_mechanism,
-    sample_univariate_trajectories,
+    SampledMechanism,
+    expression_required_history_length,
+    required_multivariate_history_length,
+    sample_multivariate_trajectories,
+    sample_random_mechanisms,
 )
 from tsfmxai.representations import (  # noqa: E402
     Add,
@@ -38,6 +40,7 @@ from tsfmxai.representations import (  # noqa: E402
     node_count,
     operator_count,
     tree_depth,
+    walk,
 )
 
 
@@ -60,7 +63,7 @@ class MechanismStore:
                 return self._items[mechanism_id]
             except KeyError as error:
                 raise ValueError(
-                    "A árvore selecionada não existe mais; gere uma nova árvore."
+                    "O sistema selecionado não existe mais; gere um novo sistema."
                 ) from error
 
 
@@ -97,24 +100,23 @@ def _node_payload(node: ExpressionNode, binding: Any) -> dict[str, Any]:
     }
 
 
-def _mechanism_payload(
-    mechanism_id: str,
-    mechanism: Any,
-    config: RandomTreeConfig,
+def _equation_payload(
+    mechanism: SampledMechanism,
+    target_series: int,
 ) -> dict[str, Any]:
-    history_length = required_history_length(mechanism.expression, mechanism.binding)
+    history_length = expression_required_history_length(
+        mechanism.expression,
+        mechanism.binding,
+    )
+    dependencies: dict[int, set[int]] = {}
+    for node in walk(mechanism.expression):
+        if isinstance(node, Lag):
+            dependencies.setdefault(node.variable, set()).add(
+                int(mechanism.binding.lag_values[node.slot])
+            )
     return {
-        "id": mechanism_id,
+        "target_series": target_series,
         "seed": mechanism.seed,
-        "config": {
-            "minimum_operators": config.minimum_operators,
-            "maximum_operators": config.maximum_operators,
-            "num_series": config.num_series,
-            "minimum_lag": config.minimum_lag,
-            "maximum_lag": config.maximum_lag,
-            "require_lag": config.require_lag,
-            "require_time": config.require_time,
-        },
         "skeleton_formula": mechanism.skeleton_formula,
         "formula": mechanism.formula,
         "tree_text": mechanism.tree,
@@ -130,6 +132,63 @@ def _mechanism_payload(
             "depth": tree_depth(mechanism.expression),
             "required_history": history_length,
         },
+        "dependencies": [
+            {"source_series": source, "lags": sorted(lags)}
+            for source, lags in sorted(dependencies.items())
+        ],
+    }
+
+
+def _system_payload(
+    mechanism_id: str,
+    mechanisms: list[SampledMechanism],
+    config: RandomTreeConfig,
+    root_seed: int,
+) -> dict[str, Any]:
+    equations = [
+        _equation_payload(mechanism, target_series)
+        for target_series, mechanism in enumerate(mechanisms)
+    ]
+    history_length = required_multivariate_history_length(
+        [mechanism.expression for mechanism in mechanisms],
+        [mechanism.binding for mechanism in mechanisms],
+    )
+    dependency_lags = [
+        [
+            next(
+                (
+                    item["lags"]
+                    for item in equation["dependencies"]
+                    if item["source_series"] == source_series
+                ),
+                [],
+            )
+            for source_series in range(config.num_series)
+        ]
+        for equation in equations
+    ]
+    return {
+        "id": mechanism_id,
+        "seed": root_seed,
+        "num_series": config.num_series,
+        "config": {
+            "minimum_operators": config.minimum_operators,
+            "maximum_operators": config.maximum_operators,
+            "num_series": config.num_series,
+            "minimum_lag": config.minimum_lag,
+            "maximum_lag": config.maximum_lag,
+            "require_lag": config.require_lag,
+            "require_time": config.require_time,
+        },
+        "equations": equations,
+        "dependency_lags": dependency_lags,
+        "summary": {
+            "equations": len(equations),
+            "operators": sum(item["summary"]["operators"] for item in equations),
+            "nodes": sum(item["summary"]["nodes"] for item in equations),
+            "maximum_depth": max(item["summary"]["depth"] for item in equations),
+            "required_history": history_length,
+        },
     }
 
 
@@ -139,6 +198,37 @@ def _as_int(data: dict[str, Any], key: str, default: int) -> int:
 
 def _as_float(data: dict[str, Any], key: str, default: float) -> float:
     return float(data.get(key, default))
+
+
+def _trajectory_payload(
+    trajectories: np.ndarray,
+    *,
+    seed: int,
+    history_length: int,
+) -> dict[str, Any]:
+    """Convert a ``[trajectory, series, time]`` array to the frontend contract."""
+
+    if trajectories.ndim != 3:
+        raise ValueError("Frontend trajectories must have three dimensions.")
+    mean = trajectories.mean(axis=0)
+    std = trajectories.std(axis=0)
+    lower, upper = np.quantile(trajectories, [0.10, 0.90], axis=0)
+    minimum = trajectories.min(axis=(0, 2))
+    maximum = trajectories.max(axis=(0, 2))
+    return {
+        "seed": seed,
+        "times": list(range(trajectories.shape[2])),
+        "generated_start": history_length,
+        "trajectories": trajectories.tolist(),
+        "summary": {
+            "mean": mean.tolist(),
+            "std": std.tolist(),
+            "p10": lower.tolist(),
+            "p90": upper.tolist(),
+            "minimum": minimum.tolist(),
+            "maximum": maximum.tolist(),
+        },
+    }
 
 
 class FrontendHandler(SimpleHTTPRequestHandler):
@@ -171,7 +261,7 @@ class FrontendHandler(SimpleHTTPRequestHandler):
         try:
             payload = self._read_json()
             if self.path == "/api/mechanisms":
-                self._sample_mechanism(payload)
+                self._sample_system(payload)
                 return
             if self.path == "/api/trajectories":
                 self._sample_trajectories(payload)
@@ -186,11 +276,11 @@ class FrontendHandler(SimpleHTTPRequestHandler):
                 HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
-    def _sample_mechanism(self, data: dict[str, Any]) -> None:
+    def _sample_system(self, data: dict[str, Any]) -> None:
         config = RandomTreeConfig(
             minimum_operators=_as_int(data, "minimum_operators", 1),
             maximum_operators=_as_int(data, "maximum_operators", 5),
-            num_series=1,
+            num_series=2,
             minimum_lag=_as_int(data, "minimum_lag", 1),
             maximum_lag=_as_int(data, "maximum_lag", 8),
             parameter_probability=_as_float(data, "parameter_probability", 0.45),
@@ -206,18 +296,21 @@ class FrontendHandler(SimpleHTTPRequestHandler):
             require_lag=bool(data.get("require_lag", True)),
             require_time=bool(data.get("require_time", False)),
         )
-        mechanism = sample_random_mechanism(config, seed=_as_int(data, "seed", 20260930))
-        mechanism_id = STORE.add(mechanism)
-        self._write_json(_mechanism_payload(mechanism_id, mechanism, config))
+        root_seed = _as_int(data, "seed", 20260930)
+        mechanisms = sample_random_mechanisms(config, root_seed=root_seed, count=2)
+        mechanism_id = STORE.add(mechanisms)
+        self._write_json(_system_payload(mechanism_id, mechanisms, config, root_seed))
 
     def _sample_trajectories(self, data: dict[str, Any]) -> None:
-        mechanism = STORE.get(str(data.get("mechanism_id", "")))
+        mechanisms = STORE.get(str(data.get("mechanism_id", "")))
         generated_steps = _as_int(data, "generated_steps", 60)
         if generated_steps < 1:
             raise ValueError("generated_steps must be positive in the visualization.")
-        trajectories = sample_univariate_trajectories(
-            mechanism.expression,
-            mechanism.binding,
+        expressions = [mechanism.expression for mechanism in mechanisms]
+        bindings = [mechanism.binding for mechanism in mechanisms]
+        trajectories = sample_multivariate_trajectories(
+            expressions,
+            bindings,
             trajectory_count=_as_int(data, "trajectory_count", 12),
             generated_steps=generated_steps,
             initial_value_minimum=_as_float(data, "initial_value_minimum", -1.0),
@@ -226,25 +319,13 @@ class FrontendHandler(SimpleHTTPRequestHandler):
             root_seed=_as_int(data, "seed", 314159),
             maximum_absolute_value=None,
         )
-        history_length = required_history_length(mechanism.expression, mechanism.binding)
-        mean = trajectories.mean(axis=0)
-        std = trajectories.std(axis=0)
-        lower, upper = np.quantile(trajectories, [0.10, 0.90], axis=0)
+        history_length = required_multivariate_history_length(expressions, bindings)
         self._write_json(
-            {
-                "seed": _as_int(data, "seed", 314159),
-                "times": list(range(trajectories.shape[1])),
-                "generated_start": history_length,
-                "trajectories": trajectories.tolist(),
-                "summary": {
-                    "mean": mean.tolist(),
-                    "std": std.tolist(),
-                    "p10": lower.tolist(),
-                    "p90": upper.tolist(),
-                    "minimum": float(trajectories.min()),
-                    "maximum": float(trajectories.max()),
-                },
-            }
+            _trajectory_payload(
+                trajectories,
+                seed=_as_int(data, "seed", 314159),
+                history_length=history_length,
+            )
         )
 
 

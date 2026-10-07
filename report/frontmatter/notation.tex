@@ -143,6 +143,15 @@ number of latent functions in LMC-Synth; $z_a(t)$ is latent function $a$; and
 $\lambda_{j,a}$ is its nonnegative mixing weight in observed channel $j$,
 with $\sum_a\lambda_{j,a}=1$. \\
 
+$W$, $\beta$, $s_W$; $d$, $d_{\min}$, $d_{\max}$ &
+$W$ is a unit-scale Weibull draw with shape $\beta$ and $s_W$ is its scale in
+the LMC-Synth implementation; $d$ is the Dirichlet concentration sampled
+uniformly between $d_{\min}$ and $d_{\max}$. \\
+
+$K^{\mathrm{LMC}}_{ij}(t,t')$ &
+Cross-covariance between observed LMC-Synth channels $i$ and $j$ at times
+$t$ and $t'$. \\
+
 $P_{\mathrm{patch}}$, $D_{\mathrm{model}}$ &
 $P_{\mathrm{patch}}$ is the number of consecutive observations represented by
 one model token and $D_{\mathrm{model}}$ is the token-embedding dimension.
@@ -150,11 +159,13 @@ The subscript distinguishes patch length from the $P$ SHAP feature groups
 defined above. \\
 
 $\mathbf x_C$, $\mathbf K_{CC}$, $\mathbf k_{hC}$,
-$\mu_{h\mid C}$ &
+$\mu_{h\mid C}$, $\sigma_n^2$ &
 $\mathbf x_C$ is an observed Gaussian-process context; $\mathbf K_{CC}$ is
 its covariance matrix under $\kappa_\star$; $\mathbf k_{hC}$ contains the
 covariances between future step $h$ and the context; and $\mu_{h\mid C}$ is
-the conditional predictive mean at that step. \\
+the conditional predictive mean at that step. $\sigma_n^2$ is an optional
+observation-noise variance used when that noise is not already represented by
+$\kappa_\star$. \\
 
 \addlinespace
 \multicolumn{2}{@{}l}{\textit{Time-origin convention in each reviewed paper}}\\

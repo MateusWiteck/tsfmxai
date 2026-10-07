@@ -14,26 +14,26 @@
         <p class="eyebrow">TSFMXAI / LABORATÓRIO LOCAL</p>
         <h1>Mechanism Studio</h1>
       </div>
-      <div class="scope-chip"><span></span> AST binária · mecanismo univariado</div>
+      <div class="scope-chip"><span></span> sistema multivariado · 2 séries</div>
     </header>
 
     <main>
       <section class="hero">
         <div>
           <p class="kicker">Do mecanismo às observações</p>
-          <h2>Sorteie a regra. Fixe a árvore.<br />Observe suas trajetórias.</h2>
+          <h2>Sorteie duas regras.<br />Observe um só sistema.</h2>
         </div>
         <p class="hero-copy">
-          A árvore define uma recorrência para uma série <code>x₀</code>. Cada trajetória usa
-          a mesma fórmula e os mesmos parâmetros, mas recebe condições iniciais e inovações
-          sorteadas de maneira reproduzível.
+          Duas árvores definem as recorrências de <code>x₀</code> e <code>x₁</code>. Cada
+          equação pode consultar lags das duas variáveis; todas as trajetórias preservam o
+          sistema e alteram apenas condições iniciais e inovações reproduzíveis.
         </p>
       </section>
 
       <section class="workspace">
         <aside class="controls panel">
           <div class="panel-heading">
-            <div><span class="step">01</span><h3>Configurar árvore</h3></div>
+            <div><span class="step">01</span><h3>Configurar sistema</h3></div>
             <button class="icon-button" id="randomize-tree-seed" title="Sortear outra seed">↻</button>
           </div>
 
@@ -72,7 +72,7 @@
             <label class="check"><input id="require-time" type="checkbox" /><span>Exigir o terminal tempo</span></label>
           </details>
 
-          <button class="primary" id="generate-tree">Gerar árvore</button>
+          <button class="primary" id="generate-tree">Gerar duas equações</button>
 
           <div class="divider"></div>
           <div class="panel-heading compact">
@@ -91,29 +91,31 @@
             <input id="innovation" type="range" value="0" min="0" max="1" step="0.01" />
           </div>
           <button class="secondary" id="generate-series" disabled>Sortear trajetórias</button>
-          <p class="control-note"><strong>num_series = 1</strong> nesta etapa. “Trajetórias” são realizações diferentes do mesmo mecanismo, não novas variáveis.</p>
+          <p class="control-note"><strong>num_series = 2</strong>. Cada amostra fixa uma equação para <code>x₀(t)</code> e outra para <code>x₁(t)</code>; ambas podem usar lags das duas séries.</p>
         </aside>
 
         <div class="results">
           <div id="status" class="status" role="status">Preparando o laboratório…</div>
 
           <section class="panel formula-panel">
-            <div class="section-title"><span>MECHANISM / 001</span><h3>Fórmula sorteada</h3></div>
-            <div class="formula-grid">
-              <div><p>Estrutura sem valores</p><code id="skeleton-formula">—</code></div>
-              <div><p>Recorrência com valores</p><code id="bound-formula">—</code></div>
+            <div class="section-title"><span>SYSTEM / 2 EQUATIONS</span><h3>Recorrências sorteadas</h3></div>
+            <div class="equation-grid" id="equation-grid">
+              <p class="empty">Gere um sistema para visualizar suas equações.</p>
             </div>
             <div class="metrics" id="tree-metrics"></div>
           </section>
 
           <section class="two-column">
             <article class="panel visual-panel">
-              <div class="section-title"><span>STRUCTURE</span><h3>Árvore sintática</h3></div>
-              <div id="tree-visualization" class="tree-stage"><p class="empty">Gere uma árvore para visualizar sua estrutura.</p></div>
+              <div class="section-title split-title">
+                <div><span>STRUCTURE</span><h3>Árvore de <span id="active-tree-target">x₀(t)</span></h3></div>
+                <div class="equation-tabs" id="equation-tabs" aria-label="Equação exibida"></div>
+              </div>
+              <div id="tree-visualization" class="tree-stage"><p class="empty">Gere um sistema para visualizar sua estrutura.</p></div>
               <div class="legend"><span class="operator-dot"></span>operador <span class="lag-dot"></span>lag <span class="parameter-dot"></span>parâmetro <span class="time-dot"></span>tempo</div>
             </article>
             <article class="panel binding-panel">
-              <div class="section-title"><span>BINDING</span><h3>Valores separados</h3></div>
+              <div class="section-title"><span>BINDING</span><h3>Valores de <span id="active-binding-target">x₀(t)</span></h3></div>
               <p class="muted">A estrutura permanece fixa; coeficientes contínuos e lags discretos ocupam slots próprios.</p>
               <div id="binding-table" class="binding-table"><p class="empty">Nenhum binding disponível.</p></div>
             </article>
@@ -121,28 +123,33 @@
 
           <section class="panel chart-panel">
             <div class="section-title chart-title">
-              <div><span>TRAJECTORIES</span><h3>Realizações do mesmo mecanismo</h3></div>
-              <p id="trajectory-caption">Condições iniciais aparecem antes da linha tracejada.</p>
+              <div><span>TRAJECTORIES / ALIGNED</span><h3>Duas séries, mesmas realizações</h3></div>
+              <p id="trajectory-caption">Cada painel usa sua própria escala; o tempo permanece alinhado.</p>
             </div>
             <div class="canvas-wrap"><canvas id="trajectory-chart"></canvas></div>
-            <div class="chart-legend"><span class="line-many"></span>trajetórias <span class="line-mean"></span>média <span class="line-start"></span>início da recorrência</div>
+            <div class="chart-legend"><span class="line-x0"></span>x₀ <span class="line-x1"></span>x₁ <span class="line-mean"></span>média <span class="line-start"></span>início da recorrência</div>
           </section>
 
           <section class="two-column lower">
             <article class="panel heatmap-panel">
-              <div class="section-title"><span>ENSEMBLE</span><h3>Mapa das trajetórias</h3></div>
+              <div class="section-title"><span>ENSEMBLE × VARIABLE</span><h3>Mapas das duas séries</h3></div>
               <div class="canvas-wrap heatmap-wrap"><canvas id="heatmap"></canvas></div>
-              <p class="muted">Cada linha é uma trajetória; a cor mostra sinal e magnitude em cada instante.</p>
+              <p class="muted">Os blocos de x₀ e x₁ usam escalas de cor independentes. Cada linha é uma trajetória do mesmo sistema.</p>
             </article>
-            <article class="panel ideas-panel">
-              <div class="section-title"><span>NEXT VIEWS</span><h3>Próximas visualizações</h3></div>
-              <ul>
-                <li><strong>Mapa variável–lag:</strong> suporte estrutural usado como ground truth.</li>
-                <li><strong>Contribuição por horizonte:</strong> propagação de cada entrada pela recursão.</li>
-                <li><strong>Mapa de estabilidade:</strong> regiões de coeficientes e condições iniciais que divergem.</li>
-                <li><strong>Árvores equivalentes:</strong> estrutura amostrada versus forma canônica.</li>
-              </ul>
+            <article class="panel dependency-panel">
+              <div class="section-title"><span>STRUCTURAL SUPPORT</span><h3>Mapa variável–lag</h3></div>
+              <p class="muted">Cada célula informa quais lags da variável-fonte aparecem na equação da variável-alvo.</p>
+              <div id="dependency-map" class="dependency-map"><p class="empty">Nenhum sistema disponível.</p></div>
             </article>
+          </section>
+
+          <section class="panel phase-panel">
+            <div class="section-title chart-title">
+              <div><span>JOINT DYNAMICS</span><h3>Espaço de estados x₀ × x₁</h3></div>
+              <p>O caminho mostra como cada realização se desloca conjuntamente entre as duas variáveis.</p>
+            </div>
+            <div class="canvas-wrap phase-wrap"><canvas id="phase-chart"></canvas></div>
+            <div class="chart-legend"><span class="line-many"></span>trajetórias <span class="line-mean"></span>trajetória média <span class="phase-start-dot"></span>início da recorrência</div>
           </section>
         </div>
       </section>

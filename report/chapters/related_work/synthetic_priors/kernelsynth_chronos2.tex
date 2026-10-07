@@ -33,9 +33,9 @@ x_{1:T_{\mathrm{syn}}}
 \label{eq:kernelsynth}
 \end{equation}
 
-The final line means that the implementation evaluates $\kappa_\star$ on the
-chosen time grid to obtain a covariance matrix $\mathbf K_\star$, then samples
-the complete vector
+The final line means that the implementation evaluates $\kappa_\star$ on
+$T_{\mathrm{syn}}$ evenly spaced points between zero and one to obtain a
+covariance matrix $\mathbf K_\star$, then samples the complete vector
 $\mathbf x\sim\mathcal N(\mathbf 0,\mathbf K_\star)$. Every draw is therefore
 a different trajectory even when the same composite kernel is reused. The
 kernel bank in the paper and released implementation is summarized in
@@ -64,6 +64,16 @@ several parameterized instances of each family in $\mathcal K$, so sampling is
 over kernel type and parameterization.}
 \label{tab:kernelsynth-bank}
 \end{table}
+
+The released bank contains 33 parameterized entries. Kernels are sampled with
+replacement, their periodicities are normalized by $T_{\mathrm{syn}}$, and the
+sampled sequence is reduced from left to right. Table~\ref{tab:kernelsynth-bank}
+summarizes the families rather than reproducing every entry. If numerical GP
+sampling fails, the public script discards that attempt and samples again.
+Its Arrow record stores only the arbitrary start timestamp and the generated
+target; the sampled kernel expression is available during generation but is
+not retained in the released record.\footnote{Official KernelSynth generator:
+\url{https://github.com/amazon-science/chronos-forecasting/blob/main/scripts/kernel-synth.py}.}
 
 Kernel addition and multiplication have distinct meanings. If
 $\kappa_\star=\kappa_a+\kappa_b$, a GP draw can be interpreted as the sum of
@@ -114,7 +124,10 @@ released script also defines an eigendecomposition-based sampling alternative;
 its main generation path uses scikit-learn's GP sampler. This implementation
 detail matters for the proposed benchmark: GP examples can be generated in
 parallel, but long trajectories require either bounded length, approximate GP
-sampling, structured kernels, or a different procedural generator.
+sampling, structured kernels, or a different procedural generator. The public
+script also does not assign stable mechanism and trajectory identifiers or a
+derived seed to each record. A benchmark adaptation must add these fields so
+that the same corpus is produced independently of worker scheduling.
 
 \paragraph{Architecture that consumes the synthetic corpus efficiently.}
 Chronos-2 is a 120M-parameter encoder-only Transformer derived from the T5
@@ -143,9 +156,9 @@ designs make the \emph{forecasting model} efficient; CPU-parallel GP sampling
 is the separate mechanism that constructs the original KernelSynth corpus.
 
 \paragraph{Explanation information available from KernelSynth.}
-The sampled composite kernel $\kappa_\star$ is an exact record of the stochastic
-mechanism. For an observed context $\mathbf x_C$, the GP conditional-mean
-forecast at horizon $h$ is
+If it is retained, the sampled composite kernel $\kappa_\star$ is an exact
+record of the stochastic mechanism. For an observed context $\mathbf x_C$,
+the GP conditional-mean forecast at horizon $h$ is
 
 \begin{equation}
 g_h(\mathbf x_C;\kappa_\star)
@@ -168,7 +181,16 @@ Equations~\eqref{eq:gp-conditional-mean}--\eqref{eq:gp-gradient} show how a
 KernelSynth variant could enter this thesis as a dense stochastic benchmark:
 the kernel composition is the mechanism ground truth, while the conditional
 mean supplies an executable forecasting function and an exact gradient
-reference. The future GP draw additionally contains conditional stochastic
-variation, which belongs to irreducible forecast uncertainty rather than to a
-deterministic input contribution.
+reference. Here $\sigma_n^2$ denotes optional observation noise and is omitted
+when the selected kernel already represents the intended noise. This
+horizon-specific explanation is a construction proposed for the benchmark,
+rather than an explanation artifact distributed with KernelSynth. Fixing
+$\kappa_\star$ and resampling the GP creates several trajectories from one
+mechanism; storing separate mechanism and trajectory seeds makes this operation
+reproducible. Since kernel sums and products admit equivalent expressions,
+mechanism recovery should compare a canonical expression or the resulting
+covariance, rather than only the original expression string. The future GP
+draw additionally contains conditional stochastic variation, which belongs to
+irreducible forecast uncertainty rather than to a deterministic input
+contribution.
 

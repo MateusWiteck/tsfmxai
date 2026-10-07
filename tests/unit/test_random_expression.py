@@ -16,6 +16,7 @@ from tsfmxai.representations import (
     node_count,
     operator_count,
     parameter_slots,
+    walk,
 )
 
 
@@ -99,3 +100,59 @@ def test_required_lag_and_time_are_both_preserved() -> None:
         sample = sample_random_mechanism(config, seed=seed)
         assert lag_slots(sample.expression)
         assert "t" in sample.skeleton_formula
+
+
+def test_coefficient_gating_wraps_every_lag_and_preserves_lag_bindings() -> None:
+    baseline_config = RandomTreeConfig(
+        minimum_operators=4,
+        maximum_operators=4,
+        parameter_probability=0.0,
+        time_probability=0.0,
+        lag_probability=1.0,
+    )
+    gated_config = RandomTreeConfig(
+        minimum_operators=4,
+        maximum_operators=4,
+        parameter_probability=0.0,
+        time_probability=0.0,
+        lag_probability=1.0,
+        coefficient_gate_lags=True,
+    )
+
+    baseline = sample_random_mechanism(baseline_config, seed=31415)
+    gated = sample_random_mechanism(gated_config, seed=31415)
+    lag_count = len(lag_slots(baseline.expression))
+
+    assert sorted(baseline.binding.lag_values.values()) == sorted(
+        gated.binding.lag_values.values()
+    )
+    assert len(parameter_slots(gated.expression)) == lag_count
+    assert operator_count(gated.expression) == operator_count(baseline.expression) + lag_count
+    assert sample_random_mechanism(gated_config, seed=31415) == gated
+
+    def assert_direct_gate(node) -> None:
+        if not isinstance(node, (Add, Multiply)):
+            return
+        for child, sibling in ((node.left, node.right), (node.right, node.left)):
+            if isinstance(child, Lag):
+                assert isinstance(node, Multiply)
+                assert isinstance(sibling, Parameter)
+            assert_direct_gate(child)
+
+    assert_direct_gate(gated.expression)
+    assert all(
+        gated_config.minimum_parameter_magnitude
+        <= abs(value)
+        <= gated_config.maximum_parameter_magnitude
+        for value in gated.binding.parameter_values.values()
+    )
+    assert sum(isinstance(node, Lag) for node in walk(gated.expression)) == lag_count
+
+
+def test_coefficient_gating_requires_a_boolean_flag() -> None:
+    try:
+        RandomTreeConfig(coefficient_gate_lags=1)  # type: ignore[arg-type]
+    except ValueError as error:
+        assert "coefficient_gate_lags" in str(error)
+    else:
+        raise AssertionError("A non-boolean coefficient_gate_lags value must be rejected.")

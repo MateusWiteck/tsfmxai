@@ -2,17 +2,19 @@
 
 \paragraph{LMC-Synth generation.}
 TimePFN constructs cross-channel structure with a linear model of
-coregionalization \citep{taga2025timepfn}. It first samples
-$N_{\mathrm{lat}}$ from a clipped Weibull distribution. Each latent function
-$z_a(t)$ is an independent KernelSynth draw with its own randomly composed GP
-kernel. For each observed channel $j$, a Dirichlet vector supplies nonnegative
-weights that sum to one:
+coregionalization \citep{taga2025timepfn}. Each latent function $z_a(t)$ is an
+independent KernelSynth draw with its own randomly composed GP kernel. The
+released implementation makes the clipped-Weibull and Dirichlet sampling
+steps explicit:
 
 \begin{equation}
 \begin{aligned}
+W&\sim\operatorname{Weibull}(\beta,1),\\
 N_{\mathrm{lat}}
-    &\sim \operatorname{clip}
-      \bigl(\operatorname{Weibull}(\beta,\lambda),m,N\bigr),\\
+    &=\operatorname{clip}\!\left(
+      \operatorname{round}(s_W W+1),
+      \max(2,\lfloor N/20\rfloor),N\right),\\
+d&\sim\mathcal U(d_{\min},d_{\max}),\\
 z_a(t)&\sim\operatorname{KernelSynth}(J_K,T_{\mathrm{syn}}),
       \qquad a=1,\ldots,N_{\mathrm{lat}},\\
 (\lambda_{j,1},\ldots,\lambda_{j,N_{\mathrm{lat}}})
@@ -22,6 +24,12 @@ x_j(t)&=\sum_{a=1}^{N_{\mathrm{lat}}}\lambda_{j,a}z_a(t),
 \end{aligned}
 \label{eq:lmc-synth}
 \end{equation}
+
+Thus the number of latents is rounded after scaling and shifting the Weibull
+draw, while one sampled concentration $d$ controls the mixing weights of a
+generated dataset. The values of $\beta$, $s_W$, $d_{\min}$, and $d_{\max}$
+are generator inputs and must be recorded to reproduce a particular corpus;
+the released script exposes them as command-line arguments without defaults.
 
 Channels become correlated when they reuse latent functions. Small Dirichlet
 concentration produces channel-specific mixtures; larger concentration makes
@@ -35,8 +43,10 @@ and 160 channels. Sliding windows of length 192 are split into 96 context and
 examples. Independent-channel examples amount to approximately 25\% of the
 correlated corpus. Training begins with independent channels and later
 introduces correlated mixtures, forming a curriculum from univariate pattern
-recognition to cross-channel inference. Multiplicative Gaussian noise with
-mean 1 and standard deviation 0.1 regularizes the examples.
+recognition to cross-channel inference. After generation, training applies
+multiplicative Gaussian noise with mean 1 and standard deviation 0.1 as data
+augmentation; this noise is separate from the LMC mechanism in
+Eq.~\eqref{eq:lmc-synth}.
 
 \paragraph{Generation and model architecture.}
 The released LMC-Synth implementation parallelizes independent multivariate
@@ -66,13 +76,30 @@ compact prior-data-fitted network: many mechanism samples are generated
 offline, and one model amortizes forecasting over that prior.
 
 \paragraph{Relevance to the proposed benchmark.}
-LMC-Synth retains both the composite kernel of every latent process and the
-mixing matrix $[\lambda_{j,a}]$. These objects provide exact ground truth for
-latent sharing and covariance between channels. GP dependence is generally
-dense over time, so its native reference is a dense temporal covariance rather
-than a sparse variable--lag mask. Applying the conditional-mean construction in
-Eq.~\eqref{eq:gp-conditional-mean} to the block multivariate covariance would,
-however, produce a known horizon--source--time forecasting function and its
-exact Jacobian. LMC-Synth is therefore a useful stochastic complement to the
-thesis's sparse recurrence generators.
+The sampler constructs the composite kernel of every latent process and the
+mixing matrix $[\lambda_{j,a}]$, but its released Arrow record contains only
+the generated target and an arbitrary start timestamp.\footnote{Official
+LMC-Synth generator:
+\url{https://github.com/egetaga/TimePFN/blob/main/synthetic_data_generation/LMC_Synth.py}.}
+An adaptation for this thesis must retain those objects, together with separate
+mechanism and trajectory seeds. It can then generate multiple trajectories
+from one fixed mechanism and obtain the exact cross-channel covariance
+
+\begin{equation}
+K^{\mathrm{LMC}}_{ij}(t,t')
+=\sum_{a=1}^{N_{\mathrm{lat}}}
+  \lambda_{i,a}\lambda_{j,a}\kappa_a(t,t').
+\label{eq:lmc-covariance}
+\end{equation}
+
+The same retained mechanism also gives the realized latent contribution
+$\lambda_{j,a}z_a(t)$ to channel $j$. Because Dirichlet weights are positive,
+a binary latent--channel mask is normally dense; the weights, realized
+contributions, covariance, and horizon-specific Jacobian are more informative
+continuous references. Applying Eq.~\eqref{eq:gp-conditional-mean} to the
+block covariance in Eq.~\eqref{eq:lmc-covariance} provides that forecasting
+function and Jacobian. These explanation ground truths are proposed uses in
+the thesis rather than outputs evaluated by the TimePFN paper. LMC-Synth is
+therefore a useful stochastic complement to the thesis's sparse recurrence
+generators.
 

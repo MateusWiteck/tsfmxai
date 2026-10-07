@@ -57,3 +57,5 @@ dist/
 # Markdown summaries and canonical bibliography are versioned.
 /references/**/*.pdf
 /references/**/*.zip
+
+**/*.quarto_ipynb

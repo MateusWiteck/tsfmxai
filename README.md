@@ -34,6 +34,66 @@ The reusable library is currently a scaffold. Existing exploratory analyses
 have deliberately remained in `experiments_local/` until their interfaces and
 tests are stable enough to promote into `src/`.
 
+## Stationary-by-construction generation
+
+The library can sample Gaussian AR and VAR(1) mechanisms whose stationarity is
+certified before trajectory generation. AR coefficients are obtained from
+partial autocorrelations strictly inside `(-1, 1)`. VAR(1) coefficient matrices
+are sampled with spectral radius below one. Both generators draw their initial
+state from the stationary covariance, so the returned series does not begin
+with an arbitrary initialization transient.
+
+```python
+from tsfmxai.generators import (
+    StationaryARConfig,
+    sample_stationary_ar_mechanism,
+    sample_stationary_ar_trajectories,
+)
+
+mechanism = sample_stationary_ar_mechanism(
+    StationaryARConfig(minimum_order=3, maximum_order=3),
+    seed=7,
+)
+series = sample_stationary_ar_trajectories(
+    mechanism,
+    trajectory_count=32,
+    generated_steps=256,
+    root_seed=11,
+)
+
+assert mechanism.certificate.holds
+print(mechanism.formula)
+```
+
+## Contraction-certified nonlinear generation
+
+Nonlinear lagged ASTs can be scaled and certified on a bounded augmented-state
+domain. The certificate uses interval derivative bounds and a weighted infinity
+norm so both the recurrence row and lag-shift rows have gain below one. Hard
+domain invariance requires the bounded innovation law stored by the mechanism.
+
+```python
+from tsfmxai.generators import (
+    ContractionTreeConfig,
+    sample_contractive_mechanism,
+    sample_contractive_trajectories,
+)
+
+mechanism = sample_contractive_mechanism(
+    ContractionTreeConfig(),
+    seed=7,
+)
+series = sample_contractive_trajectories(
+    mechanism,
+    trajectory_count=32,
+    generated_steps=256,
+    root_seed=11,
+)
+
+assert mechanism.certificate.holds
+assert abs(series).max() <= mechanism.certificate.domain_radius + 1e-12
+```
+
 ## Published experiment notebooks
 
 The Quarto website publishes saved outputs from every notebook under
@@ -72,7 +132,7 @@ successful deployment. Save executed outputs before committing a notebook;
 the website displays exactly those saved results. Images or downloads linked
 from notebook Markdown must also be committed alongside the notebook.
 
-## Local visualization
+## Local mechanism studio
 
 Run the mechanism studio from the repository root:
 
@@ -80,6 +140,6 @@ Run the mechanism studio from the repository root:
 .\.venv\Scripts\python.exe frontend\app.py
 ```
 
-Then open <http://127.0.0.1:8000>. The interface samples a canonical mechanism
-and generates multiple reproducible trajectories while keeping that mechanism
-fixed.
+Then open <http://127.0.0.1:8000>. The interface samples a canonical two-series
+system, retains one equation per target, and generates multiple reproducible
+multivariate trajectories while keeping both mechanisms fixed.

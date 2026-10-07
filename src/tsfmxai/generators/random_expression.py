@@ -17,6 +17,7 @@ from tsfmxai.representations.expression import (
     Parameter,
     Time,
     canonicalize_and_relabel,
+    canonicalize_commutative,
     format_tree,
     lag_slots,
     operator_count,
@@ -43,6 +44,7 @@ class RandomTreeConfig:
     maximum_parameter_magnitude: float = 0.90
     require_lag: bool = True
     require_time: bool = False
+    coefficient_gate_lags: bool = False
 
     def __post_init__(self) -> None:
         if self.minimum_operators < 0:
@@ -71,6 +73,8 @@ class RandomTreeConfig:
             raise ValueError("add_probability must lie in [0, 1].")
         if not 0 < self.minimum_parameter_magnitude <= self.maximum_parameter_magnitude:
             raise ValueError("Parameter magnitudes must define a positive interval.")
+        if not isinstance(self.coefficient_gate_lags, bool):
+            raise ValueError("coefficient_gate_lags must be a boolean.")
         minimum_leaf_count = self.minimum_operators + 1
         required_kinds = int(self.require_lag) + int(self.require_time)
         if required_kinds > minimum_leaf_count:
@@ -228,6 +232,67 @@ def _sample_parameter_value(rng: np.random.Generator, config: RandomTreeConfig) 
     return float(sign * magnitude)
 
 
+def _coefficient_gate_lags(
+    expression: ExpressionNode,
+    binding: MechanismBinding,
+    *,
+    rng: np.random.Generator,
+    config: RandomTreeConfig,
+) -> tuple[ExpressionNode, MechanismBinding]:
+    """Wrap every lag in a newly sampled coefficient while preserving its binding."""
+
+    gate_values: dict[str, float] = {}
+    gate_index = 0
+
+    def add_gates(node: ExpressionNode) -> ExpressionNode:
+        nonlocal gate_index
+        if isinstance(node, Lag):
+            gate_slot = f"temporary_gate_{gate_index}"
+            gate_index += 1
+            gate_values[gate_slot] = _sample_parameter_value(rng, config)
+            return Multiply(Parameter(gate_slot), node)
+        if isinstance(node, (Parameter, Time)):
+            return node
+        left = add_gates(node.left)
+        right = add_gates(node.right)
+        if isinstance(node, Add):
+            return Add(left, right)
+        return Multiply(left, right)
+
+    gated = canonicalize_commutative(add_gates(expression))
+    source_parameter_values = {**binding.parameter_values, **gate_values}
+    relabeled_parameter_values: dict[str, float] = {}
+    relabeled_lag_values: dict[str, int] = {}
+    parameter_index = 0
+    lag_index = 0
+
+    def relabel_and_rebind(node: ExpressionNode) -> ExpressionNode:
+        nonlocal parameter_index, lag_index
+        if isinstance(node, Parameter):
+            new_slot = f"P{parameter_index}"
+            parameter_index += 1
+            relabeled_parameter_values[new_slot] = float(source_parameter_values[node.slot])
+            return Parameter(new_slot)
+        if isinstance(node, Lag):
+            new_slot = f"L{lag_index}"
+            lag_index += 1
+            relabeled_lag_values[new_slot] = int(binding.lag_values[node.slot])
+            return Lag(node.variable, new_slot)
+        if isinstance(node, Time):
+            return node
+        left = relabel_and_rebind(node.left)
+        right = relabel_and_rebind(node.right)
+        if isinstance(node, Add):
+            return Add(left, right)
+        return Multiply(left, right)
+
+    relabeled = relabel_and_rebind(gated)
+    return relabeled, MechanismBinding(
+        parameter_values=relabeled_parameter_values,
+        lag_values=relabeled_lag_values,
+    )
+
+
 def sample_random_mechanism(
     config: RandomTreeConfig,
     *,
@@ -258,6 +323,13 @@ def sample_random_mechanism(
         for slot in lag_slots(expression)
     }
     binding = MechanismBinding(parameter_values=parameter_values, lag_values=lag_values)
+    if config.coefficient_gate_lags:
+        expression, binding = _coefficient_gate_lags(
+            expression,
+            binding,
+            rng=rng,
+            config=config,
+        )
     return SampledMechanism(
         expression=expression,
         binding=binding,
