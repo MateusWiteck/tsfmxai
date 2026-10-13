@@ -22,6 +22,7 @@ from tsfmxai.representations.expression import (
     Multiply,
     Parameter,
     Time,
+    Tanh,
     format_tree,
     to_bound_formula,
     to_skeleton_formula,
@@ -235,6 +236,9 @@ def bound_expression_on_box(
             return -domain_radius, domain_radius, gradient
         if isinstance(node, Time):
             raise ValueError("Time terminals are not supported by the contraction certificate.")
+        if isinstance(node, Tanh):
+            low, high, gradient = visit(node.operand)
+            return float(np.tanh(low)), float(np.tanh(high)), gradient
         left_low, left_high, left_gradient = visit(node.left)
         right_low, right_high, right_gradient = visit(node.right)
         if isinstance(node, Add):
@@ -454,6 +458,10 @@ def evaluate_expression_with_gradient(
             return float(state[coordinate]), gradient
         if isinstance(node, Time):
             raise ValueError("Time terminals are not supported by the contraction certificate.")
+        if isinstance(node, Tanh):
+            value, gradient = visit(node.operand)
+            output = float(np.tanh(value))
+            return output, (1.0 - output * output) * gradient
         left_value, left_gradient = visit(node.left)
         right_value, right_gradient = visit(node.right)
         if isinstance(node, Add):
