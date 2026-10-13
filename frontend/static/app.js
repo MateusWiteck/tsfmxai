@@ -1,9 +1,8 @@
 const $ = (id) => document.getElementById(id);
 
-const state = { mechanism: null, trajectories: null, activeEquation: 0 };
+const state = { mechanism: null, trajectories: null, activeEquation: 0, activeTrajectory: 0, playback: null };
 const seriesNames = ["x₀", "x₁"];
 const seriesColors = ["#1f6b55", "#4488a3"];
-const seriesFaintColors = ["rgba(31, 107, 85, 0.20)", "rgba(68, 136, 163, 0.20)"];
 
 function numberValue(id) {
   return Number($(id).value);
@@ -36,6 +35,8 @@ async function postJson(path, payload) {
 
 function mechanismRequest() {
   return {
+    stability_method: $("stability-method").value,
+    innovation_std: numberValue("innovation"),
     seed: numberValue("tree-seed"),
     minimum_operators: numberValue("min-operators"),
     maximum_operators: numberValue("max-operators"),
@@ -63,6 +64,7 @@ function trajectoryRequest() {
 }
 
 async function generateMechanism() {
+  pausePlayback();
   const button = $("generate-tree");
   button.disabled = true;
   $("generate-series").disabled = true;
@@ -85,11 +87,13 @@ async function generateMechanism() {
 
 async function generateTrajectories() {
   if (!state.mechanism) return;
+  pausePlayback();
   const button = $("generate-series");
   button.disabled = true;
   setStatus("Executando as duas recorrências de forma síncrona…");
   try {
     state.trajectories = await postJson("/api/trajectories", trajectoryRequest());
+    state.activeTrajectory = 0;
     renderTrajectories(state.trajectories);
     setStatus(
       `${state.trajectories.trajectories.length} trajetórias multivariadas geradas com o sistema fixo.`,
@@ -106,6 +110,8 @@ async function generateTrajectories() {
 }
 
 function renderMechanism(mechanism) {
+  const certified = mechanism.certificates?.length > 0 && mechanism.certificates.every((c) => c.holds);
+  $("stability-summary").textContent = `${$("stability-method").selectedOptions[0].textContent} · ${certified ? "Certificado validado para o mecanismo e sua lei de inovação." : "Sem certificado de estabilidade."}`;
   renderEquationCards(mechanism.equations);
   const labels = {
     equations: "equações",
@@ -247,6 +253,7 @@ function renderDependencyMap(mechanism) {
 }
 
 function nodeLabel(node) {
+  if (node.type === "TANH") return ["tanh"];
   if (node.type === "ADD") return ["+"];
   if (node.type === "MULTIPLY") return ["×"];
   if (node.type === "TIME") return ["t"];
@@ -364,20 +371,73 @@ function paddedExtent(values) {
   return [minimum - padding, maximum + padding];
 }
 
-function seriesValues(data, series) {
-  return data.trajectories.flatMap((trajectory) => trajectory[series]);
+function chartAxis(values) {
+  const logarithmic = $("trajectory-scale").value === "symlog";
+  const transform = logarithmic
+    ? (value) => Math.sign(value) * Math.log1p(Math.abs(value)) / Math.LN10
+    : (value) => value;
+  // Normalize before subtraction so opposite, very large finite values remain drawable.
+  const transformed = values.map(transform);
+  const magnitude = Math.max(...transformed.map(Math.abs)) || 1;
+  const [minimum, maximum] = paddedExtent(transformed.map((value) => value / magnitude));
+  return {
+    position: (value) => (transform(value) / magnitude - minimum) / (maximum - minimum),
+    tick: (fraction) => {
+      const value = (minimum + fraction * (maximum - minimum)) * magnitude;
+      const original = logarithmic ? Math.sign(value) * Math.expm1(Math.abs(value) * Math.LN10) : value;
+      return Number.isFinite(original) ? original.toPrecision(3) : (value < 0 ? "−" : "") + ">1.80e308";
+    },
+  };
+}
+
+function pausePlayback() {
+  window.clearInterval(state.playback);
+  state.playback = null;
+  $("trajectory-play").textContent = "Reproduzir";
+  $("trajectory-play").setAttribute("aria-pressed", "false");
+}
+
+function updatePlaybackControls() {
+  const count = state.trajectories?.trajectories.length || 0;
+  $("trajectory-position").textContent = count ? `Trajetória ${state.activeTrajectory + 1} de ${count}` : "Nenhuma trajetória";
+  $("trajectory-select").max = String(Math.max(1, count));
+  $("trajectory-select").value = String(state.activeTrajectory + 1);
+  $("trajectory-select").disabled = !count;
+  $("trajectory-play").disabled = count < 2;
+  $("trajectory-previous").disabled = !count || state.activeTrajectory === 0;
+  $("trajectory-next").disabled = !count || state.activeTrajectory === count - 1;
+}
+
+function selectTrajectory(index) {
+  if (!state.trajectories) return;
+  const count = state.trajectories.trajectories.length;
+  state.activeTrajectory = Math.max(0, Math.min(count - 1, Math.round(index)));
+  renderTrajectories(state.trajectories);
+}
+
+function playTrajectories() {
+  pausePlayback();
+  if (!state.trajectories || state.trajectories.trajectories.length < 2) return;
+  if (state.activeTrajectory === state.trajectories.trajectories.length - 1) selectTrajectory(0);
+  $("trajectory-play").textContent = "Pausar";
+  $("trajectory-play").setAttribute("aria-pressed", "true");
+  state.playback = window.setInterval(() => {
+    selectTrajectory(state.activeTrajectory + 1);
+    if (state.activeTrajectory === state.trajectories.trajectories.length - 1) pausePlayback();
+  }, Number($("trajectory-speed").value));
 }
 
 function renderTrajectories(data) {
   drawLineChart(data);
-  drawHeatmap(data);
+  if ($("ensemble-overview").open) drawHeatmap(data);
   drawPhaseChart(data);
-  const count = data.trajectories.length;
+  updatePlaybackControls();
+  const trajectory = data.trajectories[state.activeTrajectory];
   const ranges = seriesNames.map(
     (name, index) =>
-      `${name} [${Number(data.summary.minimum[index]).toPrecision(3)}, ${Number(data.summary.maximum[index]).toPrecision(3)}]`,
+      `${name} [${Math.min(...trajectory[index]).toPrecision(3)}, ${Math.max(...trajectory[index]).toPrecision(3)}]`,
   );
-  $("trajectory-caption").textContent = `${count} trajetórias · ${ranges.join(" · ")}`;
+  $("trajectory-caption").textContent = ranges.join(" · ");
 }
 
 function drawLineChart(data) {
@@ -394,34 +454,24 @@ function drawLineChart(data) {
 
   for (let series = 0; series < 2; series += 1) {
     const panelTop = margin.top + series * (panelHeight + gap);
-    const [minimum, maximum] = paddedExtent(seriesValues(data, series));
-    const y = (value) => panelTop + ((maximum - value) / (maximum - minimum)) * panelHeight;
+    const trajectory = data.trajectories[state.activeTrajectory];
+    const axis = chartAxis(trajectory[series]);
+    const y = (value) => panelTop + (1 - axis.position(value)) * panelHeight;
 
     ctx.strokeStyle = "#e3e0d6";
     ctx.lineWidth = 1;
     ctx.fillStyle = "#768079";
     for (let tick = 0; tick <= 4; tick += 1) {
-      const value = minimum + ((maximum - minimum) * tick) / 4;
-      const yy = y(value);
+      const yy = panelTop + (1 - tick / 4) * panelHeight;
       ctx.beginPath();
       ctx.moveTo(margin.left, yy);
       ctx.lineTo(width - margin.right, yy);
       ctx.stroke();
-      ctx.fillText(value.toPrecision(3), 3, yy + 3);
+      ctx.fillText(axis.tick(tick / 4), 3, yy + 3);
     }
 
-    data.trajectories.forEach((trajectory) => {
-      ctx.beginPath();
-      trajectory[series].forEach((value, index) =>
-        index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)),
-      );
-      ctx.strokeStyle = seriesFaintColors[series];
-      ctx.lineWidth = 1.15;
-      ctx.stroke();
-    });
-
     ctx.beginPath();
-    data.summary.mean[series].forEach((value, index) =>
+    trajectory[series].forEach((value, index) =>
       index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)),
     );
     ctx.strokeStyle = seriesColors[series];
@@ -518,18 +568,17 @@ function drawPhaseChart(data) {
   const margin = { left: 62, right: 24, top: 18, bottom: 45 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  const [xMinimum, xMaximum] = paddedExtent(seriesValues(data, 0));
-  const [yMinimum, yMaximum] = paddedExtent(seriesValues(data, 1));
-  const x = (value) => margin.left + ((value - xMinimum) / (xMaximum - xMinimum)) * plotWidth;
-  const y = (value) => margin.top + ((yMaximum - value) / (yMaximum - yMinimum)) * plotHeight;
+  const trajectory = data.trajectories[state.activeTrajectory];
+  const xAxis = chartAxis(trajectory[0]);
+  const yAxis = chartAxis(trajectory[1]);
+  const x = (value) => margin.left + xAxis.position(value) * plotWidth;
+  const y = (value) => margin.top + (1 - yAxis.position(value)) * plotHeight;
 
   ctx.clearRect(0, 0, width, height);
   ctx.font = "10px system-ui";
   for (let tick = 0; tick <= 5; tick += 1) {
-    const xValue = xMinimum + ((xMaximum - xMinimum) * tick) / 5;
-    const yValue = yMinimum + ((yMaximum - yMinimum) * tick) / 5;
-    const xx = x(xValue);
-    const yy = y(yValue);
+    const xx = margin.left + (tick / 5) * plotWidth;
+    const yy = margin.top + (1 - tick / 5) * plotHeight;
     ctx.strokeStyle = "#e3e0d6";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -541,39 +590,26 @@ function drawPhaseChart(data) {
     ctx.lineTo(width - margin.right, yy);
     ctx.stroke();
     ctx.fillStyle = "#768079";
-    ctx.fillText(xValue.toPrecision(3), xx - 12, height - margin.bottom + 18);
-    ctx.fillText(yValue.toPrecision(3), 4, yy + 3);
+    ctx.fillText(xAxis.tick(tick / 5), xx - 12, height - margin.bottom + 18);
+    ctx.fillText(yAxis.tick(tick / 5), 4, yy + 3);
   }
 
   const start = Math.min(data.generated_start, data.times.length - 1);
-  data.trajectories.forEach((trajectory) => {
-    ctx.beginPath();
-    for (let index = Math.max(0, start - 1); index < data.times.length; index += 1) {
-      const xx = x(trajectory[0][index]);
-      const yy = y(trajectory[1][index]);
-      if (index === Math.max(0, start - 1)) ctx.moveTo(xx, yy);
-      else ctx.lineTo(xx, yy);
-    }
-    ctx.strokeStyle = "rgba(31, 107, 85, 0.22)";
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(x(trajectory[0][start]), y(trajectory[1][start]), 2.4, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(24, 34, 30, 0.45)";
-    ctx.fill();
-  });
-
   ctx.beginPath();
-  for (let index = Math.max(0, start - 1); index < data.times.length; index += 1) {
-    const xx = x(data.summary.mean[0][index]);
-    const yy = y(data.summary.mean[1][index]);
-    if (index === Math.max(0, start - 1)) ctx.moveTo(xx, yy);
+  for (let index = 0; index < data.times.length; index += 1) {
+    const xx = x(trajectory[0][index]);
+    const yy = y(trajectory[1][index]);
+    if (index === 0) ctx.moveTo(xx, yy);
     else ctx.lineTo(xx, yy);
   }
-  ctx.strokeStyle = "#ec7a45";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = seriesColors[0];
+  ctx.lineWidth = 2.5;
   ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x(trajectory[0][start]), y(trajectory[1][start]), 2.4, 0, Math.PI * 2);
+  ctx.fillStyle = "#18221e";
+  ctx.fill();
 
   ctx.fillStyle = "#315f73";
   ctx.font = "700 11px system-ui";
@@ -583,6 +619,9 @@ function drawPhaseChart(data) {
 }
 
 function clearCanvases() {
+  pausePlayback();
+  state.activeTrajectory = 0;
+  updatePlaybackControls();
   ["trajectory-chart", "heatmap", "phase-chart"].forEach((id) => {
     const canvas = $(id);
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
@@ -593,6 +632,48 @@ function clearCanvases() {
 
 $("innovation").addEventListener("input", () => {
   $("innovation-value").textContent = numberValue("innovation").toFixed(2);
+  if (!["none", "coefficient_gate"].includes($("stability-method").value)) {
+    $("generate-series").disabled = true;
+    setStatus("A inovação mudou. Gere duas equações para atualizar o certificado.");
+  }
+});
+function updateStabilityControls() {
+  const method = $("stability-method").value;
+  const free = ["none", "coefficient_gate"].includes(method);
+  const linear = ["heaps", "stationary_var1"].includes(method);
+  const descriptions = {
+    none: "Sem restrição de estabilidade ou corte por magnitude. Valores não finitos interrompem a geração.",
+    coefficient_gate: "Adiciona coeficientes aos lags; pode reduzir explosões, mas não certifica estabilidade.",
+    contraction: "Duas recorrências independentes, certificadas em [−1, 1], com inovação uniforme limitada. Não usa o terminal tempo.",
+    shao_wu: "Recorrências com tanh e contração global. Inovação gaussiana e histórico após burn-in; não impõe limite rígido de amplitude.",
+    heaps: "VAR(p) linear com histórico gaussiano estacionário. Lag mínimo/máximo escolhem a ordem p; os operadores da AST livre não se aplicam.",
+    stationary_var1: "VAR(1) linear com histórico gaussiano estacionário. Usa somente lag 1; os operadores da AST livre não se aplicam.",
+  };
+  $("stability-description").textContent = descriptions[method];
+  ["initial-min", "initial-max"].forEach((id) => { $(id).disabled = !free; });
+  ["min-operators", "max-operators", "p-parameter", "p-lag", "p-add"].forEach((id) => { $(id).disabled = linear; });
+  $("require-lag").disabled = !free;
+  ["p-time", "require-time"].forEach((id) => { $(id).disabled = !free; });
+  ["min-lag", "max-lag"].forEach((id) => { $(id).disabled = method === "stationary_var1"; });
+  if (!free) { $("p-time").value = "0"; $("require-time").checked = false; $("require-lag").checked = true; }
+  const positiveNoise = ["heaps", "stationary_var1", "shao_wu"].includes(method);
+  $("innovation").min = positiveNoise ? "0.01" : "0";
+  $("innovation").max = method === "contraction" ? "0.99" : "1";
+  if (positiveNoise && numberValue("innovation") === 0) $("innovation").value = "0.05";
+  if (method === "contraction" && numberValue("innovation") >= 1) $("innovation").value = "0.05";
+  $("innovation-label").textContent = method === "contraction" ? "Limite da inovação uniforme" : "Desvio da inovação";
+  $("innovation-value").textContent = numberValue("innovation").toFixed(2);
+}
+$("stability-method").addEventListener("change", () => {
+  pausePlayback();
+  state.mechanism = null;
+  state.trajectories = null;
+  clearCanvases();
+  ["equation-grid", "equation-tabs", "tree-visualization", "binding-table", "dependency-map", "tree-metrics"].forEach((id) => $(id).replaceChildren());
+  $("stability-summary").textContent = "";
+  $("generate-series").disabled = true;
+  updateStabilityControls();
+  setStatus("Método alterado. Clique em Gerar duas equações.");
 });
 $("randomize-tree-seed").addEventListener("click", () => {
   $("tree-seed").value = randomSeed();
@@ -602,9 +683,18 @@ $("randomize-series-seed").addEventListener("click", () => {
 });
 $("generate-tree").addEventListener("click", generateMechanism);
 $("generate-series").addEventListener("click", generateTrajectories);
+$("trajectory-previous").addEventListener("click", () => { pausePlayback(); selectTrajectory(state.activeTrajectory - 1); });
+$("trajectory-next").addEventListener("click", () => { pausePlayback(); selectTrajectory(state.activeTrajectory + 1); });
+$("trajectory-select").addEventListener("input", () => { pausePlayback(); selectTrajectory(numberValue("trajectory-select") - 1); });
+$("trajectory-play").addEventListener("click", () => { if (state.playback !== null) pausePlayback(); else playTrajectories(); });
+$("trajectory-speed").addEventListener("change", () => { if (state.playback !== null) playTrajectories(); });
+$("trajectory-scale").addEventListener("change", () => { if (state.trajectories) renderTrajectories(state.trajectories); });
+$("ensemble-overview").addEventListener("toggle", () => { if ($("ensemble-overview").open && state.trajectories) drawHeatmap(state.trajectories); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) pausePlayback(); });
 window.addEventListener("resize", () => {
   if (state.mechanism) renderActiveEquation();
   if (state.trajectories) renderTrajectories(state.trajectories);
 });
 
+updateStabilityControls();
 generateMechanism().then(generateTrajectories);

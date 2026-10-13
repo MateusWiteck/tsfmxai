@@ -41,12 +41,49 @@ The interface currently shows:
 - both skeleton and numerically bound formulas;
 - parameter and lag bindings for the selected target;
 - an explicit target-by-source lag-support matrix;
-- aligned trajectory panels and their per-series means;
-- one trajectory-by-time heatmap per series;
-- a two-dimensional state-space view `x0(t) x x1(t)`;
+- aligned panels showing one complete multivariate trajectory at a time;
+- play/pause, previous/next, direct trajectory selection, and playback speed;
+- independent scaling for each selected trajectory, with linear or signed-log axes;
+- an optional, collapsed ensemble overview with one heatmap per variable;
+- a synchronized state-space view `x0(t) x x1(t)` for the selected trajectory;
 - the boundary between initial conditions and recursively generated values.
 
 Candidate next views are horizon-wise dependency propagation, local
 contribution flow between the two equations, a stability map over parameters
 and initial conditions, and a comparison between sampled and canonicalized
 systems.
+
+Playback runs entirely in the browser, advancing through all saved trajectories
+once and stopping at the last one. It does not resample or alter values. The
+signed-log view uses `sign(x) * log10(1 + abs(x))` and labels ticks in original
+units. Each trajectory gets its own scale, so compare magnitudes using tick
+labels rather than apparent line height. New generation pauses playback;
+manual navigation also pauses it.
+
+The same playback can work on static hosting with exported trajectory data.
+The current GitHub Pages site renders experiment notebooks; the studio still
+uses the local Python API to sample new mechanisms and trajectories.
+
+## Explosion-control selector
+
+Choose a method before clicking **Gerar duas equações**. The studio retains the
+actual sampled formulas and certificates and uses each family's existing
+trajectory generator; it does not clip trajectories to simulate stability.
+
+| Method | Behavior |
+|---|---|
+| None | Original unrestricted, coupled AST sampler. |
+| Coefficient-gated lags | Existing heuristic; no stability certificate. |
+| Jacobian contraction | Two independently certified scalar recurrences on `[-1, 1]`, with bounded uniform innovations. |
+| Shao–Wu | Coupled, time-homogeneous `tanh` recurrences, Gaussian innovations, and certified finite burn-in. |
+| Heaps VAR(p) | Coupled linear stationary VAR; lag bounds select the order and history is drawn from its joint stationary law. |
+| Stationary VAR(1) | Coupled linear VAR with spectral radius below one and stationary Gaussian initialization. |
+
+The innovation control sets a uniform bound for Jacobian contraction and a
+Gaussian standard deviation for the other methods. Certified Gaussian methods
+require a positive standard deviation. Changing the innovation setting requires
+resampling the certified mechanism. Manual initial bounds apply to the two
+uncertified methods; the others retain their prescribed initialization law.
+Tree/operator controls apply to AST families, not linear VAR families. The
+certificate status is displayed above the equations. Gaussian stationarity and
+GMC do not impose a hard bound on every realized amplitude.

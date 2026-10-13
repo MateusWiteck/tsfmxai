@@ -56,7 +56,14 @@ class Multiply(Expression):
     right: Expression
 
 
-ExpressionNode: TypeAlias = Parameter | Time | Lag | Add | Multiply
+@dataclass(frozen=True)
+class Tanh(Expression):
+    """Bounded unary hyperbolic tangent, with global derivative bound one."""
+
+    operand: Expression
+
+
+ExpressionNode: TypeAlias = Parameter | Time | Lag | Add | Multiply | Tanh
 
 
 @dataclass(frozen=True)
@@ -72,6 +79,8 @@ def children(expression: ExpressionNode) -> tuple[ExpressionNode, ...]:
 
     if isinstance(expression, (Add, Multiply)):
         return expression.left, expression.right
+    if isinstance(expression, Tanh):
+        return (expression.operand,)
     return ()
 
 
@@ -90,9 +99,9 @@ def node_count(expression: ExpressionNode) -> int:
 
 
 def operator_count(expression: ExpressionNode) -> int:
-    """Count binary operator nodes."""
+    """Count binary and unary operator nodes."""
 
-    return sum(isinstance(node, (Add, Multiply)) for node in walk(expression))
+    return sum(isinstance(node, (Add, Multiply, Tanh)) for node in walk(expression))
 
 
 def leaf_count(expression: ExpressionNode) -> int:
@@ -132,6 +141,8 @@ def _structural_key(expression: ExpressionNode) -> str:
         return "TIME"
     if isinstance(expression, Lag):
         return f"LAG[{expression.variable}]"
+    if isinstance(expression, Tanh):
+        return f"TANH({_structural_key(expression.operand)})"
     if isinstance(expression, Add):
         return f"ADD({_structural_key(expression.left)},{_structural_key(expression.right)})"
     if isinstance(expression, Multiply):
@@ -144,6 +155,8 @@ def canonicalize_commutative(expression: ExpressionNode) -> ExpressionNode:
 
     if isinstance(expression, (Parameter, Time, Lag)):
         return expression
+    if isinstance(expression, Tanh):
+        return Tanh(canonicalize_commutative(expression.operand))
 
     left = canonicalize_commutative(expression.left)
     right = canonicalize_commutative(expression.right)
@@ -172,6 +185,8 @@ def relabel_slots(expression: ExpressionNode) -> ExpressionNode:
             return result
         if isinstance(node, Time):
             return node
+        if isinstance(node, Tanh):
+            return Tanh(visit(node.operand))
         left = visit(node.left)
         right = visit(node.right)
         if isinstance(node, Add):
@@ -200,6 +215,8 @@ def node_label(expression: ExpressionNode) -> str:
         return "ADD"
     if isinstance(expression, Multiply):
         return "MULTIPLY"
+    if isinstance(expression, Tanh):
+        return "TANH"
     raise TypeError(type(expression))
 
 
@@ -228,6 +245,8 @@ def to_skeleton_formula(expression: ExpressionNode) -> str:
         return "t"
     if isinstance(expression, Lag):
         return f"LAG({expression.variable}, {expression.slot})"
+    if isinstance(expression, Tanh):
+        return f"tanh({to_skeleton_formula(expression.operand)})"
     if isinstance(expression, Add):
         return f"({to_skeleton_formula(expression.left)} + {to_skeleton_formula(expression.right)})"
     if isinstance(expression, Multiply):
@@ -272,6 +291,8 @@ def to_bound_formula(expression: ExpressionNode, binding: MechanismBinding) -> s
         if isinstance(node, Lag):
             lag = binding.lag_values[node.slot]
             return f"x_{node.variable}(t-{lag})"
+        if isinstance(node, Tanh):
+            return f"tanh({visit(node.operand)})"
         if isinstance(node, Add):
             return f"({visit(node.left)} + {visit(node.right)})"
         if isinstance(node, Multiply):

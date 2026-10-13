@@ -1,5 +1,19 @@
 """Mechanism and trajectory generators."""
 
+from tsfmxai.generators.heaps import (
+    HeapsCertificate, HeapsVARConfig, HeapsVARMechanism,
+    build_heaps_var_mechanism, initialize_heaps_history,
+    partial_autocorrelations_to_var, unconstrained_to_partial_autocorrelations,
+    sample_heaps_var_mechanism, sample_heaps_var_mechanisms,
+    sample_heaps_var_trajectories, var_companion_matrix,
+)
+from tsfmxai.generators.shao_wu import (
+    ShaoWuCertificate, ShaoWuConfig, ShaoWuMechanism,
+    build_shao_wu_mechanism, global_expression_bounds, initialize_shao_wu_history,
+    sample_shao_wu_mechanism, sample_shao_wu_mechanisms, sample_shao_wu_trajectories,
+)
+from tsfmxai.generators.stochastic import simulate_innovation_path
+
 from tsfmxai.generators.contraction import (
     ContractionCertificate,
     ContractionMonteCarloReport,
@@ -68,6 +82,15 @@ from tsfmxai.generators.kernel_synth import (
 )
 
 __all__ = [
+    "HeapsCertificate", "HeapsVARConfig", "HeapsVARMechanism",
+    "build_heaps_var_mechanism", "initialize_heaps_history",
+    "partial_autocorrelations_to_var", "unconstrained_to_partial_autocorrelations",
+    "sample_heaps_var_mechanism", "sample_heaps_var_mechanisms",
+    "sample_heaps_var_trajectories", "var_companion_matrix",
+    "ShaoWuCertificate", "ShaoWuConfig", "ShaoWuMechanism",
+    "build_shao_wu_mechanism", "global_expression_bounds", "initialize_shao_wu_history",
+    "sample_shao_wu_mechanism", "sample_shao_wu_mechanisms", "sample_shao_wu_trajectories",
+    "simulate_innovation_path",
     "ContractionCertificate",
     "ContractionMonteCarloReport",
     "ContractionTreeConfig",

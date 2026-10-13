@@ -31,12 +31,25 @@
       </section>
 
       <section class="workspace">
-        <aside class="controls panel">
+        <section class="controls panel" aria-label="Configuração da geração">
+          <div class="control-group">
           <div class="panel-heading">
             <div><span class="step">01</span><h3>Configurar sistema</h3></div>
             <button class="icon-button" id="randomize-tree-seed" title="Sortear outra seed">↻</button>
           </div>
 
+          <div class="field full">
+            <label for="stability-method">Controle de explosão</label>
+            <select id="stability-method">
+              <option value="none">Nenhum — AST livre</option>
+              <option value="coefficient_gate">Coeficientes nos lags — heurística</option>
+              <option value="contraction">Contração por Jacobiano — domínio limitado</option>
+              <option value="shao_wu">Shao–Wu — contração global / GMC</option>
+              <option value="heaps">Heaps — VAR(p) estacionário</option>
+              <option value="stationary_var1">VAR(1) — raio espectral menor que 1</option>
+            </select>
+            <p class="muted" id="stability-description"></p>
+          </div>
           <div class="field full">
             <label for="tree-seed">Seed do mecanismo</label>
             <input id="tree-seed" type="number" value="20260930" min="0" />
@@ -73,8 +86,8 @@
           </details>
 
           <button class="primary" id="generate-tree">Gerar duas equações</button>
-
-          <div class="divider"></div>
+          </div>
+          <div class="control-group">
           <div class="panel-heading compact">
             <div><span class="step">02</span><h3>Sortear trajetórias</h3></div>
             <button class="icon-button" id="randomize-series-seed" title="Sortear outra seed">↻</button>
@@ -87,15 +100,17 @@
             <div class="field"><label for="initial-max">Inicial máx.</label><input id="initial-max" type="number" value="1" step="0.1" /></div>
           </div>
           <div class="field full range-field">
-            <label for="innovation">Desvio da inovação <output id="innovation-value">0.00</output></label>
+            <label for="innovation"><span id="innovation-label">Desvio da inovação</span> <output id="innovation-value">0.00</output></label>
             <input id="innovation" type="range" value="0" min="0" max="1" step="0.01" />
           </div>
           <button class="secondary" id="generate-series" disabled>Sortear trajetórias</button>
-          <p class="control-note"><strong>num_series = 2</strong>. Cada amostra fixa uma equação para <code>x₀(t)</code> e outra para <code>x₁(t)</code>; ambas podem usar lags das duas séries.</p>
-        </aside>
+          <p class="control-note"><strong>num_series = 2</strong>. Cada amostra fixa uma equação para <code>x₀(t)</code> e outra para <code>x₁(t)</code>. Na contração por Jacobiano, as duas séries são independentes.</p>
+          </div>
+        </section>
 
         <div class="results">
           <div id="status" class="status" role="status">Preparando o laboratório…</div>
+          <p class="muted" id="stability-summary" role="status"></p>
 
           <section class="panel formula-panel">
             <div class="section-title"><span>SYSTEM / 2 EQUATIONS</span><h3>Recorrências sorteadas</h3></div>
@@ -123,18 +138,36 @@
 
           <section class="panel chart-panel">
             <div class="section-title chart-title">
-              <div><span>TRAJECTORIES / ALIGNED</span><h3>Duas séries, mesmas realizações</h3></div>
+              <div><span>TRAJECTORIES / PLAYER</span><h3>Uma trajetória por vez</h3></div>
               <p id="trajectory-caption">Cada painel usa sua própria escala; o tempo permanece alinhado.</p>
             </div>
+            <div class="trajectory-controls">
+              <button type="button" id="trajectory-previous" class="secondary" disabled>Anterior</button>
+              <button type="button" id="trajectory-play" class="secondary" aria-pressed="false" disabled>Reproduzir</button>
+              <button type="button" id="trajectory-next" class="secondary" disabled>Próxima</button>
+              <label for="trajectory-speed">Tempo por trajetória
+                <select id="trajectory-speed"><option value="750">0,75 s</option><option value="1500" selected>1,5 s</option><option value="3000">3 s</option><option value="5000">5 s</option></select>
+              </label>
+              <label for="trajectory-scale">Escala
+                <select id="trajectory-scale"><option value="linear">Linear</option><option value="symlog">Logarítmica com sinal</option></select>
+              </label>
+            </div>
+            <div class="trajectory-selector">
+              <label for="trajectory-select" id="trajectory-position">Nenhuma trajetória</label>
+              <input type="range" id="trajectory-select" min="1" max="1" value="1" step="1" disabled />
+            </div>
+            <p class="muted">Cada quadro mostra a trajetória completa de x₀ e x₁ da mesma realização. A escala se ajusta a ela; reproduzir percorre todas as trajetórias uma vez. A escala logarítmica com sinal usa sign(x) · log₁₀(1 + |x|).</p>
             <div class="canvas-wrap"><canvas id="trajectory-chart"></canvas></div>
-            <div class="chart-legend"><span class="line-x0"></span>x₀ <span class="line-x1"></span>x₁ <span class="line-mean"></span>média <span class="line-start"></span>início da recorrência</div>
+            <div class="chart-legend"><span class="line-x0"></span>x₀ <span class="line-x1"></span>x₁ <span class="line-start"></span>início da recorrência</div>
           </section>
 
           <section class="two-column lower">
             <article class="panel heatmap-panel">
+              <details id="ensemble-overview"><summary>Visão geral de todas as trajetórias</summary>
               <div class="section-title"><span>ENSEMBLE × VARIABLE</span><h3>Mapas das duas séries</h3></div>
               <div class="canvas-wrap heatmap-wrap"><canvas id="heatmap"></canvas></div>
               <p class="muted">Os blocos de x₀ e x₁ usam escalas de cor independentes. Cada linha é uma trajetória do mesmo sistema.</p>
+              </details>
             </article>
             <article class="panel dependency-panel">
               <div class="section-title"><span>STRUCTURAL SUPPORT</span><h3>Mapa variável–lag</h3></div>
@@ -146,10 +179,10 @@
           <section class="panel phase-panel">
             <div class="section-title chart-title">
               <div><span>JOINT DYNAMICS</span><h3>Espaço de estados x₀ × x₁</h3></div>
-              <p>O caminho mostra como cada realização se desloca conjuntamente entre as duas variáveis.</p>
+              <p>Trajetória selecionada: o mesmo quadro dos painéis temporais, com escala própria.</p>
             </div>
             <div class="canvas-wrap phase-wrap"><canvas id="phase-chart"></canvas></div>
-            <div class="chart-legend"><span class="line-many"></span>trajetórias <span class="line-mean"></span>trajetória média <span class="phase-start-dot"></span>início da recorrência</div>
+            <div class="chart-legend"><span class="line-x0"></span>trajetória selecionada <span class="phase-start-dot"></span>início da recorrência</div>
           </section>
         </div>
       </section>

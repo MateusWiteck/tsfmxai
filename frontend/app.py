@@ -25,8 +25,6 @@ from tsfmxai.generators import (  # noqa: E402
     SampledMechanism,
     expression_required_history_length,
     required_multivariate_history_length,
-    sample_multivariate_trajectories,
-    sample_random_mechanisms,
 )
 from tsfmxai.representations import (  # noqa: E402
     Add,
@@ -35,12 +33,16 @@ from tsfmxai.representations import (  # noqa: E402
     Multiply,
     Parameter,
     Time,
+    Tanh,
     children,
     leaf_count,
     node_count,
     operator_count,
     tree_depth,
     walk,
+)
+from tsfmxai.visualization.studio_generation import (  # noqa: E402
+    sample_studio_system, sample_studio_trajectories,
 )
 
 
@@ -92,6 +94,8 @@ def _node_payload(node: ExpressionNode, binding: Any) -> dict[str, Any]:
         node_type = "ADD"
     elif isinstance(node, Multiply):
         node_type = "MULTIPLY"
+    elif isinstance(node, Tanh):
+        node_type = "TANH"
     else:
         raise TypeError(type(node))
     return {
@@ -297,29 +301,30 @@ class FrontendHandler(SimpleHTTPRequestHandler):
             require_time=bool(data.get("require_time", False)),
         )
         root_seed = _as_int(data, "seed", 20260930)
-        mechanisms = sample_random_mechanisms(config, root_seed=root_seed, count=2)
-        mechanism_id = STORE.add(mechanisms)
-        self._write_json(_system_payload(mechanism_id, mechanisms, config, root_seed))
+        system = sample_studio_system(config, method=str(data.get("stability_method", "none")),
+                                     seed=root_seed, innovation=_as_float(data, "innovation_std", .05))
+        mechanism_id = STORE.add(system)
+        payload = _system_payload(mechanism_id, system.equations, system.tree_config, root_seed)
+        payload["stability_method"] = system.method
+        payload["certificates"] = system.certificates
+        payload["innovation"] = system.innovation
+        self._write_json(payload)
 
     def _sample_trajectories(self, data: dict[str, Any]) -> None:
-        mechanisms = STORE.get(str(data.get("mechanism_id", "")))
+        system = STORE.get(str(data.get("mechanism_id", "")))
         generated_steps = _as_int(data, "generated_steps", 60)
         if generated_steps < 1:
             raise ValueError("generated_steps must be positive in the visualization.")
-        expressions = [mechanism.expression for mechanism in mechanisms]
-        bindings = [mechanism.binding for mechanism in mechanisms]
-        trajectories = sample_multivariate_trajectories(
-            expressions,
-            bindings,
+        trajectories = sample_studio_trajectories(
+            system,
             trajectory_count=_as_int(data, "trajectory_count", 12),
             generated_steps=generated_steps,
             initial_value_minimum=_as_float(data, "initial_value_minimum", -1.0),
             initial_value_maximum=_as_float(data, "initial_value_maximum", 1.0),
             innovation_std=_as_float(data, "innovation_std", 0.0),
             root_seed=_as_int(data, "seed", 314159),
-            maximum_absolute_value=None,
         )
-        history_length = required_multivariate_history_length(expressions, bindings)
+        history_length = system.history_length
         self._write_json(
             _trajectory_payload(
                 trajectories,

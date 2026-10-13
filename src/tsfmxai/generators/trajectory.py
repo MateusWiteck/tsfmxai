@@ -14,6 +14,7 @@ from tsfmxai.representations.expression import (
     Multiply,
     Parameter,
     Time,
+    Tanh,
     validate_binding,
     walk,
 )
@@ -103,6 +104,10 @@ def evaluate_bound_expression(
         return float(binding.parameter_values[expression.slot])
     if isinstance(expression, Time):
         return float(time)
+    if isinstance(expression, Tanh):
+        return float(np.tanh(evaluate_bound_expression(
+            expression.operand, binding, time=time, histories=histories,
+        )))
     if isinstance(expression, Lag):
         lag = binding.lag_values[expression.slot]
         try:
