@@ -1,7 +1,7 @@
 \section*{Meaning of the notation}
 
 The papers reviewed below reuse some letters for different internal
-quantities. To make the comparison unambiguous, this chapter adopts the common
+quantities. To make the comparison unambiguous, this report adopts the common
 notation in Table~\ref{tab:notation}. Every displayed equation is restated with
 this notation, even when the cited paper uses different letters. For temporal
 comparisons, $\tau$ is the common forecast origin (the latest observed sample)
@@ -53,7 +53,9 @@ first unseen target is $h=1$, at time $+1$. \\
 $d$, $L$ &
 $d\in\{0,\ldots,L-1\}$ is the backward offset from the common origin and $L$
 is the input-window length. Thus $x_{j,\tau-d}$ denotes a historical input,
-with $d=0$ denoting the latest observed sample. \\
+with $d=0$ denoting the latest observed sample. In the generator analysis,
+$L$ specifically denotes the mechanism's largest lag and required state
+history; a forecaster may receive a longer context. \\
 
 $t$, $\ell$ &
 $t$ and $\ell$ reproduce the indexing used in a paper's own equation. In the
@@ -92,7 +94,9 @@ the common forecast-origin offset $d$. \\
 $\mathcal{T}$, $o$, $F_{\mathcal{T}}$ &
 $\mathcal{T}$ is a sampled unary--binary expression tree, $o$ is its number of
 operator nodes, and $F_{\mathcal{T}}$ is the recurrence function obtained by
-executing that tree. \\
+executing that tree. When arguments are lag states, it denotes the
+deterministic drift, with innovations added separately. $P_a$ and $L_a$ in
+implementation examples denote named coefficient and lag slots before binding. \\
 
 $\mathbf{s}_t$, $\mathcal F_{\varepsilon}$, $J_{\mathcal F}$ &
 $\mathbf{s}_t=(x_t,x_{t-1},\ldots,x_{t-L+1})^\top$ is the augmented state that
@@ -136,6 +140,47 @@ each lag in the second-moment specialization of Shao--Wu's condition, with
 $\sum_d a_d^{\mathrm{GMC}}<1$.
 $\|Z\|_{L^2}=(\mathbb E[\|Z\|_2^2])^{1/2}$ measures the size of a random
 scalar or vector in second moment. \\
+
+$\mathbf{s}_d$, $\sigma_\varepsilon$;
+$C_{\mathrm{GMC}}$, $\rho_{\mathrm{GMC}}$ &
+$\mathbf{s}_d\in\mathbb R^N$ is lag block $d$ of a generic stacked history;
+$\sigma_\varepsilon$ is the per-channel innovation standard deviation.
+$C_{\mathrm{GMC}}$ and $\rho_{\mathrm{GMC}}\in(0,1)$ bound the geometric
+decay of the coupled squared difference. A prime denotes the coupled version
+with the same future innovations. \\
+
+$A(e)$, $D(e)$, $\mathbf D_d$;
+$\widetilde a_d$, $\widetilde c$ &
+$A(e)$ bounds a subexpression's absolute value globally; $D(e)$ contains its
+absolute derivative bounds by source and lag. $\mathbf D_d$ stacks the bounds
+over targets at lag offset $d$. $\widetilde a_d=\|\mathbf D_d\|_2$ and
+$\widetilde c=\sum_d\widetilde a_d$ are the unscaled gains. For matrices,
+$\|\cdot\|_2$ is the largest singular value. \\
+
+$g_\star$, $\eta_{\mathrm{safe}}$,
+$\eta_{\mathrm{GMC}}$, $c_{\mathrm{GMC}}$ &
+The target gain, safety multiplier, and resulting scale applied to each output
+AST. The final total gain is $c_{\mathrm{GMC}}=\sum_d a_d^{\mathrm{GMC}}$.
+Defaults are $g_\star=0.8$ and $\eta_{\mathrm{safe}}=0.95$. \\
+
+$B_{\mathrm{GMC}}$, $r_0$, $M_0$;
+$K$, $b_{\mathrm{burn}}$, $\delta_{\mathrm{init}}$ &
+Global vector-drift bound, initial-history radius, and initial per-lag
+$L^2$ coupling-error bound. $K$ counts contraction blocks of $L$ steps;
+$b_{\mathrm{burn}}=L-1+KL$ is the burn-in length; and
+$\delta_{\mathrm{init}}$ is the retained-history per-lag error tolerance.
+The superscript $\mathrm{stat}$ denotes a stationary coupled trajectory. \\
+
+$w_{\mathrm{tail}}$, $\bar x^{\mathrm{tail}}_{k,h}$;
+$V_h^{\mathrm{tail}}$, $\delta_{\mathrm{flat}}$ &
+Tail-window length and channelwise tail mean. $V_h^{\mathrm{tail}}$ is the
+largest deviation from these means across channels and tail times;
+$\delta_{\mathrm{flat}}$ is the proposed nearly constant-tail tolerance.
+$v$ indexes generated steps relative to the stated origin. \\
+
+$\mathbf V$, $\mathbf Q$ &
+The stationary covariance of the VAR lag state, and its innovation covariance
+with $\Sigma_\varepsilon$ in the newest block and zeros elsewhere. \\
 
 $\mathbf x_t$, $\boldsymbol\varepsilon_t$, $\Sigma_{\varepsilon}$;
 $\mathbf C_\ell$, $\mathbf B$, $\rho(\mathbf B)$ &

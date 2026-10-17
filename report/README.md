@@ -7,6 +7,8 @@ follows:
 - `frontmatter/`: notation and other material before the numbered chapters;
 - `chapters/`: research goal, research plan, and the related-work index;
 - `chapters/related_work/`: one file per reviewed paper plus synthesis files;
+- `chapters/implemented_generator/`: Chapter 4, split into representation,
+  diagnostics, mathematical conditions, implementation, and observed results;
 - `figures/manual/`: manually maintained LaTeX figures;
 - `figures/generated/`: figures produced by scripts;
 - `tables/`: standalone tables when separating them improves reuse or clarity.

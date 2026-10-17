@@ -1,0 +1,68 @@
+\subsection{Explosion and low-variation diagnostics}
+\label{sec:generator-diagnostics}
+
+Unrestricted feedback can amplify observations over repeated execution.
+In the recorded four-family experiment, the original sampler crosses the
+operational explosion criterion in 2,658 of 5,000 trajectories by step 384
+(53.16\%). A pretraining prior dominated by such behaviour would allocate much
+of its capacity to rapidly growing recurrences. For the intended benchmark,
+explosive cases can instead form an explicitly controlled difficulty group,
+alongside mechanisms producing sustained variation at usable scales.
+
+\paragraph{Common evaluation procedure.}
+The executed notebook
+\path{experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb}
+uses root seed 20261001, 5,000 independent mechanisms per family, and one
+trajectory per mechanism. Each run has one channel, a lag range of 1--12,
+and diagnostic horizons $h\in\{96,192,384\}$. The original trees contain
+1--6 binary operations, addition probability 0.8, parameter/lag leaf
+probabilities 0.55/0.45, and coefficient magnitudes in $[0.05,0.8]$ with
+random signs. Explicit time leaves are disabled in this comparison.
+
+The evaluator constructs the history according to each family, generates one
+path up to the largest horizon, and reuses its prefixes. It stops at the first
+non-finite value or magnitude greater than 100, retaining that failing value.
+The event remains counted at every later horizon, including a failure at the
+last requested step. Every attempted mechanism stays in the denominator.
+For multivariate use, any failing channel flags the system. These rules are
+implemented in \path{src/tsfmxai/evaluation/stability.py} and
+\path{src/tsfmxai/evaluation/generator_tradeoff.py}.
+
+\paragraph{Low amplitude near zero: the measured diagnostic.}
+A completed, non-explosive prefix receives this label when every channel's
+last 24 values lies in $[-0.15,0.15]$. The tolerance is three times the
+innovation standard deviation used in this experiment, $\sigma_\varepsilon=0.05$.
+Thus the label measures occupation of a small band during a finite window.
+It can also be produced by a stationary process fluctuating near zero from
+the beginning. Convergence of a trajectory to zero is a stronger,
+infinite-time property requiring separate evidence.
+
+\paragraph{Nearly constant tails: an additional diagnostic specification.}
+To capture stabilization around levels other than zero, let
+$\bar x^{\mathrm{tail}}_{k,h}$ be the mean of channel $k$ over the last
+$w_{\mathrm{tail}}$ generated observations at horizon $h$. Define
+\begin{equation}
+ V_h^{\mathrm{tail}}=
+ \max_k\max_{h-w_{\mathrm{tail}}<v\leq h}
+ \left|x_{k,\tau+v}-\bar x^{\mathrm{tail}}_{k,h}\right|.
+ \label{eq:generator-flat-tail}
+\end{equation}
+A threshold $\delta_{\mathrm{flat}}$ then selects nearly constant tails
+around their own mean. Record the mean level, the tolerance, and the innovation
+scale together. A corresponding earlier window establishes whether variation
+actually decreased during generation; repeated terminal windows provide a
+finite-duration persistence check. These additions distinguish an initially
+quiet series, flattening towards a nonzero level, and declining amplitude
+near zero. This criterion specifies the next extension of the evaluator;
+the executed results below report the existing explosion and near-zero-band
+diagnostics.
+
+\paragraph{Interpretation and timing.}
+An amplitude threshold is an operational safeguard: Gaussian innovations have
+unbounded support and can cross any finite threshold even under a stationary
+law. The evaluator records finite threshold crossings separately from
+non-finite outputs. Timing includes sampling/certification, initialization
+(including burn-in), innovation generation, AST execution, and diagnostics.
+Completed full-horizon trajectories per second uses the total wall-clock
+cost, including failed attempts. This prevents early-stopping generators
+from appearing efficient solely because they evaluate fewer time steps.

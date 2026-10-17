@@ -1,0 +1,97 @@
+\subsection{Observed trade-offs and reproducible evidence}
+\label{sec:implemented-generator-results}
+
+Tables~\ref{tab:generator-outcomes} and~\ref{tab:generator-speed} summarize
+the executed four-family experiment introduced in
+Section~\ref{sec:generator-diagnostics}.\footnote{Canonical executed record:
+\href{https://github.com/MateusWiteck/tsfmxai/blob/27ec9cf/experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb}{notebook 6, stability-method trade-off}.
+The record includes all configurations, seeds, dependency versions, source
+hashes, per-horizon outcomes, and reproduction instructions. Results below
+are transcribed from its saved execution.}
+All families use 5,000 mechanisms, one channel, one trajectory per mechanism,
+and innovation standard deviation 0.05. The original and bounded-domain
+families start from uniform histories; Shao--Wu uses certified burn-in;
+Heaps uses joint stationary Gaussian histories. The construction rules and
+noise distributions are part of each family's definition, so this compares
+complete generation policies.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+& \multicolumn{3}{c}{Explosion rate (\%)} & Near-zero band (\%) \\
+\cmidrule(lr){2-4}
+Generator & $h=96$ & $h=192$ & $h=384$ & $h=384$ \\
+\midrule
+Original AST & 46.26 & 49.60 & 53.16 & 10.40 \\
+Bounded-domain contraction & 0.00 & 0.00 & 0.00 & 44.04 \\
+Shao--Wu construction & 0.00 & 0.00 & 0.00 & 23.18 \\
+Heaps VAR & 0.00 & 0.00 & 0.00 & 41.54 \\
+\bottomrule
+\end{tabular}
+\caption{Finite-horizon diagnostics, with all 5,000 attempts in each
+denominator. Near-zero band means that the final 24 values lie within
+$[-0.15,0.15]$ in a non-explosive prefix.}
+\label{tab:generator-outcomes}
+\end{table}
+
+All original-AST failures in this record are finite threshold crossings;
+execution stops at their first crossing. Each controlled
+family records zero crossings in these 5,000 trials. The notebook's 95\%
+Wilson interval has an upper endpoint of approximately 0.077\% for a
+zero-event count. The probabilistic interpretation concerns draws from the
+configured mechanism/trajectory prior. Analytic domain containment provides
+the stronger pathwise statement for the bounded-domain family under its
+bounded noise law.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+& Sampling + & Initialization & Total & Complete & Output \\
+Generator & certificate (s) & / burn-in (s) & (s) & paths/s & values/s \\
+\midrule
+Original AST & 1.66 & 0.45 & 23.06 & 101.56 & 45,832.53 \\
+Bounded-domain & 3.46 & 0.64 & 49.05 & 101.94 & 39,144.34 \\
+Shao--Wu & 3.81 & 25.07 & 75.23 & 66.46 & 25,520.91 \\
+Heaps VAR & 14.84 & 0.38 & 72.16 & 69.29 & 26,608.78 \\
+\bottomrule
+\end{tabular}
+\caption{Recorded serial wall-clock measurements, with BLAS limited to one
+thread. Complete paths/s counts trajectories reaching step 384 successfully;
+output values/s counts evaluated post-initialization values, including failed
+attempts. Both rates divide by total time, including initialization and
+diagnostics.}
+\label{tab:generator-speed}
+\end{table}
+
+These are single-run CPU timings from the recorded Python~3.11.9/NumPy~1.26.4
+Windows environment. They characterize the current interpreter and settings;
+performance comparisons across machines or parallel backends require repeated,
+matched measurements. Heaps is also executed through the common AST evaluator,
+which prioritizes a shared execution path over a specialized matrix solver.
+Shao--Wu initialization accounts for 1,424,042 burn-in steps across mechanisms,
+with median length 303. Its largest recorded retained-history error bound is
+$9.999844\times10^{-5}$. The largest Heaps relative Lyapunov residual is
+$1.595159\times10^{-15}$.
+
+\paragraph{Implications for dataset construction.}
+The controlled families substantially reduce observed explosion events while
+changing the distribution of small-amplitude trajectories and the generation
+cost. The near-zero percentages motivate evaluating variation as a separate
+axis: stronger contraction can attenuate the drift until innovations dominate.
+The 0.15 band is three innovation standard deviations, so it deliberately
+includes some small but fluctuating series. An expanded benchmark should
+calibrate the nearly constant-tail diagnostic in
+Eq.~\eqref{eq:generator-flat-tail}, retain informative low-amplitude processes,
+and expose these properties as selectable dataset strata.
+
+\paragraph{Retained information for the explanation layer.}
+The executed equation after transformation is the reference mechanism.
+The transformed ASTs, bindings, sampling configurations, seeds, innovation
+laws, initialization policies, and certificates make the process auditable.
+Several trajectories can share this record. The planned Chapter~5 will use
+it to define structural and contribution-based explanation targets over the
+forecast horizon. Generator unit tests cover bound propagation, covariance checks,
+synchronous updates, seeds, and failure accounting; the notebooks preserve
+the empirical evidence and its complete reproduction record.

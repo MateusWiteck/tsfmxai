@@ -1,0 +1,70 @@
+\subsection{From synthetic priors to explicit autoregressive mechanisms}
+\label{sec:generator-ar-motivation}
+
+Synthetic pretraining motivates a generator that combines diversity with a
+retained description of how each series was produced. KernelSynth, introduced
+with Chronos, samples sums and products of Gaussian-process kernels and then
+draws complete trajectories from the resulting covariance
+\citep[Section~4.2]{ansari2024chronos}. Chronos-2 uses it alongside AR, ETS, and
+TSI base generators before introducing multivariate dependence
+\citep{ansari2025chronos2}. TimePFN's LMC-Synth mixes independent KernelSynth
+latent trajectories through a shared linear mixing matrix
+\citep{taga2025timepfn}. Toto~2.0 uses the separate \emph{TempoPFN} prior,
+which combines several procedural and stochastic families
+\citep{moroshan2025tempopfn,khwaja2026toto2}. Section~1.3 describes these
+generation procedures and their computational organization.
+
+An explicit autoregressive equation offers a complementary representation:
+each dependence is attached to a source series, a lag, and an operation.
+For a scalar linear example,
+\begin{equation}
+ x_t=b+\sum_{\ell=1}^{L}c_{\ell}x_{t-\ell}+\varepsilon_t.
+ \label{eq:implemented-ar}
+\end{equation}
+The nonlinear AST generator replaces the weighted sum with an expression
+containing selected lags and interactions. Here $L$ is the largest lag required
+by the mechanism; a forecasting model may receive a longer observed context.
+
+\paragraph{What the AR experiments establish.}
+The executed KernelSynth prediction study evaluates 33 entries of the official
+kernel bank and 20 sampled compositions. For each mechanism it draws 16 training
+and 16 independent test trajectories of length 1024. A pooled linear AR model
+with an intercept is fitted by ridge regression, with penalty $10^{-5}$ on
+the lag coefficients. The orders tested are
+$\{1,2,4,8,16,32,64,128,256\}$. Predictions use the observed preceding values
+at every test position. The reported score is the pooled mean squared error
+divided by the pooled test-target variance plus $10^{-12}$.
+
+The companion TimePFN experiment evaluates 33 latent series from 11 LMC
+mechanisms, using three latents per mechanism and orders up to 128. This is an
+\emph{oracle-latent} experiment: the latent series are supplied directly to
+the AR models. Table~\ref{tab:implemented-ar-evidence} summarizes the saved
+results.\footnote{Executed records and all individual plots:
+\href{https://github.com/MateusWiteck/tsfmxai/blob/27ec9cf/experiments/autoregressive_process_coverage/01_kernelsynth_ar_prediction_results.ipynb}{KernelSynth AR predictions}
+and
+\href{https://github.com/MateusWiteck/tsfmxai/blob/27ec9cf/experiments/autoregressive_process_coverage/02_timepfn_lmc_ar_prediction_results.ipynb}{TimePFN latent AR predictions}.
+Each notebook also identifies its source experiment and reproduction command.}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Evaluated set & Cases & NMSE $\leq 0.001$ & Percentage \\
+\midrule
+KernelSynth bank and compositions & 53 & 45 & 84.91\% \\
+TimePFN oracle latent series & 33 & 31 & 93.94\% \\
+\bottomrule
+\end{tabular}
+\caption{Best observed one-step AR score over the tested orders.}
+\label{tab:implemented-ar-evidence}
+\end{table}
+
+Order selection uses the smallest score on the same test set being summarized,
+so these percentages describe exploratory best-of-grid approximation capacity.
+They motivate explicit lagged mechanisms while leaving independent model
+selection, recursive multi-step forecasting, distributional reproduction, and
+recovery of the original GP mechanism as separate evaluation questions. Both
+white-noise entries remain above the threshold, as do six KernelSynth
+compositions. White-noise innovations contribute irreducible one-step
+uncertainty. Constant trajectories also require care: pooled variance includes
+differences between trajectories even when each trajectory changes very little.
