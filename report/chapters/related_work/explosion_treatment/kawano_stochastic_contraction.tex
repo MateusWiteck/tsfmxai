@@ -1,0 +1,18 @@
+\subsubsection{Contraction with Stochastic Innovations}
+
+\citet{kawano2024contraction} consider discrete-time stochastic systems of the
+form $\mathbf{s}_{t+1}=\mathcal F(\mathbf{s}_t,\xi_t)$. They define uniform
+incremental exponential stability in a moment by comparing two trajectories
+under the same realization of the stochastic process and bounding the expected
+distance between them by a geometrically decreasing quantity. Their conditions
+again act on the state Jacobian of the variational system and cover general
+stochastic processes, with specializations for independent and identically
+distributed and Markov processes.
+
+In the benchmark generator, the innovation is additive and bounded,
+$|\varepsilon_t|\le b_{\varepsilon}$. A Jacobian bound that holds for every
+allowed state and innovation is stronger than a moment condition and therefore
+provides pathwise common-noise contraction: two trajectories receiving the same
+innovation sequence forget their different initial histories, while persistent
+innovations keep the shared trajectory fluctuating according to its long-run
+distribution.

@@ -5,35 +5,69 @@
 The project is intended to make the same synthetic generator useful both as a
 \emph{prior} and as a \emph{benchmark}. Following the terminology used by
 DoTime \citep{thumm2026dotime}, the prior is the distribution of synthetic
-tasks used to train a model, while the benchmark is a fixed set of generated
-tasks used to evaluate it. Because the equation and all sampled components are
-known, the generator can provide supervision that is unavailable in real
-time-series data.
+tasks used to train a model, while the benchmark provides fixed, reproducible
+tasks for evaluation. Because the generating equations and sampled components
+are known, the framework can provide supervision and evaluation references
+that are difficult to obtain from real-world observations.
 
-As a prior, the generator could be used to pretrain a foundation model for
-more than future-value prediction. From the same encoded time series, the
-model could forecast the horizon, recover the equation that generated the
-series through symbolic regression, and predict the expected uncertainty due
-to the innovation added at each step. The exact future innovation is random;
-the learnable quantity is the error distribution expected before the future is
-observed.
+The framework will also allow researchers to construct synthetic scenarios
+around the questions they want to investigate. They will be able to supply
+equations within the supported vocabulary, provide initial conditions, or
+configure the relationships and constraints used for random generation.
+Alternatively, they may select an automatic generation method, such as a
+VAR(1) generator or a nonlinear generator adapted from the framework of
+\citet{shao2007spectral}. These methods represent examples of generation
+strategies that the framework can accommodate as its capabilities evolve.
 
-The generator will also produce explanation ground truths for training
-explanation-aware models. SHAPformer illustrates the general idea at a high
-level: during training, random feature coalitions are hidden, so the model
-learns to forecast from different subsets of the input. At inference, the
-differences between forecasts made with and without each group provide its
-SHAP- or Owen-style contribution \citep{hertel2026shapformer}. Its synthetic
-ground-truth explanations are used to evaluate the resulting contributions.
-The proposed framework will generalize this idea by supplying coalition masks
-and explanation targets that can be used either for masked training or as
-direct supervision for an explanation head in other architectures.
+For each generated system, researchers will select the input series and
+forecasting targets and control which information is provided to the model.
+The roles of input and target will be defined separately from the dependencies
+between series: inputs may depend on targets, and targets may depend on inputs
+and on one another. Selected series may be hidden while remaining active in
+the underlying generator. Future target values will be reserved as training
+labels and evaluation references, while future values of selected input series
+may be provided or withheld.
 
-As a benchmark, the same generator will produce fixed evaluation datasets with
-hidden equations and known explanation references. These datasets will make it
-possible to evaluate separately whether a model predicts the future, recovers
-the generating equation, represents the expected innovation, and identifies
-the variables and past time steps responsible for each forecast.
+This flexibility will support controlled investigations of forecasting and
+explainability methods. For example, a researcher could generate three
+independent input series, allow only two to influence a target, and examine
+whether a model uses the irrelevant input and whether an explanation method
+reveals that behavior. Other experiments could hide a relevant series, change
+the forecasting targets, or compare predictions with and without access to
+future input values. Retaining the complete mechanism makes it possible to
+distinguish the dependencies responsible for generating the data from those
+used by the model.
+
+As a benchmark, the generator will produce reproducible datasets with known
+mechanisms and explanation references. Researchers will be able to compare
+methods on the same trajectories under different information conditions and
+examine how their performance changes across dependencies, lags, operators,
+and forecast horizons. Depending on the outputs supported by each method,
+evaluation will address forecasting accuracy, mechanism recovery, uncertainty
+estimation, and explanation quality.
+
+As a prior, the same framework could generate training examples with randomly
+selected information conditions, allowing models to learn both to exploit
+available future inputs and to forecast when those inputs are withheld. The
+known mechanisms could also support pretraining beyond future-value
+prediction. From a shared representation of the observed series, a model could
+forecast the horizon, recover a symbolic equation, and estimate the
+uncertainty associated with the innovations added at each step. The learnable
+uncertainty concerns the expected distribution of future errors, whose
+individual realizations remain random.
+
+\begin{samepage}
+Explanation ground truths will also support the training of explanation-aware
+models. SHAPformer illustrates a related training strategy:
+randomly masked feature coalitions allow the model to learn predictions from
+different subsets of the input, supporting SHAP- and Owen-style explanations
+at inference \citep{hertel2026shapformer}. Its synthetic ground-truth
+explanations are used for evaluation. The proposed framework will support both
+training with controlled information masks and direct supervision using
+compatible explanation targets, enabling other architectures to learn
+predictions, symbolic mechanisms, and explanations from the same synthetic
+examples. Figure~\ref{fig:dual-prior-benchmark-motivation} illustrates one
+multi-task architecture that these training examples could support.
 
 \begin{figure}[H]
 \centering
@@ -61,11 +95,36 @@ the variables and past time steps responsible for each forecast.
     \draw[flow] (encoder.east)--(explanation.west);
 \end{tikzpicture}
 \caption{Conceptual multi-task model enabled by the synthetic prior. A shared
-encoder feeds a forecasting head, an equation-recovery head, and an
-explanation head. The generator supplies the training target for each output,
-and the benchmark uses the same information as evaluation ground truth.}
+time-series encoder feeds a forecasting head for future values and expected
+uncertainty, an equation-recovery head, and an explanation head. The generator
+supplies the corresponding supervision, while the benchmark retains the
+mechanisms and explanation references for evaluation.}
 \label{fig:dual-prior-benchmark-motivation}
 \end{figure}
+\end{samepage}
+
+% Evidence: ChatTS, Sections 3.2--3.5, pp. 2388--2390, and Section 4.6,
+% p. 2393; LLaVA, Sections 4.1--4.2, PDF pp. 4--5, Figure 1 and Eq. (1).
+The generated data could also support future applications in which large
+language models (LLMs) analyze time series through explanations and learned
+temporal representations. ChatTS
+illustrates the importance of this representation: it aligns a time-series
+encoder with an LLM using synthetic series, attribute descriptions, and
+question--answer pairs, and reports limitations when the same temporal data
+are supplied only as text \citep[Sections~3.2--3.5 and 4.6]{xie2025chatts}.
+The resulting series--explanation pairs could be reused in two complementary
+ways. First,
+explanations of variable--lag dependencies and contributions could be provided
+as text or structured context to guide an LLM's analysis of a series. Second,
+explanation ground truths could supervise a time-series encoder during
+training, encouraging it to retain information about these dependencies.
+A learned projection could then connect its representations to the LLM's
+input embedding space through \emph{multimodal alignment}. LLaVA provides an
+image-based example: a visual encoder produces features that a trained
+projection maps into a sequence of embeddings consumed by the language model
+\citep[Sections~4.1--4.2]{liu2023visual}. Such reuse could ultimately improve
+temporal representations and LLM-based analysis, extending the value of the
+generated supervision to future multimodal applications.
 
 \subsection{Research Goal}
 

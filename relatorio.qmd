@@ -1,0 +1,26 @@
+---
+title: Relatório
+description: Relatório de pesquisa sobre geração de séries temporais sintéticas com mecanismos e explicações conhecidos.
+sidebar: false
+toc: false
+page-layout: full
+format:
+  html:
+    css: website/report.css
+    code-tools: false
+---
+
+O relatório completo é compilado diretamente dos arquivos LaTeX do projeto,
+preservando a apresentação das fórmulas, figuras, tabelas e referências.
+A versão publicada acompanha as atualizações enviadas para a branch `main`.
+
+```{=html}
+<div class="report-actions" aria-label="Opções de leitura do relatório">
+  <a class="btn btn-primary" href="outputs/report/relatorio.pdf" target="_blank" rel="noopener">Abrir PDF em nova aba</a>
+  <a class="btn btn-outline-primary" href="outputs/report/relatorio.pdf" download="tsfmxai-relatorio.pdf">Baixar PDF</a>
+</div>
+<p class="report-help">Em telas pequenas, use a opção de abrir o PDF para ler em tela cheia. A busca do leitor de PDF permite localizar termos no documento.</p>
+<object class="report-viewer" data="outputs/report/relatorio.pdf#view=FitH" type="application/pdf" aria-label="Relatório de pesquisa TSFMXAI em PDF">
+  <p>Use <a href="outputs/report/relatorio.pdf">este link para ler o relatório completo</a> no leitor de PDF do seu dispositivo.</p>
+</object>
+```

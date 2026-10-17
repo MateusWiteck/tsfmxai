@@ -1,23 +1,9 @@
-name: Publish experiment notebooks
+name: Publish experiments and report
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'experiments/**'
-      - '_quarto.yml'
-      - 'index.qmd'
-      - 'scripts/prepare_notebook_site.py'
-      - 'src/tsfmxai/visualization/notebook_site.py'
-      - '.github/workflows/publish-notebooks.yml'
   pull_request:
-    paths:
-      - 'experiments/**'
-      - '_quarto.yml'
-      - 'index.qmd'
-      - 'scripts/prepare_notebook_site.py'
-      - 'src/tsfmxai/visualization/notebook_site.py'
-      - '.github/workflows/publish-notebooks.yml'
   workflow_dispatch:
 
 permissions:
@@ -30,18 +16,33 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Test website preparation
+        run: |
+          python -m pip install 'pytest>=8,<9'
+          python -m pytest tests/unit/test_notebook_site.py tests/unit/test_report_site.py -q
+      - name: Install LaTeX toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended texlive-pictures
       - name: Prepare directory tree
         run: python scripts/prepare_notebook_site.py
+      - name: Compile and stage the LaTeX report
+        run: python scripts/prepare_report_site.py
       - uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: '1.8.27'
-      - name: Render saved notebook outputs
+      - name: Render experiments and report page
         run: quarto render --no-execute
+      - name: Verify published report
+        run: |
+          test -s site/relatorio.html
+          cmp report/build/main.pdf site/outputs/report/relatorio.pdf
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

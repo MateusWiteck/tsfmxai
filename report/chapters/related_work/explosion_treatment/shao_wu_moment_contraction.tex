@@ -1,0 +1,40 @@
+\subsubsection{Shao and Wu: Moment Contraction for Nonlinear Time Series}
+\label{sec:shao-wu-gmc}
+
+\paragraph{Published result.}
+\citet{shao2007spectral} develop spectral theory for nonlinear time series.
+Section~5, Theorem~5.1 (pp.~11--12 of the linked electronic reprint), provides
+the relevant generation result. With i.i.d. innovations and a measurable,
+time-homogeneous recurrence $\mathcal R_{\mathcal T}(\mathbf{s};\varepsilon)$,
+its second-moment specialization assumes a finite second moment at some
+reference history and the global bound
+\begin{equation}
+\begin{split}
+ \|\mathcal R_{\mathcal T}(\mathbf{s};\varepsilon)
+       -\mathcal R_{\mathcal T}(\mathbf{s}';\varepsilon)\|_{L^2}
+ &\leq \sum_{d=0}^{L-1}a_d^{\mathrm{GMC}}|s_d-s'_d|,\\
+ a_d^{\mathrm{GMC}}\geq0,\qquad
+ \sum_{d=0}^{L-1}a_d^{\mathrm{GMC}}&<1.
+\end{split}
+\label{eq:gmc-generator}
+\end{equation}
+Here $\|Z\|_{L^2}=(\mathbb E[\|Z\|_2^2])^{1/2}$. The theorem yields a
+causal strictly stationary solution and geometric moment contraction (GMC):
+the expected squared difference between coupled versions with a shared future
+innovation sequence decays geometrically. Vector-valued states are admitted;
+the absolute differences become norms of lag blocks. Theorem~5.2 preserves
+GMC under stable ARMA filtering, and Examples~5.1--5.5 cover exponential
+autoregression, conditional heteroscedasticity, and bilinear recursions.
+
+\paragraph{Proposed generator.}
+We propose sampling globally Lipschitz ASTs and allocating a total lag-gain
+budget below one. Bounded functions such as $\tanh$, sine, and cosine allow
+controlled interactions, including products of bounded factors. For example,
+the proposed recurrence $0.3\tanh(x_t)\tanh(x_{t-1})+\varepsilon_{t+1}$ has
+derivative bounds $0.3$ for each lag, giving a total bound of $0.6$; Gaussian
+innovations satisfy the required moment condition. This route targets
+stationary nonlinear dynamics on an unbounded state space. Global derivative
+bounds can be conservative, particularly for polynomial feedback. A finite
+burn-in gives an approximation to stationary initialization; its residual
+initialization error must be recorded. AST sampling, certification rules, and
+explanation labels are proposed adaptations in this thesis.

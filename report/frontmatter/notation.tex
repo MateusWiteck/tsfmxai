@@ -94,6 +94,67 @@ $\mathcal{T}$ is a sampled unary--binary expression tree, $o$ is its number of
 operator nodes, and $F_{\mathcal{T}}$ is the recurrence function obtained by
 executing that tree. \\
 
+$\mathbf{s}_t$, $\mathcal F_{\varepsilon}$, $J_{\mathcal F}$ &
+$\mathbf{s}_t=(x_t,x_{t-1},\ldots,x_{t-L+1})^\top$ is the augmented state that
+stores the $L$ values required by a scalar recurrence;
+$\mathcal F_{\varepsilon}$ advances that state under innovation $\varepsilon$;
+and $J_{\mathcal F}$ is its Jacobian with respect to $\mathbf{s}_t$. For $N$
+series, the same notation denotes the corresponding stacked state in
+$\mathbb R^{NL}$. \\
+
+$D$, $r_D$, $b_{\varepsilon}$ &
+$D$ is the domain on which a stability certificate is required; $r_D$ is the
+radius when $D=[-r_D,r_D]^L$; and $b_{\varepsilon}$ bounds the additive
+innovation, $|\varepsilon_t|\le b_{\varepsilon}$. \\
+
+$\Theta$, $\mathcal J_{\Theta}$, $\mu$, $\gamma$ &
+$\Theta$ is a bounded, nonsingular time- and state-dependent change of metric
+in contraction analysis; $\mathcal J_{\Theta}$ is the Jacobian represented in
+that metric; $\mu>0$ is the contraction margin in the corresponding matrix
+inequality; and $\gamma\in[0,1)$ is a uniform upper bound on the one-step
+Lipschitz factor used by this thesis. \\
+
+$\xi_t$, $K_{\xi}$; $\preceq$, $I$ &
+$\xi_t$ is a stochastic parameter that selects the random transition at step
+$t$, and $K_{\xi}$ is that transition's Lipschitz factor. For symmetric
+matrices, $A\preceq B$ means that $B-A$ is positive semidefinite; $I$ is the
+identity matrix of the required dimension. \\
+
+$\mathbf w$, $q_w$, $\overline d_j$ &
+$\mathbf w$ contains the weights of the lag-state norm
+$\|\mathbf{s}\|_{\mathbf w,\infty}=\max_j|s_j|/w_j$;
+$q_w>1$ defines $w_j=q_w^j$; and $\overline d_j$ is a certified upper bound on
+$|\partial F_{\mathcal T}/\partial s_j|$ over $D$. \\
+
+$\mathcal R_{\mathcal T}$, $s_d$, $a_d^{\mathrm{GMC}}$,
+$\|Z\|_{L^2}$ &
+$\mathcal R_{\mathcal T}(\mathbf{s};\varepsilon)$ returns the next value
+including its innovation; $\mathcal F_{\varepsilon}$ additionally shifts the
+lag state. For a scalar recurrence, $s_d=x_{t-d}$,
+$d=0,\ldots,L-1$. The nonnegative $a_d^{\mathrm{GMC}}$ bound the effect of
+each lag in the second-moment specialization of Shao--Wu's condition, with
+$\sum_d a_d^{\mathrm{GMC}}<1$.
+$\|Z\|_{L^2}=(\mathbb E[\|Z\|_2^2])^{1/2}$ measures the size of a random
+scalar or vector in second moment. \\
+
+$\mathbf x_t$, $\boldsymbol\varepsilon_t$, $\Sigma_{\varepsilon}$;
+$\mathbf C_\ell$, $\mathbf B$, $\rho(\mathbf B)$ &
+$\mathbf x_t\in\mathbb R^N$ collects the series at time $t$;
+$\boldsymbol\varepsilon_t$ is their innovation vector with covariance
+$\Sigma_{\varepsilon}$. In VAR($L$),
+$(\mathbf C_\ell)_{k,j}=c_{k,j,\ell}$ is the coefficient from source $j$ at
+lag $\ell$ to target $k$. $\mathbf B$ is the companion matrix on the
+augmented lag state; $\rho(\mathbf B)$ is its largest eigenvalue modulus.
+$z$ in the lag polynomial is a complex argument. \\
+
+$\mathbf U_\ell$, $\mathbf P_\ell^{\mathrm{PAC}}$; $u$ &
+$\mathbf U_\ell$ is Heaps's unconstrained square parameter matrix and
+$\mathbf P_\ell^{\mathrm{PAC}}$ its partial-autocorrelation matrix at lag
+$\ell$. These correspond to $A_s$ and $P_s$ in the paper. The superscript
+distinguishes partial autocorrelation from the number $P$ of SHAP players.
+A singular value $u\geq0$ of $\mathbf U_\ell$ maps to
+$u/\sqrt{1+u^2}<1$ in $\mathbf P_\ell^{\mathrm{PAC}}$. \\
+
 $\mathbf z$, $\mathbf h_v$, $\boldsymbol\pi_v$, $s_v$, $a(s_v)$ &
 $\mathbf z$ is a continuous latent code for an expression tree;
 $\mathbf h_v$ is the decoder state at tree node $v$;
@@ -241,6 +302,13 @@ sample is already $t=\tau$ (relative time 0), and the target is $t+1$
 ($h=1$). With the paper's one-based lag coordinate,
 $(Q_t)_{j,\ell}=x_{j,t-\ell+1}$; hence $\ell=1$ is the latest sample and maps
 to $d=0$. \\
+
+Shao--Wu (2007); Heaps (2023) &
+Shao--Wu write $X_{n+1}=R(X_n,\ldots,X_{n-p+1};\varepsilon_{n+1})$:
+the latest observation is $n=\tau$ and lag block 1 has offset $d=0$.
+Heaps writes $\mathbf y_t=\sum_{\ell=1}^{p}\phi_\ell\mathbf y_{t-\ell}
++\boldsymbol\epsilon_t$: the latest observation is $t-1=\tau$ and
+$d=\ell-1$. Here their order $p$ is written as $L$. \\
 
 $g=(g_1,\ldots,g_H)$; $f$; $\widehat g$ &
 $g$ is the known synthetic generator and $g_h(x)$ its output at horizon $h$;

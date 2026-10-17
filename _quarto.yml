@@ -6,11 +6,14 @@ project:
   output-dir: site
   render:
     - index.qmd
+    - relatorio.qmd
     - /experiments/**/*.ipynb
     - '!**/.ipynb_checkpoints/**'
+  resources:
+    - outputs/report/relatorio.pdf
 
 website:
-  title: TSFMXAI Experiments
+  title: TSFMXAI
   site-url: https://mateuswiteck.github.io/tsfmxai/
   repo-url: https://github.com/MateusWiteck/tsfmxai
   search: true
@@ -18,6 +21,8 @@ website:
     left:
       - href: index.qmd
         text: Experimentos
+      - href: relatorio.qmd
+        text: Relatório
     right:
       - icon: github
         href: https://github.com/MateusWiteck/tsfmxai

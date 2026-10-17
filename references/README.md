@@ -7,9 +7,19 @@ This file connects each paper in `references/` to the project roadmap in
 - `benchmarking/`: work centered on controlled evaluation protocols;
 - `time_series_explainability/`: forecasting and time-series XAI;
 - `synthetic_symbolic_regression/`: symbolic mechanism generation and recovery.
+- `explosion_treatment/`: contraction, invariant-set, and stochastic-recursion
+  foundations, nonlinear moment contraction, and stationary VAR parameterizations.
 
 PDFs are retained locally for research use and ignored by Git. Reviewed
 Markdown summaries and `library.bib` form the versioned scientific record.
+
+The explosion-treatment comparison has four generator strategies: original
+random AST, implemented bounded-domain Jacobian contraction, proposed
+[Shao--Wu moment contraction](explosion_treatment/2007_shao_wu_asymptotic_spectral_theory_for_nonlinear_time_series.md),
+and proposed
+[Heaps stationary VAR](explosion_treatment/2023_heaps_enforcing_stationarity_through_the_prior_in_vector_autoregressions.md).
+Their evidence, implementation status, and proposed experiments are recorded in
+[the research decision](../docs/research/stationarity_generator_strategies.md).
 
 Project focus:
 

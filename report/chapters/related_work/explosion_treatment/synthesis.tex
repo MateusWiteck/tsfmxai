@@ -1,0 +1,119 @@
+\subsubsection{Implications and Four Generator Strategies}
+\label{sec:four-generator-strategies}
+
+The current generator evaluates the sampled AST as
+
+\begin{equation}
+    x_{t+1}
+    =F_{\mathcal T}(x_t,\ldots,x_{t-L+1})+\varepsilon_{t+1}
+\end{equation}
+
+and certifies the induced transition of the augmented state. For
+$D=[-r_D,r_D]^L$, interval propagation supplies both an output bound for
+$F_{\mathcal T}$ and derivative bounds
+$\overline d_j\ge
+\sup_{\mathbf{s}\in D}|\partial F_{\mathcal T}/\partial s_j|$. With
+$w_j=q_w^j$ and $q_w>1$, the corresponding weighted-infinity-norm bound is
+
+\begin{equation}
+    \gamma
+    =\max\!\left\{
+      \sum_{j=0}^{L-1}\overline d_j q_w^j,
+      q_w^{-1}
+    \right\}<1.
+\end{equation}
+
+The first term controls the nonlinear recurrence row of the Jacobian; the
+second controls the deterministic shift of values through the lag state.
+Bounded innovations are handled separately through the robust-invariance
+condition
+
+\begin{equation}
+    \sup_{\mathbf{s}\in D}|F_{\mathcal T}(\mathbf{s})|
+    +b_{\varepsilon}
+    \le r_D,
+\end{equation}
+
+which ensures $\mathcal F_{\varepsilon}(D)\subseteq D$ for every admissible
+innovation. Contraction therefore certifies exponential forgetting of the
+initial history, invariance prevents escape from the certified domain, and the
+random-iteration result supports a unique long-run distribution. Monte Carlo
+simulation complements both certificates by diagnosing implementation errors
+and measuring their conservatism.
+
+These conditions are sufficient and intentionally conservative. A bounded
+oscillatory mechanism may fail the uniform Jacobian test, interval arithmetic
+may overestimate gains, and a hard invariant domain requires bounded noise.
+The certificate consequently defines a controlled subset of the original AST
+vocabulary whose trajectories can be generated with an explicit mathematical
+stability guarantee.
+
+Table~\ref{tab:four-generator-strategies} fixes the intended comparison.
+Shao--Wu and the current method share contraction as a mathematical foundation,
+while their proposed implementations use different certificate domains and
+innovation assumptions. Heaps provides a linear multivariate parameterization
+over the causal stationary region. The first two strategies are implemented;
+the two paper-specific strategies are proposed extensions.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.12}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{0.20\textwidth}
+>{\raggedright\arraybackslash}p{0.34\textwidth}
+>{\raggedright\arraybackslash}p{0.39\textwidth}@{}}
+\caption{Four generator strategies planned for comparison. Guarantees apply
+under the stated domain, innovation, and initialization assumptions.}
+\label{tab:four-generator-strategies}\\
+\toprule
+Method and status & Mechanism construction & Guarantee and principal trade-off\\
+\midrule
+\endfirsthead
+\toprule
+Method and status & Mechanism construction & Guarantee and principal trade-off\\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Original random AST\newline Implemented &
+Sample tree topology, operators, parameters, and lag bindings; execute the
+recurrence. &
+Empirical baseline with broad sampled algebraic structures; stability and
+stationarity are assessed for each mechanism.\\
+\addlinespace
+Jacobian contraction\newline Implemented &
+Scale the AST using interval bounds; certify a weighted lag-state Jacobian
+and invariance of a bounded domain. &
+Common-noise exponential forgetting and bounded trajectories in the certified
+box. Current implementation: scalar series, bounded uniform innovations,
+and sums/products.\\
+\addlinespace
+Shao--Wu GMC\newline Proposed &
+Sample nonlinear ASTs with global lag-Lipschitz budgets and verify innovation
+moments using Theorem~5.1. &
+A causal stationary solution with moment contraction; Gaussian innovations
+are admissible. Global bounds restrict the vocabulary, and stationary
+initialization requires a separate procedure.\\
+\addlinespace
+Heaps stationary VAR\newline Proposed &
+Sample unconstrained matrices; transform to partial autocorrelations and
+reconstruct VAR coefficients. &
+Stationary Gaussian VAR($L$) with exact stationary initialization. Linear
+interactions; final sparsity and persistence depend on the transformation.\\
+\end{longtable}
+\endgroup
+
+The comparison will report explosion and near-zero rates together with
+mechanism-sampling, certification, initialization, and trajectory-generation
+times. Shared seeds, dimensions, lengths, and innovation variance will support
+matched experiments; innovation laws and supported mechanism families will
+also be reported. Numerical threshold crossings and finite-sample stationarity
+diagnostics are empirical outcomes, while the certificates establish the
+declared mathematical properties. Gaussian stationary trajectories can still
+produce large excursions.
+
+The benchmark will extract compatible explanation references from each
+executable mechanism: variable--lag support, signed linear coefficients,
+state-dependent term contributions, and derivatives. Multi-horizon
+sensitivities propagate through the full recursion. SHAP references additionally
+require a declared coalition and resampling rule.

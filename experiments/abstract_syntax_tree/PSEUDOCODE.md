@@ -2,8 +2,25 @@
 
 This file is the reference against which the generators in the subdirectories
 are compared. The implementation is in
-[`random_expression.py`](../../src/tsfmxai/generators/random_expression.py) and
-[`trajectory.py`](../../src/tsfmxai/generators/trajectory.py).
+[`random_expression.py`](../../../src/tsfmxai/generators/random_expression.py) and
+[`trajectory.py`](../../../src/tsfmxai/generators/trajectory.py).
+
+## Current four-method comparison
+
+- Original AST: full reference algorithm below.
+- Jacobian contraction: [detailed pseudocode](contraction_by_construction/PSEUDOCODE.md).
+- Shao–Wu global moment contraction: [executed notebook, Section 1](shao_wu_gmc/00_global_moment_contraction.ipynb).
+- Heaps symmetric stationary VAR: [executed notebook, Section 1](heaps_stationary_var/00_symmetric_var_generation.ipynb).
+
+[Notebook 7](7_generator_pseudocode_diagrams.ipynb) contains all four algorithms
+and four diagrams, with changed steps in red. [Notebook 6](6_stability_methods_tradeoff.ipynb)
+compares their operational stability and generation costs. Both new methods
+store and execute their final equations as ASTs. Their mathematical mappings
+come from the cited papers; their random mechanism samplers are project adaptations.
+
+The comparison uses the shared step-by-step AST runner in
+[`stochastic.py`](../../../src/tsfmxai/generators/stochastic.py), which records
+the first failing value instead of silently discarding a sampled mechanism.
 
 The generator separates the symbolic structure from its numerical binding. An
 AST contains operators and slots such as `PARAMETER(P0)` and `LAG(x0, L0)`;

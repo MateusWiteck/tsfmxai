@@ -2,7 +2,7 @@
 
 This proposal retains nonlinear `ADD`/`MULTIPLY` lagged ASTs, then scales and
 certifies them over a bounded augmented-state domain. The implementation is in
-[`contraction.py`](../../../src/tsfmxai/generators/contraction.py).
+[`contraction.py`](../../../../src/tsfmxai/generators/contraction.py).
 
 **Reading rule:** black lines come from the original AST workflow;
 <span style="color:#c62828"><strong>red lines implement coefficient gating,
@@ -17,7 +17,7 @@ ALGORITHM CONTRACTION_CERTIFIED_AST(config C, root_seed r, sample_index i)
  2. rng ← LOCAL_RANDOM_GENERATOR(s)
  3. base_tree ← SAMPLE_ORIGINAL_FULL_BINARY_AST(C.tree_config, rng)
  4. base_binding ← SAMPLE_PARAMETER_VALUES_AND_INTEGER_LAGS(base_tree, C, rng)
-<span style="color:#c62828;font-weight:700"> 5. FOR every LAG leaf in base_tree:</span>
+<span style="color:#c62828;font-weight:700"> 5. IF C.tree_config.coefficient_gate_lags, FOR every LAG leaf:</span>
 <span style="color:#c62828;font-weight:700">      REPLACE LAG(x0, Lk) BY MULTIPLY(PARAMETER(Pg), LAG(x0, Lk))</span>
 <span style="color:#c62828;font-weight:700">      and sample the signed gate Pg</span>
 <span style="color:#c62828;font-weight:700"> 6. REQUIRE a univariate tree containing no TIME terminal</span>

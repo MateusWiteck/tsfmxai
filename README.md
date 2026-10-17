@@ -94,24 +94,32 @@ assert mechanism.certificate.holds
 assert abs(series).max() <= mechanism.certificate.domain_radius + 1e-12
 ```
 
-## Published experiment notebooks
+## Published experiments and report
 
 The Quarto website publishes saved outputs from every notebook under
 `experiments/`, including nested directories. New notebooks are discovered
 automatically. `experiments_local/` and `notebooks/` are outside the site.
 Rendering never executes notebook cells or requires the experiment dependencies.
+The **Relatório** tab embeds the PDF compiled from `report/main.tex` and offers
+open/download links, preserving the manuscript's equations, figures, tables,
+and bibliography. The same PDF is staged under ignored `outputs/report/` and
+copied into the website; the LaTeX source remains the single source of truth.
 
-Install [Quarto](https://quarto.org/docs/get-started/) (the workflow pins 1.8.27),
-then run from the repository root:
+Install [Quarto](https://quarto.org/docs/get-started/) (the workflow pins 1.8.27)
+and TeX Live or MiKTeX with `latexmk`, then run from the repository root:
 
 ```powershell
 python scripts/prepare_notebook_site.py
+python scripts/prepare_report_site.py
 quarto preview
 # Build only, without starting a server:
 quarto render --no-execute
 ```
 
 Run the preparation command again after adding, moving, or renaming notebooks.
+Run `prepare_report_site.py` again after editing the report or bibliography to
+refresh the local preview. It stops on compilation errors or unresolved
+references, so a failed build cannot silently publish an older report.
 The homepage and sidebar preserve the exact directory names and notebook
 filenames from `experiments/`. Navigation is generated under ignored `outputs/`;
 the preparation command never writes to the experiment directories. Only
@@ -123,14 +131,20 @@ described in `REPRODUCIBILITY.md`.
 
 To enable publication, select **Settings > Pages > Build and deployment >
 Source > GitHub Actions** in the GitHub repository. Commit and push the site
-configuration and notebooks to `main`. The `Publish experiment notebooks`
-workflow builds and deploys updates automatically; pull requests build without
-deploying. It can also be run manually from the Actions tab.
+configuration, notebooks, and all report sources to `main`. The
+`Publish experiments and report` workflow compiles the report and deploys the
+whole site on every push to `main`; pull requests build without deploying.
+It can also be run manually from the Actions tab. Local commits become public
+after they are pushed and the workflow completes successfully.
 
 The published URL is <https://mateuswiteck.github.io/tsfmxai/> after the first
 successful deployment. Save executed outputs before committing a notebook;
 the website displays exactly those saved results. Images or downloads linked
 from notebook Markdown must also be committed alongside the notebook.
+The report page is <https://mateuswiteck.github.io/tsfmxai/relatorio.html>.
+Commit new LaTeX chapter/figure sources and bibliography edits together; the
+PDFs and LaTeX build files remain ignored. The embedded reader uses the browser's
+PDF support, with direct links available on mobile and unsupported viewers.
 
 ## Local mechanism studio
 

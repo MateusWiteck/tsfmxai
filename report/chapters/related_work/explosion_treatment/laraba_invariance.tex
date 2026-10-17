@@ -1,0 +1,20 @@
+\subsubsection{Lagged Recurrences as an Augmented State}
+
+\citet{laraba2016setinvariance} review invariance for linear delay-difference
+equations
+
+\begin{equation}
+    x_{t+1}=\sum_{j=0}^{L-1}A_jx_{t-j}.
+\end{equation}
+
+$A_j$ is the transition matrix multiplying the value at delay $j$. The authors
+stack the current and delayed values into one state, so the delayed
+equation becomes an ordinary first-order discrete-time system with a companion
+transition matrix. They also define a delay-invariant set: if every initial lag
+value lies in a set, every value subsequently produced by the recurrence stays
+in that set. This supplies the appropriate state representation for an AST
+whose leaves access several lags. In the nonlinear generator, the same idea is
+used with $\mathbf{s}_t=(x_t,\ldots,x_{t-L+1})^\top$ and the set condition is
+written directly as $\mathcal F_{\varepsilon}(D)\subseteq D$. The construction
+extends to multivariate recurrences by stacking all $N$ variables at all $L$
+lags into a state in $\mathbb R^{NL}$.
