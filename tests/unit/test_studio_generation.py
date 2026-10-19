@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from tsfmxai.generators import RandomTreeConfig
+from tsfmxai.generators import RandomTreeConfig, initialize_shao_wu_history
 from tsfmxai.representations import Lag, walk
 from tsfmxai.visualization.studio_generation import METHODS, sample_studio_system, sample_studio_trajectories
 from frontend.app import FrontendHandler
@@ -21,6 +21,14 @@ def test_studio_methods_generate_reproducible_two_channel_batches(method):
     assert np.isfinite(a).all()
     assert bool(system.certificates) == (method not in ("none", "coefficient_gate"))
     assert all(c["holds"] for c in system.certificates)
+    if method == "shao_wu":
+        initial_seed, _ = np.random.SeedSequence([47, 0]).spawn(2)
+        expected_history = initialize_shao_wu_history(
+            system.retained,
+            seed=int(initial_seed.generate_state(1, dtype=np.uint64)[0]),
+        )
+        np.testing.assert_array_equal(a[0, :, :system.history_length], expected_history)
+        assert "burn_in_steps" not in system.certificates[0]
     if method == "contraction":
         assert np.abs(a).max() <= 1 + 1e-12
         for i, equation in enumerate(system.equations):

@@ -1,11 +1,11 @@
 """Global lag-Lipschitz ASTs: a second-moment specialization of Shao--Wu (2007).
 
 Reference: Theorem 5.1, https://arxiv.org/pdf/math/0611029, pp. 11--12.
-The random AST grammar and finite-burn-in policy are project adaptations.
+The random AST grammar and finite-history initialization are project adaptations.
 """
 
 from dataclasses import dataclass, field, replace
-from math import ceil, log, sqrt
+from math import sqrt
 
 import numpy as np
 
@@ -34,14 +34,13 @@ class ShaoWuConfig:
     safety_factor: float = .95
     innovation_std: float = .05
     initial_radius: float = 1.
-    burn_in_tolerance: float = 1e-4
 
     def __post_init__(self) -> None:
         if self.tree_config.time_probability != 0 or self.tree_config.require_time:
             raise ValueError("Shao--Wu requires a time-homogeneous recurrence.")
         if not (0 < self.target_gain < 1 and 0 < self.safety_factor < 1):
             raise ValueError("target_gain and safety_factor must lie inside (0, 1).")
-        for name in ("innovation_std", "initial_radius", "burn_in_tolerance"):
+        for name in ("innovation_std", "initial_radius"):
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive.")
@@ -55,17 +54,14 @@ class ShaoWuCertificate:
     total_gain: float
     drift_norm_bound: float
     innovation_l2: float
-    initial_coupling_l2_bound: float
-    burn_in_steps: int
-    retained_history_l2_error_bound: float
-    tolerance: float
 
     @property
     def holds(self) -> bool:
         return bool(
             np.isfinite(self.total_gain) and 0 <= self.total_gain < 1
             and np.isfinite(self.drift_norm_bound)
-            and self.retained_history_l2_error_bound <= self.tolerance * (1 + 1e-12)
+            and np.isfinite(self.innovation_l2)
+            and all(np.isfinite(gain) and gain >= 0 for gain in self.lag_gains)
         )
 
 
@@ -160,14 +156,11 @@ def build_shao_wu_mechanism(
     expressions: tuple[ExpressionNode, ...], bindings: tuple[MechanismBinding, ...],
     config: ShaoWuConfig, *, seed: int = 0, sample_index: int | None = None,
 ) -> ShaoWuMechanism:
-    """Scale globally bounded ASTs and record a certified finite-burn-in error.
+    """Scale globally bounded ASTs and certify the second-moment lag gain.
 
-    Every L steps the maximum lagwise L2 coupling error shrinks by at most c.
-    With bounded drift B, a stationary observation has L2 norm <= B+sigma*sqrt(N).
-    An arbitrary initial observation in [-r,r]^N contributes at most r*sqrt(N).
-    Burn-in includes L-1 extra steps so the *entire retained history* meets the
-    tolerance. This is approximate stationary initialization with an explicit
-    coupling error, rather than exact sampling of an invariant distribution.
+    The theorem establishes a causal stationary solution under the stated
+    conditions. A simulated finite path starts from a separate, uniform
+    history and may show an initialization transient.
     """
 
     n = len(expressions)
@@ -198,18 +191,7 @@ def build_shao_wu_mechanism(
     gain = float(gains.sum())
     drift_bound = float(np.linalg.norm(amplitudes * scale))
     noise_l2 = config.innovation_std * sqrt(n)
-    initial_error = config.initial_radius * sqrt(n) + drift_bound + noise_l2
-    if initial_error <= config.burn_in_tolerance:
-        blocks = 0
-    elif gain == 0:
-        blocks = 1
-    else:
-        blocks = max(0, ceil(log(config.burn_in_tolerance / initial_error) / log(gain)))
-    burn_in = order - 1 + blocks * order
-    error_bound = initial_error * gain**blocks
-    certificate = ShaoWuCertificate(tuple(gains), gain, drift_bound, noise_l2,
-                                   initial_error, burn_in, error_bound,
-                                   config.burn_in_tolerance)
+    certificate = ShaoWuCertificate(tuple(gains), gain, drift_bound, noise_l2)
     if not certificate.holds:
         raise ArithmeticError("Global moment-contraction certification failed.")
     return ShaoWuMechanism(tuple(final_expressions), tuple(final_bindings), scale,
@@ -241,18 +223,11 @@ def sample_shao_wu_mechanisms(
 
 
 def initialize_shao_wu_history(mechanism: ShaoWuMechanism, *, seed: int) -> np.ndarray:
-    """Return chronological [series, lag] history after certified burn-in."""
-    rng = np.random.default_rng(seed)
-    initial = rng.uniform(-mechanism.initial_radius, mechanism.initial_radius,
-                          size=(mechanism.num_series, mechanism.order))
-    steps = mechanism.certificate.burn_in_steps
-    innovations = rng.normal(0., mechanism.innovation_std,
-                             size=(mechanism.num_series, steps))
-    generated = simulate_innovation_path(mechanism.expressions, mechanism.bindings,
-                                         initial, innovations)
-    if generated.shape[1] != steps or not np.all(np.isfinite(generated)):
-        raise DivergentTrajectoryError("Non-finite Shao--Wu burn-in.")
-    return np.concatenate((initial, generated), axis=1)[:, -mechanism.order:]
+    """Draw the chronological [series, lag] history directly from a uniform law."""
+    return np.random.default_rng(seed).uniform(
+        -mechanism.initial_radius, mechanism.initial_radius,
+        size=(mechanism.num_series, mechanism.order),
+    )
 
 
 def sample_shao_wu_trajectories(

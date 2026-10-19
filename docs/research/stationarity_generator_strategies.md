@@ -12,7 +12,7 @@ comparison and distinguishes implemented specializations from future extensions.
 | AST representation and evaluation | `src/tsfmxai/representations/expression.py`, `src/tsfmxai/generators/trajectory.py` | Reusable code, including TANH formatting, binding validation, execution and derivatives. |
 | Bounded-domain contraction | `src/tsfmxai/generators/contraction.py` | Implemented for one series; interval bounds, weighted augmented-state norm, output scaling, uniform bounded innovations, and a Monte Carlo diagnostic. |
 | Gaussian stationary linear mechanisms | `src/tsfmxai/generators/stationary.py` | Scalar AR through PACF and VAR(1) through spectral rescaling; reusable initialization/covariance infrastructure. |
-| Shao-Wu global/moment certificate | `src/tsfmxai/generators/shao_wu.py` | Implemented second-moment specialization with globally bounded TANH interactions, Gaussian innovations and a certified L2 burn-in tolerance. |
+| Shao-Wu global/moment certificate | `src/tsfmxai/generators/shao_wu.py` | Implemented second-moment specialization with globally bounded TANH interactions and Gaussian innovations. Finite paths start from directly sampled uniform histories. |
 | Heaps symmetric VAR(p) reconstruction | `src/tsfmxai/generators/heaps.py` | Implemented symmetric recursions, retained linear ASTs, independent covariance checks and joint stationary Gaussian initialization. |
 
 The curated AST directory includes `contraction_by_construction/`,
@@ -30,7 +30,7 @@ their separate rows have been replaced in the current comparison.
 |---|---|---|---|---|
 | Original random AST | Empirical baseline; each sampled recurrence has its own dynamical properties | Broad sums/products, lags and optional time terms; multivariate evaluation infrastructure exists | Exact retained formulas; simplify cancellations before functional-support labels | Baseline available |
 | Current Jacobian method | Uniform common-noise contraction on an invariant box; bounded trajectories for the stored noise law | Nonlinear sums/products restricted to a certified box; scalar implementation | Topology retained under nonzero global scaling, with final coefficients retained | Available; multivariate block certificate would be additional work |
-| Shao-Wu adaptation | Causal strict stationarity and GMC under Theorem 5.1; implemented at moment order 2 | Globally bounded TANH interactions, Gaussian innovations, scalar/vector states | Direct variable-lag selection with lag-block bounds accounting for cross-variable feedback | Available; each retained history has an explicit finite-burn-in L2 error bound |
+| Shao-Wu adaptation | Causal strict stationarity and GMC under Theorem 5.1; implemented at moment order 2 | Globally bounded TANH interactions, Gaussian innovations, scalar/vector states | Direct variable-lag selection with lag-block bounds accounting for cross-variable feedback | Available; finite paths begin from a uniform history and may show an initial transient |
 | Heaps adaptation | Stationary causal Gaussian VAR(p) with joint invariant initialization | Linear interactions between many variables and lags, potentially oscillatory dynamics | Signed final coefficients; intermediate sparsity generally changes during reconstruction | Available; matrix recursions and cached joint covariance factor |
 
 The last two are adaptations of published mathematics to this benchmark.
@@ -52,9 +52,9 @@ is claimed to contain the other for all operator/noise choices.
    innovation law with the mechanism. State-dependent innovation amplitudes
    need additional moment bounds and are a later extension.
 4. Generate independent trajectories using per-mechanism/per-trajectory seeds.
-   Use exact invariant sampling when available; otherwise declare a finite
-   burn-in and bound its initialization error. Common-noise coupling is an
-   additional empirical diagnostic.
+   Draw the initial history uniformly and record this law. It is distinct from
+   invariant initialization, so finite paths may show an initial transient.
+   Common-noise coupling is an additional empirical diagnostic.
 5. Retain the final expression, numerical parameters, state and innovations for
    compatible explanation references. Promote reusable code under `src/tsfmxai/`
    with tests for analytic bounds, seeds, domain handling and propagation.
@@ -125,8 +125,8 @@ nonfinite numerical outputs and long-term growth diagnostics.
 
 1. **Guarantees and initialization.** Use analytic scalar and multivariate
    reference cases, identical-innovation couplings, and varied initial histories.
-   Hypothesis: the certified decay and covariance relations hold; finite burn-in
-   leaves a quantifiable transient. Measure certificate residuals, decay ratios,
+   Hypothesis: the certified decay and covariance relations hold; direct uniform
+   initialization can leave a transient. Measure certificate residuals, decay ratios,
    initial-to-late distribution differences, explosion rate and near-zero rate.
 2. **Diversity versus computational cost.** Compare the four methods across
    variable counts, lag orders and expression complexity. Match dimensions,

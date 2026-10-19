@@ -31,8 +31,8 @@ expectation. Recent lags still influence each new observation, and innovations
 sustain variation. Theorem~5.1 gives sufficient conditions for this property
 and for a causal strictly stationary solution: a process determined by present
 and past innovations whose joint distributions are unchanged by time shifts.
-Our initialization procedure below uses the same contraction condition to
-control the effect of a finite starting history.
+Our finite simulations below start from a separately specified history law;
+the theorem's stationary solution need not describe their earliest steps.
 
 \paragraph{Conditions supplied by Theorem 5.1.}
 Let $\mathbf{s}_t$ stack the $L$ most recent vectors of $N$ series and write
@@ -84,10 +84,10 @@ The following steps, implemented in
 checks on a sampled equation. The random tree sampler defines which mechanisms
 we draw. Each mechanism has a \emph{verification record}, named
 \texttt{ShaoWuCertificate} in the code. It stores the calculated lag
-sensitivities, their sum, the amplitude and noise bounds, and the initialization
-error bound. This is
-the meaning of ``certificate'' here: recorded quantities used to check the
-stated sufficient conditions and the chosen initialization tolerance.
+sensitivities, their sum, and the amplitude and noise bounds. This is the
+meaning of ``certificate'' here: recorded quantities used to check the
+stated sufficient conditions, not a claim that a sampled finite path begins
+in the stationary distribution.
 
 \subparagraph{1. Bound the lag terms and keep the same rule over time.}
 For each target, sample a base tree with parameter and lag leaves, addition,
@@ -169,7 +169,7 @@ line. Adding the lagwise bounds gives
 Eq.~\eqref{eq:implemented-gmc-condition}. The additive noise cancels because
 the comparison uses exactly the same innovation on both sides.
 
-\subparagraph{4. Check the output moment and choose the initialization length.}
+\subparagraph{4. Check the output moment and sample the initial history.}
 Let $B_{\mathrm{GMC}}$ be the Euclidean norm of the final componentwise
 amplitude bounds. The stationary solution satisfies
 $\|\mathbf x_t\|_{L^2}\leq B_{\mathrm{GMC}}+\sigma_\varepsilon\sqrt N$.
@@ -177,41 +177,15 @@ The drift is bounded and Gaussian noise has finite variance, so the next
 output at the zero history also has a finite second moment. This verifies
 condition~2 and completes the checks needed to apply the theorem.
 
-We then use the contraction to decide how many preliminary steps to simulate,
-a procedure called \emph{burn-in}. Starting each lag block in
-$[-r_0,r_0]^N$ gives the following bound on its difference from a stationary
-version driven by the same future innovations:
-\begin{equation}
-\begin{gathered}
- M_0=r_0\sqrt N+B_{\mathrm{GMC}}+\sigma_\varepsilon\sqrt N,\\
- \max_{0\leq d<L}
- \|\mathbf x_{b_{\mathrm{burn}}-d}-\mathbf x^{\mathrm{stat}}_{b_{\mathrm{burn}}-d}\|_{L^2}
- \leq M_0c_{\mathrm{GMC}}^{K}.
-\end{gathered}
- \label{eq:implemented-gmc-burnin}
-\end{equation}
-The first term in $M_0$ bounds our chosen initial values; the remaining terms
-bound a stationary observation. Their sum bounds the initial difference.
-Here $b_{\mathrm{burn}}=L-1+KL$ counts burn-in steps from an initial history ending at zero.
-The maximum lagwise $L^2$ error contracts by at most $c_{\mathrm{GMC}}$
-after each complete block of $L$ steps: once a block is generated, every lag
-entering the next block already has the reduced error bound. The additional
-$L-1$ steps conservatively cover every observation in the retained history.
-Thus more completed blocks make the starting history less influential.
-The bound concerns each lag block, with
-the maximum outside the expectation; a bound on the entire stacked
-Euclidean state gains a factor $\sqrt L$.
-
-For $0<c_{\mathrm{GMC}}<1$ and $M_0>\delta_{\mathrm{init}}$, choose
-$K=\lceil\log(\delta_{\mathrm{init}}/M_0)/\log(c_{\mathrm{GMC}})\rceil$.
-The code uses $K=0$ when the initial bound already meets the tolerance, and
-$K=1$ when the gain is zero and a contraction block is needed. The default
-per-lag tolerance is $\delta_{\mathrm{init}}=10^{-4}$. Initialization simulates
-the Gaussian-driven recurrence for $b_{\mathrm{burn}}$ steps and retains the final $L$
-observations. Fresh, independently seeded innovations generate the returned
-trajectory. This gives approximate stationary initialization with a stated
-remaining error. The theorem establishes the stationary solution; the burn-in
-calculation specifies how closely our finite initialization approaches it.
+For each trajectory the implementation instead draws the $N\times L$
+initial lag block independently from the uniform law on $[-r_0,r_0]$,
+with default $r_0=1$. It then recursively evaluates the scaled equations,
+adding fresh i.i.d. Gaussian innovations at each generated step. This removes
+preliminary simulation from the generation cost. The initialization law is
+explicit but generally differs from the stationary law established by the
+theorem. Consequently, early observations can contain an initialization
+transient; the contraction condition describes how the influence of that
+history diminishes under a shared-noise comparison.
 
 \subparagraph{A worked construction.}
 Consider our example drift $0.3\tanh(x_t)\tanh(x_{t-1})$.
@@ -222,11 +196,10 @@ $\widetilde c=0.6$. The default safety factor yields the executed recurrence
  \qquad \varepsilon_{t+1}\sim\mathcal N(0,0.05^2).
  \label{eq:implemented-gmc-example}
 \end{equation}
-Now $c_{\mathrm{GMC}}=0.57$, $M_0=1.335$ for $r_0=1$, and $K=17$ gives
-$b_{\mathrm{burn}}=35$ burn-in steps. The gain 0.57 satisfies condition~3;
-the bounded drift and Gaussian variance satisfy condition~2. The 35 preliminary
-steps bring the bound for every retained lag below $10^{-4}$. The verification
-record saves these values alongside the scaled AST, making the reasoning
+Now $c_{\mathrm{GMC}}=0.57$ satisfies condition~3; the bounded drift and
+Gaussian variance satisfy condition~2. The two initial lag values are sampled
+directly from $[-1,1]$. The verification record stores the calculated gains
+and moment bounds alongside the scaled AST, making the reasoning
 inspectable for each generated mechanism. Tests check the analytic example,
 reproducibility, and consistency with sampled numerical derivatives.
 
@@ -294,8 +267,8 @@ squared distance while both copies have the same distribution.
 
 In our implementation, \texttt{sample\_shao\_wu\_trajectories} assigns each
 trajectory separate initialization and future-noise streams derived from the
-root seed and trajectory index. Burn-in controls each trajectory's remaining
-initialization effect through Eq.~\eqref{eq:implemented-gmc-burnin}. Shared-noise
+root seed and trajectory index. Each finite path starts from a uniform
+history and may initially differ from the stationary regime. Shared-noise
 pairs serve to study sensitivity to the past; independent runs provide varied,
 reproducible realizations of one mechanism. A persistent distance between
 independent runs is compatible with this guarantee. Distributional comparisons

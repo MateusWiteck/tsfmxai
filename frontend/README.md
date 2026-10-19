@@ -75,7 +75,7 @@ trajectory generator; it does not clip trajectories to simulate stability.
 | None | Original unrestricted, coupled AST sampler. |
 | Coefficient-gated lags | Existing heuristic; no stability certificate. |
 | Jacobian contraction | Two independently certified scalar recurrences on `[-1, 1]`, with bounded uniform innovations. |
-| Shao–Wu | Coupled, time-homogeneous `tanh` recurrences, Gaussian innovations, and certified finite burn-in. |
+| Shao–Wu | Coupled, time-homogeneous `tanh` recurrences, Gaussian innovations, and a directly drawn uniform initial history. The finite trajectory can have an initial transient. |
 | Heaps VAR(p) | Coupled linear stationary VAR; lag bounds select the order and history is drawn from its joint stationary law. |
 | Stationary VAR(1) | Coupled linear VAR with spectral radius below one and stationary Gaussian initialization. |
 

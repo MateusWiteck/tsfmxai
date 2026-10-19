@@ -59,7 +59,7 @@ def benchmark_stability_method(
     horizon = max(diagnostic_config.horizons)
     outcomes, examples, tail_sensitivity = [], [], []
     initialization_seconds = innovation_seconds = execution_seconds = diagnostic_seconds = 0.
-    evaluated_values = evaluated_steps = burn_in_steps = successful = 0
+    evaluated_values = evaluated_steps = successful = 0
     end_to_end_started = perf_counter()
     for position, mechanism in enumerate(mechanisms):
         index = position if mechanism.sample_index is None else mechanism.sample_index
@@ -72,7 +72,6 @@ def benchmark_stability_method(
         elif isinstance(mechanism, ShaoWuMechanism):
             expressions, bindings = mechanism.expressions, mechanism.bindings
             history = initialize_shao_wu_history(mechanism, seed=init_seed)
-            burn_in_steps += mechanism.certificate.burn_in_steps
         else:
             expressions, bindings = (mechanism.expression,), (mechanism.binding,)
             order = required_history_length(mechanism.expression, mechanism.binding)
@@ -144,7 +143,7 @@ def benchmark_stability_method(
     performance = dict(
         method=method, mechanisms=count, sampling_and_certificate_seconds=sampling_seconds,
         mechanisms_per_second=count / sampling_seconds if sampling_seconds else None,
-        initialization_seconds=initialization_seconds, burn_in_steps=burn_in_steps,
+        initialization_seconds=initialization_seconds,
         innovation_seconds=innovation_seconds, ast_execution_seconds=execution_seconds,
         diagnostic_seconds=diagnostic_seconds, evaluation_seconds=elapsed,
         total_seconds=total, attempted_trajectories_per_second=count / total,

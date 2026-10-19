@@ -175,13 +175,10 @@ The target gain, safety multiplier, and resulting scale applied to each output
 AST. The final total gain is $c_{\mathrm{GMC}}=\sum_d a_d^{\mathrm{GMC}}$.
 Defaults are $g_\star=0.8$ and $\eta_{\mathrm{safe}}=0.95$. \\
 
-$B_{\mathrm{GMC}}$, $r_0$, $M_0$;
-$K$, $b_{\mathrm{burn}}$, $\delta_{\mathrm{init}}$ &
-Global vector-drift bound, initial-history radius, and initial per-lag
-$L^2$ coupling-error bound. $K$ counts contraction blocks of $L$ steps;
-$b_{\mathrm{burn}}=L-1+KL$ is the burn-in length; and
-$\delta_{\mathrm{init}}$ is the retained-history per-lag error tolerance.
-The superscript $\mathrm{stat}$ denotes a stationary coupled trajectory. \\
+$B_{\mathrm{GMC}}$, $r_0$ &
+Global vector-drift bound and radius of the directly sampled uniform initial
+lag history. This finite-history law is separate from the stationary law
+established under the GMC condition. \\
 
 $w_{\mathrm{tail}}$, $\bar x^{\mathrm{tail}}_{k,h}$;
 $V_h^{\mathrm{tail}}$, $\delta_{\mathrm{flat}}$ &

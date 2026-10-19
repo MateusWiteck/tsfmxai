@@ -645,7 +645,7 @@ function updateStabilityControls() {
     none: "Sem restrição de estabilidade ou corte por magnitude. Valores não finitos interrompem a geração.",
     coefficient_gate: "Adiciona coeficientes aos lags; pode reduzir explosões, mas não certifica estabilidade.",
     contraction: "Duas recorrências independentes, certificadas em [−1, 1], com inovação uniforme limitada. Não usa o terminal tempo.",
-    shao_wu: "Recorrências com tanh e contração global. Inovação gaussiana e histórico após burn-in; não impõe limite rígido de amplitude.",
+    shao_wu: "Recorrências com tanh e contração global. Histórico inicial uniforme em [-1, 1], sorteado diretamente, e inovação gaussiana; pode haver transiente inicial. Não impõe limite rígido de amplitude.",
     heaps: "VAR(p) linear com histórico gaussiano estacionário. Lag mínimo/máximo escolhem a ordem p; os operadores da AST livre não se aplicam.",
     stationary_var1: "VAR(1) linear com histórico gaussiano estacionário. Usa somente lag 1; os operadores da AST livre não se aplicam.",
   };
