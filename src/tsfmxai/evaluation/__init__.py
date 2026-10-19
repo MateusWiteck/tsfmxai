@@ -16,6 +16,13 @@ from tsfmxai.evaluation.stability import (
     first_explosion_step,
     wilson_interval,
 )
+from tsfmxai.evaluation.tail_behavior import (
+    TAIL_LABELS,
+    TailDiagnosticConfig,
+    TailWindowStatistics,
+    classify_tail_windows,
+    measure_tail_prefixes,
+)
 
 __all__ = [
     "DEFAULT_THRESHOLDS",
@@ -30,4 +37,9 @@ __all__ = [
     "diagnose_stability_prefixes",
     "first_explosion_step",
     "wilson_interval",
+    "TAIL_LABELS",
+    "TailDiagnosticConfig",
+    "TailWindowStatistics",
+    "classify_tail_windows",
+    "measure_tail_prefixes",
 ]

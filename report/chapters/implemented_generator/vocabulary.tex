@@ -1,0 +1,94 @@
+\subsection{Vocabulary and grammar of temporal expressions}
+\label{sec:generator-vocabulary}
+
+The benchmark adopts a fixed vocabulary for writing recurrence mechanisms.
+Its terminals are numerical parameters and past observations; addition,
+multiplication, and the hyperbolic tangent combine them into expressions.
+The symbol $t$ labels the observation being generated. Each update computes
+its value from the available lag history and the mechanism's fixed parameters.
+Table~\ref{tab:generator-vocabulary} defines the five elements of this language.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}
+>{\raggedright\arraybackslash}p{0.20\linewidth}
+>{\raggedright\arraybackslash}p{0.25\linewidth}
+>{\raggedright\arraybackslash}p{0.46\linewidth}@{}}
+\toprule
+Element & Representation & Meaning \\
+\midrule
+Parameter & $P_a$ &
+A real coefficient supplied separately, such as $P_0=0.7$. \\
+Past observation & $\operatorname{LAG}(j,L_a)$ &
+Reads $x_{j,t-\ell}$ after assigning the positive integer $\ell$ to $L_a$. \\
+Addition & $\operatorname{ADD}(e_1,e_2)$ &
+Combines two expressions as $e_1+e_2$. \\
+Multiplication & $\operatorname{MUL}(e_1,e_2)$ &
+Forms $e_1e_2$: coefficients, interactions, and repeated factors. \\
+Hyperbolic tangent & $\operatorname{TANH}(e)$ &
+Nonlinear; output in $(-1,1)$ and derivative magnitude $\leq1$. \\
+\bottomrule
+\end{tabular}
+\caption{Selected expression vocabulary. Parameters and lagged observations
+are leaves, addition and multiplication have two children, and $\tanh$ has
+one child. The source index $j$ selects the observed series.}
+\label{tab:generator-vocabulary}
+\end{table}
+
+\paragraph{Composition and parameter binding.}
+Let $\mathcal E$ denote any valid expression, including a complete output
+tree or one of its subtrees. The recursive grammar is
+\begin{equation}
+\begin{aligned}
+\mathcal E ::= {}& P_a \mid \operatorname{LAG}(j,L_a)\\
+ &\mid\operatorname{ADD}(\mathcal E_1,\mathcal E_2)
+  \mid\operatorname{MUL}(\mathcal E_1,\mathcal E_2)\\
+ &\mid\operatorname{TANH}(\mathcal E_1).
+\end{aligned}
+\label{eq:generator-vocabulary-grammar}
+\end{equation}
+Here $\mathcal E_1$ and $\mathcal E_2$ are expressions built by the same rules.
+The tree stores named coefficient slots $P_a$ and lag slots $L_a$; a binding
+assigns real coefficients and positive integer delays. For example,
+$P_0\operatorname{LAG}(0,L_0)+P_1$ becomes
+$0.7x_{0,t-2}+0.01$ when $P_0=0.7$, $L_0=2$, and $P_1=0.01$.
+Negative coefficients express subtraction, and repeated lag factors express
+powers such as $x_{0,t-1}^2$. One output tree is retained per target series;
+its lag leaves can refer to itself or another series in the system.
+
+\paragraph{Temporal evolution through recurrence.}
+Growth can arise from repeated updates of the state. For the deterministic
+example
+\begin{equation}
+ x_t=x_{t-1}+7,\qquad t\geq1,
+ \label{eq:generator-recurrent-trend}
+\end{equation}
+each update adds seven to the previous value. Starting from $x_0$, the
+sequence is $x_0,x_0+7,x_0+14,\ldots$. Thus a trend can be represented using
+only a lag leaf, a constant, and addition. This example has lag derivative
+equal to one: the strict contraction conditions in
+Section~\ref{sec:generator-diagnostics} select a narrower set of mechanisms.
+The shared vocabulary describes expressions; each generation family adds
+its own admissibility conditions.
+
+\paragraph{Innovations, initialization, and method-specific subsets.}
+The AST represents the deterministic part of the recurrence. The executor
+adds the innovation $\varepsilon_{k,t}$ according to the selected noise law,
+and the initial history supplies the observations required by the lags.
+These choices are recorded alongside the expression. The original sampler
+and bounded-domain constructor use sums and products. The Shao--Wu
+construction (Section~\ref{sec:implemented-shao-wu}) wraps lag leaves in
+$\tanh$ before applying its gain constraint. Heaps
+(Section~\ref{sec:implemented-heaps}) expresses its linear VAR coefficients
+using parameters, lag leaves, sums, and products between coefficients and
+observations.
+
+\paragraph{Alignment with the current implementation.}
+The corresponding node classes and bindings are defined in
+\path{src/tsfmxai/representations/expression.py}. To restrict the existing
+base sampler to the selected terminals, set \texttt{time\_probability} to
+zero and \texttt{require\_time} to \texttt{False}.
+The current code also retains a \texttt{Time} node for earlier experiments;
+the vocabulary adopted here selects the five elements in
+Table~\ref{tab:generator-vocabulary}. The controlled-family comparison in
+Section~\ref{sec:generator-diagnostics} already uses this restriction.

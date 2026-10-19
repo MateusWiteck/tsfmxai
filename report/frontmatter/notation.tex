@@ -96,7 +96,9 @@ $\mathcal{T}$ is a sampled unary--binary expression tree, $o$ is its number of
 operator nodes, and $F_{\mathcal{T}}$ is the recurrence function obtained by
 executing that tree. When arguments are lag states, it denotes the
 deterministic drift, with innovations added separately. $P_a$ and $L_a$ in
-implementation examples denote named coefficient and lag slots before binding. \\
+implementation examples denote named coefficient and lag slots before binding;
+$a$ indexes a slot. $\mathcal E$ (or $e$ in operator examples) denotes any
+valid expression, and $\mathcal E_1,\mathcal E_2$ denote child expressions. \\
 
 $\mathbf{s}_t$, $\mathcal F_{\varepsilon}$, $J_{\mathcal F}$ &
 $\mathbf{s}_t=(x_t,x_{t-1},\ldots,x_{t-L+1})^\top$ is the augmented state that
@@ -138,16 +140,26 @@ lag state. For a scalar recurrence, $s_d=x_{t-d}$,
 $d=0,\ldots,L-1$. The nonnegative $a_d^{\mathrm{GMC}}$ bound the effect of
 each lag in the second-moment specialization of Shao--Wu's condition, with
 $\sum_d a_d^{\mathrm{GMC}}<1$.
-$\|Z\|_{L^2}=(\mathbb E[\|Z\|_2^2])^{1/2}$ measures the size of a random
-scalar or vector in second moment. \\
+$\|Z\|_{L^2}=(\mathbb E[\|Z\|_2^2])^{1/2}$ is the root mean squared
+Euclidean size of a random scalar or vector. \\
 
 $\mathbf{s}_d$, $\sigma_\varepsilon$;
 $C_{\mathrm{GMC}}$, $\rho_{\mathrm{GMC}}$ &
 $\mathbf{s}_d\in\mathbb R^N$ is lag block $d$ of a generic stacked history;
 $\sigma_\varepsilon$ is the per-channel innovation standard deviation.
 $C_{\mathrm{GMC}}$ and $\rho_{\mathrm{GMC}}\in(0,1)$ bound the geometric
-decay of the coupled squared difference. A prime denotes the coupled version
-with the same future innovations. \\
+decay of the expected squared distance in the shared-noise comparison. A prime
+denotes a second trajectory. The GMC comparison shares future innovation
+values; the independent-noise comparison draws a separate sequence, as stated
+in the text. \\
+
+$\operatorname{Law}(Z)$, $\pi_{\mathrm{GMC}}$,
+$\operatorname{Var}_{\pi_{\mathrm{GMC}}}$ &
+$\operatorname{Law}(Z)$ is the probability distribution of $Z$.
+$\pi_{\mathrm{GMC}}$ is the stationary distribution of the observation vector
+for one fixed mechanism and innovation law. The variance subscript means that
+observations follow this stationary distribution; $\Rightarrow$ denotes
+convergence in distribution. \\
 
 $A(e)$, $D(e)$, $\mathbf D_d$;
 $\widetilde a_d$, $\widetilde c$ &
@@ -175,7 +187,10 @@ $w_{\mathrm{tail}}$, $\bar x^{\mathrm{tail}}_{k,h}$;
 $V_h^{\mathrm{tail}}$, $\delta_{\mathrm{flat}}$ &
 Tail-window length and channelwise tail mean. $V_h^{\mathrm{tail}}$ is the
 largest deviation from these means across channels and tail times;
-$\delta_{\mathrm{flat}}$ is the proposed nearly constant-tail tolerance.
+$\delta_{\mathrm{flat}}$ is the nearly constant-tail tolerance, set to
+$3\sigma_\varepsilon$ in the main evaluation and varied in its sensitivity
+analysis. Persistence additionally checks two consecutive tail windows and
+their pooled interval; initial-to-terminal reduction is evaluated per channel.
 $v$ indexes generated steps relative to the stated origin. \\
 
 $\mathbf V$, $\mathbf Q$ &

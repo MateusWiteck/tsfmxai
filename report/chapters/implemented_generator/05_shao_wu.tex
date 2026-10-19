@@ -1,25 +1,62 @@
-\subsection{Nonlinear generation using Shao--Wu moment contraction}
+\subsubsection{Nonlinear generation using Shao--Wu moment contraction}
 \label{sec:implemented-shao-wu}
 
-This family combines a published sufficient condition with a project-specific
-AST construction. The mathematical result supplies the target property; the
-construction supplies computable bounds, a scaling rule, and an initialization
-policy that satisfy it.
+The desired result is a decreasing influence of the initial history. Imagine
+running the same equation twice, starting with different past observations but
+using exactly the same future noise values. We want the expected squared
+distance between the two trajectories to approach zero at a controlled rate.
+For a mechanism with $L$ lags and $N$ channels, the initial history contains
+the last $L$ observations of every channel. Sharing the future noise isolates
+the effect of this history; independently simulated trajectories also differ
+because of their fresh innovations.
 
-\subsubsection{Mathematical result used: Theorem 5.1}
+\paragraph{Result sought: geometric forgetting of the past.}
 \label{sec:implemented-shao-wu-theory}
 
-\citet[Section~5, Theorem~5.1, electronic reprint pp.~11--12]{shao2007spectral}
-consider a measurable, time-homogeneous recurrence with i.i.d. innovations.
-For our second-moment specialization, let $\mathbf{s}_t$ stack the $L$ most
-recent vectors of $N$ series and write
+\citet[Section~3, Eq.~(3.1), electronic reprint p.~5]{shao2007spectral}
+formalize this idea as \emph{geometric moment contraction} (GMC). In their
+comparison, two stationary versions have independently drawn innovation
+histories through the origin $\tau$ and share all innovations after it.
+For the second-moment version used here, their expected squared distance obeys
+\begin{equation}
+ \mathbb E\|\mathbf x_{\tau+v}-\mathbf x'_{\tau+v}\|_2^2
+ \leq C_{\mathrm{GMC}}\rho_{\mathrm{GMC}}^{v},
+ \qquad C_{\mathrm{GMC}}>0,\quad 0<\rho_{\mathrm{GMC}}<1.
+ \label{eq:implemented-gmc-forgetting}
+\end{equation}
+The expectation averages the squared distance over repeated realizations of
+this comparison. Since $\rho_{\mathrm{GMC}}<1$, the upper bound tends to zero.
+Individual steps can fluctuate while remaining under a decaying bound in
+expectation. Recent lags still influence each new observation, and innovations
+sustain variation. Theorem~5.1 gives sufficient conditions for this property
+and for a causal strictly stationary solution: a process determined by present
+and past innovations whose joint distributions are unchanged by time shifts.
+Our initialization procedure below uses the same contraction condition to
+control the effect of a finite starting history.
+
+\paragraph{Conditions supplied by Theorem 5.1.}
+Let $\mathbf{s}_t$ stack the $L$ most recent vectors of $N$ series and write
 \begin{equation}
  \mathbf x_{t+1}=\mathcal R_{\mathcal T}(\mathbf{s}_t;
                                       \boldsymbol\varepsilon_{t+1}).
  \label{eq:implemented-gmc-recurrence}
 \end{equation}
-The hypotheses are a finite second moment at one fixed reference history
-and, for every pair of histories, the global inequality
+We use the following second-moment specialization of
+\citet[Section~5, Theorem~5.1 and its proof, electronic reprint
+pp.~11--12]{shao2007spectral}:
+\begin{enumerate}
+\item \emph{A fixed update rule and independent innovations.}
+The function $\mathcal R_{\mathcal T}$ is measurable, so its probabilistic
+quantities are well-defined, and the same rule applies at every time step.
+The innovations are independent and identically distributed over time.
+\item \emph{A finite second moment at a reference history.}
+At least one fixed history must give an output with finite expected squared
+magnitude. Our construction checks the zero history, requiring
+$\|\mathcal R_{\mathcal T}(\mathbf 0;\boldsymbol\varepsilon)\|_{L^2}<\infty$,
+where $\|Z\|_{L^2}=(\mathbb E\|Z\|_2^2)^{1/2}$.
+\item \emph{Limited sensitivity to the past.}
+For every pair of histories, the difference between their next outputs under
+the same innovation must satisfy
 \begin{equation}
 \begin{split}
  \|\mathcal R_{\mathcal T}(\mathbf{s};\boldsymbol\varepsilon)
@@ -31,45 +68,51 @@ and, for every pair of histories, the global inequality
 \end{split}
 \label{eq:implemented-gmc-condition}
 \end{equation}
-Here $\mathbf{s}_d\in\mathbb R^N$ is one lag block. The theorem yields a
-causal strictly stationary solution and geometric moment contraction. In the
-paper's coupling, two stationary versions have independent innovation
-histories through the origin and share all subsequent innovations. Their
-expected squared difference satisfies
-\begin{equation}
- \mathbb E\|\mathbf x_{\tau+v}-\mathbf x'_{\tau+v}\|_2^2
- \leq C_{\mathrm{GMC}}\rho_{\mathrm{GMC}}^{v},
- \qquad C_{\mathrm{GMC}}>0,\quad 0<\rho_{\mathrm{GMC}}<1.
- \label{eq:implemented-gmc-forgetting}
-\end{equation}
-This is the GMC definition in Section~3, Eq.~(3.1), p.~5. It expresses fading
-influence of the replaced past. Recent lags remain active inputs, and fresh
-innovations sustain random variation. The full theorem allows other moment
-orders; the implementation uses order two.
+Here $\mathbf{s}_d\in\mathbb R^N$ contains all channels at one lag.
+Each nonnegative $a_d^{\mathrm{GMC}}$ bounds how much a change at that lag
+can affect the next output. Their sum below one controls the combined feedback
+as the history is repeatedly updated.
+\end{enumerate}
+These conditions apply globally, across all possible lag values. The full
+theorem permits other moment orders; the implementation uses order two.
 
-\subsubsection{Our construction: making the hypotheses computable}
+\paragraph{Our construction: making the hypotheses computable.}
 \label{sec:implemented-shao-wu-construction}
 
-All operations below are implemented in
-\path{src/tsfmxai/generators/shao_wu.py}. They define our synthetic prior and
-certificate, using Theorem~5.1 as their justification.
+The following steps, implemented in
+\path{src/tsfmxai/generators/shao_wu.py}, turn the theorem's conditions into
+checks on a sampled equation. The random tree sampler defines which mechanisms
+we draw. Each mechanism has a \emph{verification record}, named
+\texttt{ShaoWuCertificate} in the code. It stores the calculated lag
+sensitivities, their sum, the amplitude and noise bounds, and the initialization
+error bound. This is
+the meaning of ``certificate'' here: recorded quantities used to check the
+stated sufficient conditions and the chosen initialization tolerance.
 
-\paragraph{1. Build a bounded, time-homogeneous drift.}
+\subparagraph{1. Bound the lag terms and keep the same rule over time.}
 For each target, sample a base tree with parameter and lag leaves, addition,
 and multiplication. Replace each lag leaf $x_{j,t-\ell}$ with
-$\tanh(x_{j,t-\ell})$. The resulting drift has finite global amplitude and
-derivative bounds because $|\tanh z|\leq1$ and $|\tanh'(z)|\leq1$.
-This transformation bounds individual feedback factors before products are
-formed. The sampler retains a finite expression for every target and excludes
-explicit time leaves. The final recurrence adds independent Gaussian
-innovations with covariance $\sigma_\varepsilon^2 I$.
+$\tanh(x_{j,t-\ell})$. For every real input, $\tanh$ lies in $(-1,1)$ and
+its derivative has magnitude at most one. Consequently, we can bound both
+the size of each transformed lag and its sensitivity before combining the
+terms through sums and products. With finite coefficients, this gives finite
+bounds for the complete deterministic part, also called the drift.
 
-\paragraph{2. Propagate bounds through the AST.}
+The tree uses fixed parameters and lagged observations, keeping the same
+measurable update rule at every step. We add i.i.d. Gaussian innovations with
+covariance $\sigma_\varepsilon^2 I$. This supplies condition~1; the finite
+drift and noise moments will supply condition~2. The derivative bounds prepare
+condition~3, whose strict feedback limit is enforced in step~3.
+
+\subparagraph{2. Calculate size and sensitivity bounds from the leaves upwards.}
 For each subexpression $e$, the recursive calculation returns an amplitude
 bound $A(e)$ and a matrix $D(e)$ of nonnegative absolute derivative bounds,
 indexed by source series and lag offset. Table~\ref{tab:ast-global-bounds}
-gives the implemented rules. These bounds hold over the full real lag-state
-space, allowing verification before drawing a trajectory.
+gives the implemented rules. In practical terms, $A(e)$ answers how large the
+deterministic expression can become, while $D(e)$ bounds its response to a
+change in each past input. We calculate these quantities recursively until
+we reach the root of each output tree. Their global validity allows us to
+check the theorem's conditions before simulating a trajectory.
 
 \begin{table}[H]
 \centering\small
@@ -84,17 +127,24 @@ $e_1+e_2$ & $A(e_1)+A(e_2)$ & $D(e_1)+D(e_2)$ \\
 $e_1e_2$ & $A(e_1)A(e_2)$ & $A(e_2)D(e_1)+A(e_1)D(e_2)$ \\
 \bottomrule
 \end{tabular}
-\caption{Conservative global bound propagation in our Shao--Wu constructor.
+\caption{Conservative global bound propagation in our Shao--Wu construction.
 The automatic sampler wraps every lag leaf in $\tanh$ before products are
 bounded. A zero derivative contributes zero even if the other amplitude
 bound is infinite.}
 \label{tab:ast-global-bounds}
 \end{table}
 
-\paragraph{3. Combine channels and allocate the gain budget.}
+For a sum, adding the two bounds covers the largest possible combined effect.
+For a product, the product rule explains the two derivative terms: a change
+in one factor is multiplied by the size of the other. This is why bounding
+the lag values before forming products is useful.
+
+\subparagraph{3. Reduce the combined sensitivity until its bound is below one.}
 For lag offset $d$, stack the bounds from all targets into a nonnegative
 $N\times N$ matrix $\mathbf D_d$, whose entry $(k,j)$ bounds the effect of
-source $j$ on target $k$. Define
+source $j$ on target $k$. The norm $\|\mathbf D_d\|_2$, its largest singular
+value, bounds how much changing the whole lag vector can change the output
+vector. It accounts for feedback between channels. Define
 \begin{equation}
  \widetilde a_d=\|\mathbf D_d\|_2,\qquad
  \widetilde c=\sum_{d=0}^{L-1}\widetilde a_d,
@@ -103,26 +153,34 @@ source $j$ on target $k$. Define
  \eta_{\mathrm{safe}}\min\{1,g_\star/\widetilde c\}.
  \label{eq:implemented-gmc-scaling}
 \end{equation}
-The matrix norm is the largest singular value. If $\widetilde c=0$, the
+Here $\widetilde c$ adds the sensitivity bounds over all lags. If
+$\widetilde c=0$, the
 minimum in Eq.~\eqref{eq:implemented-gmc-scaling} is defined as 1. The
 defaults are $g_\star=0.8$ and $\eta_{\mathrm{safe}}=0.95$.
 Multiply every output tree by $\eta_{\mathrm{GMC}}$, giving
 $a_d^{\mathrm{GMC}}=\eta_{\mathrm{GMC}}\widetilde a_d$ and
 $c_{\mathrm{GMC}}\leq0.76<1$.
 
-This block calculation accounts for interactions between channels. Its
-justification is the entrywise bound on the absolute Jacobian block, which
-bounds its Euclidean operator norm by $\|\mathbf D_d\|_2$. Integrating these
-derivatives between any two histories and applying the triangle inequality
-gives Eq.~\eqref{eq:implemented-gmc-condition}. Additive innovations cancel
-in this comparison because the same innovation is used on both sides.
+This multiplication reduces every lag sensitivity by the same factor. The
+resulting total directly meets the strict inequality in condition~3.
+To connect derivatives to that condition, consider the line joining two
+histories: the global derivative bounds limit the change along the entire
+line. Adding the lagwise bounds gives
+Eq.~\eqref{eq:implemented-gmc-condition}. The additive noise cancels because
+the comparison uses exactly the same innovation on both sides.
 
-\paragraph{4. Verify the moment condition and control initialization.}
+\subparagraph{4. Check the output moment and choose the initialization length.}
 Let $B_{\mathrm{GMC}}$ be the Euclidean norm of the final componentwise
 amplitude bounds. The stationary solution satisfies
 $\|\mathbf x_t\|_{L^2}\leq B_{\mathrm{GMC}}+\sigma_\varepsilon\sqrt N$.
-In particular, the required anchor moment is finite at the zero history.
-Starting each lag block in $[-r_0,r_0]^N$ gives the coupling bound
+The drift is bounded and Gaussian noise has finite variance, so the next
+output at the zero history also has a finite second moment. This verifies
+condition~2 and completes the checks needed to apply the theorem.
+
+We then use the contraction to decide how many preliminary steps to simulate,
+a procedure called \emph{burn-in}. Starting each lag block in
+$[-r_0,r_0]^N$ gives the following bound on its difference from a stationary
+version driven by the same future innovations:
 \begin{equation}
 \begin{gathered}
  M_0=r_0\sqrt N+B_{\mathrm{GMC}}+\sigma_\varepsilon\sqrt N,\\
@@ -132,12 +190,15 @@ Starting each lag block in $[-r_0,r_0]^N$ gives the coupling bound
 \end{gathered}
  \label{eq:implemented-gmc-burnin}
 \end{equation}
+The first term in $M_0$ bounds our chosen initial values; the remaining terms
+bound a stationary observation. Their sum bounds the initial difference.
 Here $b_{\mathrm{burn}}=L-1+KL$ counts burn-in steps from an initial history ending at zero.
 The maximum lagwise $L^2$ error contracts by at most $c_{\mathrm{GMC}}$
 after each complete block of $L$ steps: once a block is generated, every lag
-entering the next block already has the reduced error bound. The extra $L-1$
-steps ensure that the oldest observation in the retained history has also
-completed $K$ contraction blocks. The bound concerns each lag block, with
+entering the next block already has the reduced error bound. The additional
+$L-1$ steps conservatively cover every observation in the retained history.
+Thus more completed blocks make the starting history less influential.
+The bound concerns each lag block, with
 the maximum outside the expectation; a bound on the entire stacked
 Euclidean state gains a factor $\sqrt L$.
 
@@ -148,10 +209,11 @@ $K=1$ when the gain is zero and a contraction block is needed. The default
 per-lag tolerance is $\delta_{\mathrm{init}}=10^{-4}$. Initialization simulates
 the Gaussian-driven recurrence for $b_{\mathrm{burn}}$ steps and retains the final $L$
 observations. Fresh, independently seeded innovations generate the returned
-trajectory. This is approximate stationary initialization with an explicit
-residual bound; the stationary law itself is supplied by the theorem.
+trajectory. This gives approximate stationary initialization with a stated
+remaining error. The theorem establishes the stationary solution; the burn-in
+calculation specifies how closely our finite initialization approaches it.
 
-\paragraph{A worked construction.}
+\subparagraph{A worked construction.}
 Consider our example drift $0.3\tanh(x_t)\tanh(x_{t-1})$.
 Its amplitude bound is 0.3, and both lag derivative bounds are 0.3, giving
 $\widetilde c=0.6$. The default safety factor yields the executed recurrence
@@ -161,24 +223,81 @@ $\widetilde c=0.6$. The default safety factor yields the executed recurrence
  \label{eq:implemented-gmc-example}
 \end{equation}
 Now $c_{\mathrm{GMC}}=0.57$, $M_0=1.335$ for $r_0=1$, and $K=17$ gives
-$b_{\mathrm{burn}}=35$ burn-in steps. The resulting record retains the scaled AST, each
-lag gain, the amplitude bound, the innovation scale, the burn-in length,
-and the residual error bound. These quantities are tested analytically and
-through reproducibility and numerical derivative checks.
+$b_{\mathrm{burn}}=35$ burn-in steps. The gain 0.57 satisfies condition~3;
+the bounded drift and Gaussian variance satisfy condition~2. The 35 preliminary
+steps bring the bound for every retained lag below $10^{-4}$. The verification
+record saves these values alongside the scaled AST, making the reasoning
+inspectable for each generated mechanism. Tests check the analytic example,
+reproducibility, and consistency with sampled numerical derivatives.
 
-\paragraph{Scope of this construction.}
+\subparagraph{Scope of this construction.}
 The implemented constructor requires both finite global drift amplitudes
 and finite global derivative bounds. This selects a convenient bounded-drift
 subfamily of the theorem: unbounded polynomial feedback is rejected, while
 unbounded linear drift can be handled by the separate VAR family. Conservative
 bounds and scaling can weaken useful signal relative to the innovations.
-Accordingly, low-amplitude diagnostics remain relevant even when the GMC
-certificate holds. Gaussian tails permit finite amplitude-threshold crossings;
-the certificate controls dependence and moments rather than imposing a hard
-trajectory range.
+Accordingly, low-amplitude diagnostics remain relevant when the GMC conditions
+hold. Gaussian innovations can still produce observations beyond a finite
+amplitude threshold. The guarantee concerns the influence of the past and
+the process's moments, with fresh noise continuing to drive its fluctuations.
 
 The inequalities above describe the construction in exact arithmetic. The
 implementation evaluates its bounds and singular values in floating point,
-retains a strict gain margin, and checks the resulting certificate and sampled
+retains a strict gain margin, and checks the recorded bounds and sampled
 derivatives. These checks provide numerical validation of the implementation;
 their precision is governed by the numerical routines used.
+
+\paragraph{Implications of independent innovations.}
+\label{sec:implemented-shao-wu-independent-noise}
+The shared-noise comparison uses the same sampled innovation value in both
+trajectories at each future step, isolating the influence of their different
+pasts \citep[Section~3, Eq.~(3.1), electronic reprint p.~5]{shao2007spectral}.
+For dataset generation, each trajectory can instead receive a separate
+innovation sequence. We consider the same fixed mechanism and innovation law
+in both runs, with innovations i.i.d. over time, independent between runs, and
+independent of their initial histories.
+
+The relevant guarantee then concerns their probability distributions.
+\citet[Section~2, Theorem~2, p.~427]{wu2004iterated} establish convergence of
+backward random-function iterations under a finite-moment condition and
+geometric contraction. Their explanation on p.~426 transfers this result to
+convergence in distribution of forward simulations, and Remark~2 on p.~428
+constructs the stationary process. For our finite-lag system, the blockwise
+contraction used above controls the augmented history and yields this
+forgetting of initialization. Applying the result separately to two runs
+gives the following consequence:
+\begin{equation}
+ \operatorname{Law}(\mathbf x_{\tau+v})\Rightarrow\pi_{\mathrm{GMC}},
+ \qquad
+ \operatorname{Law}(\mathbf x'_{\tau+v})\Rightarrow\pi_{\mathrm{GMC}},
+ \qquad v\to\infty.
+ \label{eq:implemented-gmc-independent-laws}
+\end{equation}
+Here $\pi_{\mathrm{GMC}}$ is the stationary distribution of the observation
+vector for that mechanism. Each run follows the same transition rule and
+noise law, so both approach the same statistical regime even with independent
+noise realizations. The contraction and moment assumptions remain essential.
+
+Independent trajectories can still have different values at every time.
+For two copies independently initialized in stationarity with finite second
+moments, expanding the squared distance gives
+\begin{equation}
+ \mathbb E\|\mathbf x_t-\mathbf x'_t\|_2^2
+ =2\sum_{k=1}^{N}\operatorname{Var}_{\pi_{\mathrm{GMC}}}(x_{k,t}).
+ \label{eq:implemented-gmc-independent-distance}
+\end{equation}
+Independence makes the cross-products factor into products of means, leaving
+twice the sum of the channel variances. This is an elementary consequence of
+independent stationary sampling, distinguished here from the cited convergence
+theorem. Positive stationary variance therefore sustains a positive expected
+squared distance while both copies have the same distribution.
+
+In our implementation, \texttt{sample\_shao\_wu\_trajectories} assigns each
+trajectory separate initialization and future-noise streams derived from the
+root seed and trajectory index. Burn-in controls each trajectory's remaining
+initialization effect through Eq.~\eqref{eq:implemented-gmc-burnin}. Shared-noise
+pairs serve to study sensitivity to the past; independent runs provide varied,
+reproducible realizations of one mechanism. A persistent distance between
+independent runs is compatible with this guarantee. Distributional comparisons
+should use repeated runs, while the explosion and tail diagnostics continue
+to assess individual finite trajectories.

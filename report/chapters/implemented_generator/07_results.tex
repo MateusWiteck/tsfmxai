@@ -1,13 +1,12 @@
-\subsection{Observed trade-offs and reproducible evidence}
+\subsubsection{Observed trade-offs and reproducible evidence}
 \label{sec:implemented-generator-results}
 
-Tables~\ref{tab:generator-outcomes} and~\ref{tab:generator-speed} summarize
+Tables~\ref{tab:generator-outcomes}, \ref{tab:generator-tail-outcomes}, and
+\ref{tab:generator-speed} summarize
 the executed four-family experiment introduced in
-Section~\ref{sec:generator-diagnostics}.\footnote{Canonical executed record:
-\href{https://github.com/MateusWiteck/tsfmxai/blob/27ec9cf/experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb}{notebook 6, stability-method trade-off}.
-The record includes all configurations, seeds, dependency versions, source
-hashes, per-horizon outcomes, and reproduction instructions. Results below
-are transcribed from its saved execution.}
+Section~\ref{sec:generator-evaluation-protocol}.\footnote{Notebook 6, revision
+\texttt{tail\_diagnostics\_v2}. Its complete saved record includes configuration,
+seeds, source hashes, reproduction instructions, and the preceding execution.}
 All families use 5,000 mechanisms, one channel, one trajectory per mechanism,
 and innovation standard deviation 0.05. The original and bounded-domain
 families start from uniform histories; Shao--Wu uses certified burn-in;
@@ -35,6 +34,7 @@ $[-0.15,0.15]$ in a non-explosive prefix.}
 \label{tab:generator-outcomes}
 \end{table}
 
+The rerun reproduces every preceding explosion and near-zero count exactly.
 All original-AST failures in this record are finite threshold crossings;
 execution stops at their first crossing. Each controlled
 family records zero crossings in these 5,000 trials. The notebook's 95\%
@@ -46,22 +46,22 @@ bounded noise law.
 
 \begin{table}[H]
 \centering\small
-\begin{tabular}{@{}lrrrrr@{}}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-& Sampling + & Initialization & Total & Complete & Output \\
-Generator & certificate (s) & / burn-in (s) & (s) & paths/s & values/s \\
+& Sampling + & Initialization & Diagnostics & Total & Complete & Output \\
+Generator & certificate (s) & / burn-in (s) & (s) & (s) & paths/s & values/s \\
 \midrule
-Original AST & 1.66 & 0.45 & 23.06 & 101.56 & 45,832.53 \\
-Bounded-domain & 3.46 & 0.64 & 49.05 & 101.94 & 39,144.34 \\
-Shao--Wu & 3.81 & 25.07 & 75.23 & 66.46 & 25,520.91 \\
-Heaps VAR & 14.84 & 0.38 & 72.16 & 69.29 & 26,608.78 \\
+Original AST & 1.65 & 0.43 & 3.35 & 25.16 & 93.10 & 42,014.84 \\
+Bounded-domain & 3.58 & 0.59 & 6.63 & 52.52 & 95.19 & 36,554.76 \\
+Shao--Wu & 3.48 & 24.19 & 6.15 & 78.75 & 63.49 & 24,381.22 \\
+Heaps VAR & 14.19 & 0.42 & 5.85 & 75.84 & 65.93 & 25,316.96 \\
 \bottomrule
 \end{tabular}
 \caption{Recorded serial wall-clock measurements, with BLAS limited to one
 thread. Complete paths/s counts trajectories reaching step 384 successfully;
 output values/s counts evaluated post-initialization values, including failed
 attempts. Both rates divide by total time, including initialization and
-diagnostics.}
+the extended diagnostics and their tolerance-sensitivity analysis.}
 \label{tab:generator-speed}
 \end{table}
 
@@ -75,16 +75,53 @@ with median length 303. Its largest recorded retained-history error bound is
 $9.999844\times10^{-5}$. The largest Heaps relative Lyapunov residual is
 $1.595159\times10^{-15}$.
 
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+& Persistent & Quiet & Observed & Nonzero & Amplitude \\
+Generator & flatness & endpoints & flattening & plateau & decline \\
+\midrule
+Original AST & 15.70 & 3.84 & 9.18 & 5.02 & 4.94 \\
+Bounded-domain & 99.68 & 58.42 & 25.42 & 37.54 & 4.90 \\
+Shao--Wu & 75.26 & 68.36 & 0.12 & 47.58 & 0.02 \\
+Heaps VAR & 29.36 & 22.98 & 0.22 & 0.02 & 0.30 \\
+\bottomrule
+\end{tabular}
+\caption{Tail diagnostics at $h=384$, as percentages of all 5,000 attempts.
+Flatness uses tolerance 0.15 with 24-step windows and 48-step persistence;
+flattening and amplitude decline require at least a 50\% reduction from the
+initial window, as defined in Section~\ref{sec:generator-evaluation-protocol}.
+Labels may overlap.}
+\label{tab:generator-tail-outcomes}
+\end{table}
+
+Shao--Wu illustrates the distinction between persistent small variation and
+observed flattening: 75.26\% satisfy persistent flatness, 68.36\% are quiet
+at both observed endpoints, and 0.12\% exhibit the required reduction.
+Its 47.58\% of persistent nonzero plateaus also show why the level-independent
+diagnostic adds information beyond the near-zero band. For the original AST,
+2,342 trajectories reach step 384; persistent flatness is 33.52\% among these
+eligible paths, compared with 15.70\% of all attempts.
+
+The tolerance matters substantially. At 0.05, all four families have zero
+persistent-flatness events in this sample. At 0.10, their rates are 1.44\%,
+67.98\%, 6.00\%, and 1.50\%, respectively, in the table's order.
+Thus the 0.15 classification describes variation at the chosen noise-relative
+scale. The notebook retains all three tolerance results and Wilson intervals
+for the primary diagnostics.
+
+
 \paragraph{Implications for dataset construction.}
 The controlled families substantially reduce observed explosion events while
-changing the distribution of small-amplitude trajectories and the generation
-cost. The near-zero percentages motivate evaluating variation as a separate
-axis: stronger contraction can attenuate the drift until innovations dominate.
-The 0.15 band is three innovation standard deviations, so it deliberately
-includes some small but fluctuating series. An expanded benchmark should
-calibrate the nearly constant-tail diagnostic in
-Eq.~\eqref{eq:generator-flat-tail}, retain informative low-amplitude processes,
-and expose these properties as selectable dataset strata.
+changing small-amplitude behaviour and generation cost. The added diagnostics
+separate observed flattening from quiet initial and terminal windows, and
+capture persistent small variation at nonzero levels. Their 0.15 tolerance
+is three innovation standard deviations and includes some fluctuating
+processes. Changes between finite windows can also arise from stochastic
+variation, especially in stationary-initialized families. These measurements
+provide operational dataset strata together with their noise scale, tolerance,
+and observation duration.
 
 \paragraph{Retained information for the explanation layer.}
 The executed equation after transformation is the reference mechanism.

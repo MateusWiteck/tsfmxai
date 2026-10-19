@@ -74,20 +74,21 @@ placeholder for any expression that can be constructed by repeatedly applying
 these rules. The symbols $\mathcal E_1$ and $\mathcal E_2$ are child
 expressions constructed by the same grammar, $c$ is a sampled constant, $j$
 identifies a source series, and $\varphi$ is selected from a controlled set of
-safe unary functions.
+unary functions. The initial vocabulary fixes $\varphi=\tanh$;
+Section~\ref{sec:generator-vocabulary} specifies its terminals and operators.
 
 For example, the symbolic tree
 \[
 \begin{aligned}
 \mathcal E={}&\operatorname{ADD}\!\bigl(
     \operatorname{MUL}(0.7,\operatorname{LAG}(1,1)),\\
-&\hspace{38mm}\operatorname{SIN}(\operatorname{LAG}(1,3))
+&\hspace{38mm}\operatorname{TANH}(\operatorname{LAG}(1,3))
 \bigr)
 \end{aligned}
 \]
 is executed as the recurrence
 \[
-x_{1,t}=0.7x_{1,t-1}+\sin(x_{1,t-3}).
+x_{1,t}=0.7x_{1,t-1}+\tanh(x_{1,t-3}).
 \]
 Extensions will add explicit interaction, regime, multiscale, and innovation
 nodes. The AST is retained alongside every series as the canonical description
@@ -391,7 +392,7 @@ benchmark = Benchmark.generate(
         context_length=256,
         horizon=24,
         max_lag=48,
-        operators=["add", "multiply", "sin", "square"],
+        operators=["add", "multiply", "tanh"],
         include_irrelevant_variables=True,
         seed=42,
     ),

@@ -7,8 +7,8 @@ recurrence. The implementation adopts this expression-first organization and
 retains separate representations of structure and numerical values.
 An \emph{abstract syntax tree} (AST) describes the operations and their
 arguments; a binding supplies coefficients and positive integer lags. For
-example, the skeleton $P_0x_0(t-L_0)+P_1t$ becomes
-$0.7x_0(t-2)+0.01t$ after binding its slots. Repeated trajectories preserve
+example, the skeleton $P_0x_0(t-L_0)+P_1$ becomes
+$0.7x_0(t-2)+0.01$ after binding its slots. Repeated trajectories preserve
 both the tree and its binding while resampling initial conditions or
 innovations according to the selected policy.
 
@@ -33,8 +33,9 @@ record is retained alongside the observations.}
 \end{figure}
 
 \paragraph{Sampling the original trees.}
-The base sampler draws a binary-operator count, labels leaves as parameters,
-time, or lagged series, and recursively constructs the tree. Its implementation
+Within the selected vocabulary in Section~\ref{sec:generator-vocabulary},
+the base sampler draws a binary-operator count, labels leaves as parameters
+or lagged series, and recursively constructs the tree. Its implementation
 is in \path{src/tsfmxai/generators/random_expression.py}.
 For a subtree containing $o$ binary operators, the
 probability of assigning $a$ operators to the left child is proportional to
