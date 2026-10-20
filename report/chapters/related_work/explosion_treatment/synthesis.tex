@@ -48,12 +48,12 @@ The certificate consequently defines a controlled subset of the original AST
 vocabulary whose trajectories can be generated with an explicit mathematical
 stability guarantee.
 
-Table~\ref{tab:four-generator-strategies} fixes the intended comparison.
-Shao--Wu and the current method share contraction as a mathematical foundation,
-while their proposed implementations use different certificate domains and
-innovation assumptions. Heaps provides a linear multivariate parameterization
-over the causal stationary region. The first two strategies are implemented;
-the two paper-specific strategies are proposed extensions.
+Table~\ref{tab:four-generator-strategies} summarizes the implemented
+comparison. Shao--Wu and the bounded-domain method share contraction as a
+mathematical foundation, while their implementations use different certificate
+domains and innovation assumptions. Heaps provides a linear multivariate
+parameterization over the causal stationary region. All four families are
+evaluated in Section~\ref{sec:implemented-generator-results}.
 
 \begingroup
 \small
@@ -62,7 +62,7 @@ the two paper-specific strategies are proposed extensions.
 >{\raggedright\arraybackslash}p{0.20\textwidth}
 >{\raggedright\arraybackslash}p{0.34\textwidth}
 >{\raggedright\arraybackslash}p{0.39\textwidth}@{}}
-\caption{Four generator strategies planned for comparison. Guarantees apply
+\caption{Four implemented generator strategies. Guarantees apply
 under the stated domain, innovation, and initialization assumptions.}
 \label{tab:four-generator-strategies}\\
 \toprule
@@ -88,14 +88,14 @@ Common-noise exponential forgetting and bounded trajectories in the certified
 box. Current implementation: scalar series, bounded uniform innovations,
 and sums/products.\\
 \addlinespace
-Shao--Wu GMC\newline Proposed &
+Shao--Wu GMC\newline Implemented &
 Sample nonlinear ASTs with global lag-Lipschitz budgets and verify innovation
 moments using Theorem~5.1. &
 A causal stationary solution with moment contraction; Gaussian innovations
-are admissible. Global bounds restrict the vocabulary, and stationary
-initialization requires a separate procedure.\\
+are admissible. Global bounds restrict the vocabulary; directly sampled
+uniform histories can have an initial transient.\\
 \addlinespace
-Heaps stationary VAR\newline Proposed &
+Heaps stationary VAR\newline Implemented &
 Sample unconstrained matrices; transform to partial autocorrelations and
 reconstruct VAR coefficients. &
 Stationary Gaussian VAR($L$) with exact stationary initialization. Linear
@@ -103,11 +103,11 @@ interactions; final sparsity and persistence depend on the transformation.\\
 \end{longtable}
 \endgroup
 
-The comparison will report explosion and near-zero rates together with
+The comparison reports explosion and near-zero rates together with
 mechanism-sampling, certification, initialization, and trajectory-generation
-times. Shared seeds, dimensions, lengths, and innovation variance will support
-matched experiments; innovation laws and supported mechanism families will
-also be reported. Numerical threshold crossings and finite-sample stationarity
+times. Shared seeds, dimensions, lengths, and innovation variance support
+matched experiments; innovation laws and supported mechanism families are
+also reported. Numerical threshold crossings and finite-sample stationarity
 diagnostics are empirical outcomes, while the certificates establish the
 declared mathematical properties. Gaussian stationary trajectories can still
 produce large excursions.

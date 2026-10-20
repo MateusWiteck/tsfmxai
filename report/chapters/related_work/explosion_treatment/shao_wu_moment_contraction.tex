@@ -26,15 +26,16 @@ the absolute differences become norms of lag blocks. Theorem~5.2 preserves
 GMC under stable ARMA filtering, and Examples~5.1--5.5 cover exponential
 autoregression, conditional heteroscedasticity, and bilinear recursions.
 
-\paragraph{Proposed generator.}
-We propose sampling globally Lipschitz ASTs and allocating a total lag-gain
-budget below one. Bounded functions such as $\tanh$, sine, and cosine allow
-controlled interactions, including products of bounded factors. For example,
-the proposed recurrence $0.3\tanh(x_t)\tanh(x_{t-1})+\varepsilon_{t+1}$ has
+\paragraph{Benchmark adaptation.}
+Our implemented sampler wraps lag leaves in $\tanh$, combines them through
+addition and multiplication, and scales the resulting AST so its global
+lag-gain bound is below one. For example,
+the recurrence $0.3\tanh(x_t)\tanh(x_{t-1})+\varepsilon_{t+1}$ has
 derivative bounds $0.3$ for each lag, giving a total bound of $0.6$; Gaussian
 innovations satisfy the required moment condition. This route targets
 stationary nonlinear dynamics on an unbounded state space. Global derivative
 bounds can be conservative, particularly for polynomial feedback. A finite
 direct uniform initialization can leave a finite-horizon transient; its law
-must be recorded. AST sampling, certification rules, and
-explanation labels are proposed adaptations in this thesis.
+is recorded, and no preliminary path is simulated or discarded. The AST
+sampling and certification rules are project adaptations; deriving compatible
+explanation labels from the retained equations is a further benchmark step.

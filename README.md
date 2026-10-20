@@ -94,6 +94,24 @@ assert mechanism.certificate.holds
 assert abs(series).max() <= mechanism.certificate.domain_radius + 1e-12
 ```
 
+## Initialization in the current four-family comparison
+
+[Notebook 6](experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb)
+compares the original AST, bounded-domain contraction, Shao--Wu, and Heaps
+VAR generators. It starts each trajectory from a sampled lag history and
+evaluates exactly the requested forecast steps: no preliminary trajectory is
+generated and discarded. The original AST and bounded-domain methods draw a
+uniform history; Shao--Wu also draws a uniform history directly, which can
+leave an initial transient. Heaps draws its history from the joint stationary
+Gaussian law. These are different initialization laws, not interchangeable
+claims of stationarity.
+
+The earlier [parallel-jobs/Chronos-2 experiment](experiments/abstract_syntax_tree/3_parallel_jobs_batch_chronos2.ipynb)
+is a separate completed experiment: its batch configuration explicitly uses
+an optional 48-step `burn_in`. Its saved outputs and the corresponding
+`ParallelGenerationConfig` option remain for reproducing that historical
+experiment; they are not used by Notebook 6 or the four-family comparison.
+
 ## Published experiments and report
 
 The Quarto website publishes saved outputs from every notebook under

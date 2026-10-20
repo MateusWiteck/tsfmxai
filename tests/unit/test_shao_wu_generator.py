@@ -94,3 +94,23 @@ def test_gaussian_noise_and_direct_uniform_initialization():
     assert initial.shape == (mechanism.num_series, mechanism.order)
     assert np.all(np.abs(initial) <= cfg.initial_radius)
     np.testing.assert_array_equal(initial, initialize_shao_wu_history(mechanism, seed=91))
+
+
+def test_first_generated_value_follows_direct_history_without_presimulation():
+    mechanism = sample_shao_wu_mechanism(ShaoWuConfig(), seed=11)
+    root_seed = 29
+    initial_stream, noise_stream = np.random.SeedSequence([root_seed, 0]).spawn(2)
+    initial_seed = int(initial_stream.generate_state(1, dtype=np.uint64)[0])
+    expected_history = initialize_shao_wu_history(mechanism, seed=initial_seed)
+    expected_noise = np.random.default_rng(noise_stream).normal(
+        0., mechanism.innovation_std, size=(mechanism.num_series, 1)
+    )
+    path = sample_shao_wu_trajectories(
+        mechanism, trajectory_count=1, generated_steps=1, root_seed=root_seed
+    )[0]
+    np.testing.assert_array_equal(path[:, :mechanism.order], expected_history)
+    expected_first = evaluate_bound_expression(
+        mechanism.expressions[0], mechanism.bindings[0],
+        time=mechanism.order, histories={0: expected_history[0]},
+    ) + expected_noise[0, 0]
+    assert path[0, mechanism.order] == pytest.approx(expected_first)

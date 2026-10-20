@@ -162,4 +162,4 @@ procedure for arbitrary nonlinear ASTs.
 The existing Tran/Kawano/Diaconis/Laraba references ground the current method.
 Ansley and Kohn (1986) is the necessary additional attribution for the earlier
 VAR reparameterization; Heaps explains the precise extension. No further
-mathematical citation is required for the proposed two initial specializations.
+mathematical citation is required for the two implemented initial specializations.

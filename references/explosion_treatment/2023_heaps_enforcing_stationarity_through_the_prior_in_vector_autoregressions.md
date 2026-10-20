@@ -17,8 +17,9 @@ are attributed to Ansley and Kohn (1986). Symmetric square roots preserve
 singular-vector orientation and support orthogonally compatible priors; a
 new backward covariance recursion makes the inverse mapping possible.
 
-The proposed benchmark would sample these parameters, reconstruct equations,
-and simulate them. Those generation and XAI procedures are project adaptations.
+The benchmark samples these parameters, reconstructs the equations, and
+simulates them. The generator is a project adaptation of the published
+parameterization; explanation extraction remains a separate benchmark task.
 Page numbers refer to the 15-page arXiv version `2004.09455v3` (May 2022),
 associated with the 2023 journal article, 32(1), 74-83. The local PDF has this
 note's basename.
@@ -34,13 +35,13 @@ note's basename.
 | Sparsity and prior effects | Intermediate zeros have a different meaning from final coefficient zeros; prior scale changes partial-autocorrelation distributions | Secs. 3.3-3.4, p. 6; Sec. 3.6, p. 7 | Measure final support and persistence after reconstruction. |
 | Joint stationary history | Initial observations have a stationary joint Gaussian distribution; companion covariance follows a discrete Lyapunov equation | Sec. 4, PDF p. 8; Appendix, p. 11 | Sample the entire correlated lag history. |
 
-# Proposed implementation and limits
+# Implemented adaptation and limits
 
-Draw \(U_1,\ldots,U_p\), positive-definite \(\Sigma_\varepsilon\), and optionally
-a constant mean. Map to partial autocorrelations, use the Appendix's two
-recursions, and verify the companion radius. Preserve the specified symmetric
-square-root convention and matrix multiplication order. Convert the final
-coefficients to one linear AST per target.
+The implementation draws \(U_1,\ldots,U_p\) and positive-definite
+\(\Sigma_\varepsilon\). It maps to partial autocorrelations, uses the Appendix's
+two recursions, verifies the companion radius, and converts the final
+coefficients to one linear AST per target. It preserves the specified symmetric
+square-root convention and matrix multiplication order.
 
 For the full lag state, compute
 \(V=BVB^\top+Q\), where \(Q\) inserts the innovation covariance in the newest
@@ -55,10 +56,12 @@ Sparse sampled intermediate matrices alone provide insufficient control over
 the final interaction graph. Coordinatewise nonlinear products belong to the
 separate nonlinear strategy; VAR represents linear cross-series interactions.
 
-Our existing `stationary.py` provides scalar AR-PACF conversion and a VAR(1)
-spectral-rescaling sampler. The full Heaps VAR(p) inverse mapping remains a
-proposal. Reuse the existing mechanism/trajectory interfaces and strengthen
-the covariance solver for large lag-state dimensions as needed.
+Alongside the earlier scalar AR-PACF and VAR(1) samplers in `stationary.py`,
+`src/tsfmxai/generators/heaps.py` implements the symmetric VAR(p) inverse
+mapping and caches a factor of the joint stationary covariance. Trajectories
+start from that Gaussian history and immediately execute the recurrence;
+no preliminary path is simulated or discarded. Scaling the covariance
+calculations to larger lag-state dimensions remains future work.
 
 Essential prior reference: Ansley and Kohn (1986), *A Note on Reparameterizing a
 Vector Autoregressive Moving Average Model to Enforce Stationarity*,
@@ -67,4 +70,4 @@ against the publisher abstract; detailed attribution follows Heaps, Secs. 2.1-2.
 and Appendix. Heaps's contribution builds on that earlier mapping.
 
 See [the joint research decision](../../docs/research/stationarity_generator_strategies.md)
-for the implementation proposal and evaluation design.
+for the implemented design and evaluation protocol.

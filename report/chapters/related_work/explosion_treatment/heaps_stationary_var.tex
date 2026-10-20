@@ -22,9 +22,10 @@ from these matrices and a positive-definite innovation covariance.
 parameterization; Heaps introduces symmetric square roots, a compatible
 reverse recursion, and interpretable priors preserving useful symmetries.
 
-\paragraph{Proposed generator.}
-We propose sampling $\mathbf U_\ell$ and $\Sigma_{\varepsilon}$, applying the
-reverse recursion, and storing the resulting $\mathbf C_\ell$ as linear ASTs.
+\paragraph{Benchmark adaptation.}
+The implemented generator samples $\mathbf U_\ell$ and $\Sigma_{\varepsilon}$,
+applies the reverse recursion, and stores the resulting $\mathbf C_\ell$
+as linear ASTs.
 Sampling the joint lag history from its stationary Gaussian law gives strict
 and second-order stationarity from the first generated sample. Signed
 coefficients and variable--lag support are read from the final equations.
@@ -32,6 +33,6 @@ Sections~3.3--3.4 distinguish shrinkage of intermediate parameters from
 structural sparsity: isolated zeros generally change under the transformations.
 Accordingly, support must be measured after reconstruction, and an imposed
 coefficient mask requires renewed certification. The sampling distribution
-also controls persistence and mechanism diversity. This proposed method
-extends the benchmark's existing linear examples to jointly parameterized
-VAR models with several variables and lags.
+also controls persistence and mechanism diversity. This method extends the
+benchmark's earlier linear examples to jointly parameterized VAR models
+with several variables and lags.

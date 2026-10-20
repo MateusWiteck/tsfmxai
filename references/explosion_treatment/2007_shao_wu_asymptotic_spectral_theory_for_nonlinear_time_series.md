@@ -52,9 +52,9 @@ moment and GMC property. The thesis uses the explicit specialization
 \(\alpha=2\). Theorem 5.2's roots are transition roots *inside* the unit circle;
 Heaps uses the reciprocal lag-polynomial roots *outside* it.
 
-# Proposed AST adaptation and limits
+# Implemented AST adaptation and limits
 
-Our first implementation would allocate a global derivative budget across lags,
+The implementation allocates a global derivative budget across lags,
 with additive Gaussian innovations and an explicit finite second-moment check.
 For vector outputs, each lag budget bounds a whole derivative block in a common
 vector norm; per-output checks alone would miss feedback between variables.
@@ -65,16 +65,21 @@ Each absolute partial derivative is at most 0.3, so the budget is 0.6; at the
 zero history, the output is the innovation. This verifies the second-moment
 specialization for Gaussian innovations. The formula is our illustration.
 
-The proposed vocabulary admits weighted sums, bounded smooth unary functions,
-and products whose factors and derivatives have certified bounds. General
-polynomial feedback has unbounded global derivatives; it may instead belong
+The implemented specialization samples sums and products, wraps lag leaves in
+`tanh`, and propagates global amplitude and derivative bounds through the final
+AST. General polynomial feedback has unbounded global derivatives; it may instead belong
 to the current bounded-domain strategy. These sufficient tests select a
-restricted family of stationary mechanisms. Burn-in is an approximation to
-stationary initialization, requiring an error bound or explicit residual
-diagnostic. Gaussian tails also permit crossings of a finite amplitude threshold.
+restricted family of mechanisms satisfying the theorem's stationary-solution
+conditions. Each finite trajectory starts from an independently drawn uniform
+lag history and immediately executes the recurrence; no preliminary trajectory
+is simulated or discarded. That history is generally not a stationary draw,
+so the beginning of a finite trajectory can show an initialization transient.
+Gaussian tails also permit crossings of a finite amplitude threshold.
 
-The current AST supports sums and products. Bounded unary operators, global
-derivative propagation, and GMC certification remain implementation work.
+The current AST supports sums, products, and `tanh`; global derivative
+propagation and GMC certification are implemented in
+`src/tsfmxai/generators/shao_wu.py`. Broader nonlinear operators and
+innovation-dependent gains remain possible extensions, subject to new bounds.
 
 See [the joint research decision](../../docs/research/stationarity_generator_strategies.md)
 for initialization, explanation targets, and the four-method comparison.

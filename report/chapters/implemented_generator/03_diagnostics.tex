@@ -29,7 +29,10 @@ probabilities 0.55/0.45, and coefficient magnitudes in $[0.05,0.8]$ with
 random signs. Explicit time leaves are disabled in this comparison.
 
 The evaluator constructs the history according to each family, generates one
-path up to the largest horizon, and reuses its prefixes. It stops at the first
+path up to the largest horizon, and reuses its prefixes. No generated prefix
+is discarded before these observations: the original, bounded-domain, and
+Shao--Wu families draw their initial histories directly, while Heaps draws
+from its joint stationary law. It stops at the first
 non-finite value or magnitude greater than 100, retaining that failing value.
 The event remains counted at every later horizon, including a failure at the
 last requested step. Every attempted mechanism stays in the denominator.
@@ -97,6 +100,17 @@ including the tail measurements and their three-tolerance sensitivity analysis.
 Completed full-horizon trajectories per second uses the total wall-clock
 cost, including failed attempts. This prevents early-stopping generators
 from appearing efficient solely because they evaluate fewer time steps.
+
+For timing uncertainty, Notebook~6 executes the complete 5,000-mechanism
+workflow five times per family on the same machine, with BLAS restricted to
+one thread. Each run rebuilds the mechanisms with the same seeds, samples
+histories and innovations, and evaluates the same diagnostics. The method
+order rotates in the additional runs. Identical seeds make the outcome counts
+reproducible, so the spread in wall-clock time reflects execution conditions
+rather than a different draw of mechanisms. We report the mean and sample
+standard deviation across runs, plus their observed minimum--maximum range.
+These are descriptive measurements, not confidence intervals for performance
+on other hardware. The first run is included without a separate cache warm-up.
 
 \subsubsection{Original AST generation as the reference method}
 \label{sec:implemented-original-baseline}
