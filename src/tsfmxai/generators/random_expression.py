@@ -16,12 +16,11 @@ from tsfmxai.representations.expression import (
     Multiply,
     Parameter,
     Time,
-    canonicalize_and_relabel,
-    canonicalize_commutative,
     format_tree,
     lag_slots,
     operator_count,
     parameter_slots,
+    relabel_slots,
     to_bound_formula,
     to_skeleton_formula,
 )
@@ -259,7 +258,7 @@ def _coefficient_gate_lags(
             return Add(left, right)
         return Multiply(left, right)
 
-    gated = canonicalize_commutative(add_gates(expression))
+    gated = add_gates(expression)
     source_parameter_values = {**binding.parameter_values, **gate_values}
     relabeled_parameter_values: dict[str, float] = {}
     relabeled_lag_values: dict[str, int] = {}
@@ -299,7 +298,7 @@ def sample_random_mechanism(
     seed: int,
     sample_index: int | None = None,
 ) -> SampledMechanism:
-    """Sample one canonical tree and independent coefficient/lag bindings."""
+    """Sample one tree and independent coefficient/lag bindings."""
 
     rng = np.random.default_rng(seed)
     binary_operators = int(
@@ -313,7 +312,7 @@ def sample_random_mechanism(
         terminals,
         config.add_probability,
     )
-    expression = canonicalize_and_relabel(expression)
+    expression = relabel_slots(expression)
 
     parameter_values = {
         slot: _sample_parameter_value(rng, config) for slot in parameter_slots(expression)

@@ -1,0 +1,31 @@
+\clearpage
+\section{Synthetic Time-Series Generator}
+\label{sec:implemented-generator}
+
+The implementation generates an executable recurrence before generating its
+observations. It retains the expression, numerical parameters, lag assignments,
+innovation law, and initialization policy, so several trajectories can be drawn
+from the same mechanism. This chapter explains how a mechanism becomes a
+reproducible dataset: its vocabulary and representation, construction,
+execution, and parallel batching. Section~\ref{sec:generator-stability}
+then develops the mathematical restrictions used to control the resulting
+trajectories. Experimental protocols and numerical comparisons appear in
+Sections~\ref{sec:experimental-design} and~\ref{sec:results-discussion}.
+
+\input{chapters/implemented_generator/01_autoregressive_motivation}
+\input{chapters/implemented_generator/02_vocabulary_and_representation}
+\input{chapters/implemented_generator/03_mechanism_construction}
+\input{chapters/implemented_generator/04_trajectory_generation}
+\input{chapters/implemented_generator/05_parallel_generation}
+\input{chapters/implemented_generator/06_generation_overview}
+
+% Retained writing notes for later expansion of this chapter:
+% - Document accepted formula syntax, parser validation, and user-facing help.
+% - Add a hand-computed indexing example and the context/future array layout.
+% - Illustrate text, AST, infix formula, and serialization together.
+% - Detail the frontend and mechanism-by-column/trajectory-by-row plots when
+%   stable report figures are selected.
+% - Expand batching/API coverage when the controlled families are integrated;
+%   document DataLoader integration once implemented.
+% - Keep mathematical admissibility in Chapter~\ref{sec:generator-stability}
+%   and measured generator comparisons in Chapter~\ref{sec:results-discussion}.

@@ -10,7 +10,7 @@ from tsfmxai.representations import (
     Lag,
     Multiply,
     Parameter,
-    canonicalize_and_relabel,
+    relabel_slots,
     lag_slots,
     leaf_count,
     node_count,
@@ -57,15 +57,15 @@ def test_zero_operators_produces_one_required_lag_terminal() -> None:
     assert leaf_count(sample.expression) == 1
 
 
-def test_commutative_permutations_share_a_canonical_skeleton() -> None:
+def test_slot_relabeling_preserves_sampled_operand_order() -> None:
     left = Add(Parameter("arbitrary_a"), Lag(0, "arbitrary_lag"))
     right = Add(Lag(0, "other_lag"), Parameter("arbitrary_b"))
 
-    assert canonicalize_and_relabel(left) == canonicalize_and_relabel(right)
+    assert relabel_slots(left) != relabel_slots(right)
 
     product_left = Multiply(Parameter("x"), Lag(1, "tau"))
     product_right = Multiply(Lag(1, "delay"), Parameter("coefficient"))
-    assert canonicalize_and_relabel(product_left) == canonicalize_and_relabel(product_right)
+    assert relabel_slots(product_left) != relabel_slots(product_right)
 
 
 def test_indexed_batch_is_order_independent() -> None:

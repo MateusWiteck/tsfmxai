@@ -1,0 +1,37 @@
+\subsection{Autoregressive Approximation of Synthetic Priors}
+\label{sec:ar-coverage-results}
+
+The exploratory studies in Section~\ref{sec:ar-coverage-protocol} test how
+well a linear AR model approximates the one-step dynamics of the evaluated
+KernelSynth and TimePFN latent series. Table~\ref{tab:implemented-ar-evidence}
+summarizes the saved results.\footnote{Executed records and all individual plots:
+\href{https://github.com/MateusWiteck/tsfmxai/blob/27ec9cf/experiments/autoregressive_process_coverage/01_kernelsynth_ar_prediction_results.ipynb}{KernelSynth AR predictions}
+and
+\href{https://github.com/MateusWiteck/tsfmxai/blob/27ec9cf/experiments/autoregressive_process_coverage/02_timepfn_lmc_ar_prediction_results.ipynb}{TimePFN latent AR predictions}.
+Each notebook also identifies its source experiment and reproduction command.}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Evaluated set & Cases & NMSE $\leq 0.001$ & Percentage \\
+\midrule
+KernelSynth bank and compositions & 53 & 45 & 84.91\% \\
+TimePFN oracle latent series & 33 & 31 & 93.94\% \\
+\bottomrule
+\end{tabular}
+\caption{Best observed one-step AR score over the tested orders.
+NMSE denotes normalized mean squared error: the pooled mean squared prediction
+error divided by the sum of the pooled test-target variance and $10^{-12}$.}
+\label{tab:implemented-ar-evidence}
+\end{table}
+
+Order selection uses the smallest score on the same test set being summarized,
+so these percentages describe exploratory best-of-grid approximation capacity.
+They motivate explicit lagged mechanisms while leaving independent model
+selection, recursive multi-step forecasting, distributional reproduction, and
+recovery of the original GP mechanism as separate evaluation questions. Both
+white-noise entries remain above the threshold, as do six KernelSynth
+compositions. White-noise innovations contribute irreducible one-step
+uncertainty. Constant trajectories also require care: pooled variance includes
+differences between trajectories even when each trajectory changes very little.

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from tsfmxai.generators import RandomTreeConfig, initialize_shao_wu_history
-from tsfmxai.representations import Lag, walk
+from tsfmxai.representations import Lag, Tanh, walk
 from tsfmxai.visualization.studio_generation import METHODS, sample_studio_system, sample_studio_trajectories
 from frontend.app import FrontendHandler
 
@@ -21,7 +21,11 @@ def test_studio_methods_generate_reproducible_two_channel_batches(method):
     assert np.isfinite(a).all()
     assert bool(system.certificates) == (method not in ("none", "coefficient_gate"))
     assert all(c["holds"] for c in system.certificates)
-    if method == "shao_wu":
+    if method.startswith("shao_wu"):
+        assert system.retained.certificate.anchor_l2 > 0
+        if method == "shao_wu_all_tanh":
+            assert any(isinstance(node, Tanh) for equation in system.equations
+                       for node in walk(equation.expression))
         initial_seed, _ = np.random.SeedSequence([47, 0]).spawn(2)
         expected_history = initialize_shao_wu_history(
             system.retained,
@@ -62,3 +66,19 @@ def test_unknown_method_and_changed_certified_noise_are_rejected():
     with pytest.raises(ValueError, match="inovação mudou"):
         sample_studio_trajectories(system, trajectory_count=1, generated_steps=3,
                                   root_seed=7, innovation_std=.1)
+
+
+@pytest.mark.parametrize("mode,guarantee", [
+    ("product_lags", "geometric_moment_contraction"),
+    ("product_output", "uniform_second_moment_bound"),
+])
+def test_single_shao_wu_selector_preserves_the_selected_guarantee(mode, guarantee):
+    class Handler:
+        _write_json = lambda self, payload: setattr(self, "payload", payload)
+    handler = Handler()
+    FrontendHandler._sample_system(handler, {"stability_method": "shao_wu",
+        "shao_wu_mode": mode, "seed": 19, "maximum_operators": 5,
+        "maximum_lag": 3, "innovation_std": .05})
+    assert handler.payload["certificates"][0]["guarantee"] == guarantee
+    assert handler.payload["certificates"][0]["holds"]
+    json.dumps(handler.payload, allow_nan=False)

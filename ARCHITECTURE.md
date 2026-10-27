@@ -4,7 +4,7 @@ The target library separates mechanism generation, observation generation,
 model execution, explanation retrieval, and evaluation:
 
 ```text
-mechanism sampler -> canonical AST -> trajectory generator
+mechanism sampler -> AST -> trajectory generator
                                       |
                                       v
                                dataset windows
@@ -13,10 +13,10 @@ mechanism sampler -> canonical AST -> trajectory generator
 model adapter -> forecasts / recovered mechanism / explanations
                                       |
                                       v
-             canonical normalization -> ground-truth metrics
+             representation mapping -> ground-truth metrics
 ```
 
-The canonical mechanism representation is the source of truth. It must retain
+The sampled mechanism representation is the source of truth. It must retain
 operators, variables, lags, coefficients, regimes, and the innovation law.
 Dataset generation executes that representation. Explanation ground truths are
 derived from the same retained mechanism for every forecast horizon.

@@ -302,10 +302,13 @@ class FrontendHandler(SimpleHTTPRequestHandler):
         )
         root_seed = _as_int(data, "seed", 20260930)
         system = sample_studio_system(config, method=str(data.get("stability_method", "none")),
-                                     seed=root_seed, innovation=_as_float(data, "innovation_std", .05))
+                                     seed=root_seed, innovation=_as_float(data, "innovation_std", .05),
+                                     shao_wu_mode=str(data.get("shao_wu_mode", "product_lags")))
         mechanism_id = STORE.add(system)
         payload = _system_payload(mechanism_id, system.equations, system.tree_config, root_seed)
         payload["stability_method"] = system.method
+        if system.method.startswith("shao_wu"):
+            payload["shao_wu_mode"] = system.retained.lag_transform
         payload["certificates"] = system.certificates
         payload["innovation"] = system.innovation
         self._write_json(payload)

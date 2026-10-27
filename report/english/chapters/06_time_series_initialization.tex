@@ -1,0 +1,75 @@
+\section{Different Initializations for Time Series}
+\label{sec:time-series-initialization}
+
+An equation with memory needs initial observations before it can generate its
+first new value. These observations form the initial lag history. Changing
+that history can change the beginning of a trajectory even when the equation
+and future innovations are held fixed. This provides a controlled way to
+study how a mechanism responds to different starting conditions and how that
+response affects forecasting and explanation evaluation.
+
+\subsection{Initialization Choices}
+The current generators use two initialization policies: independent uniform
+values within a specified interval, and a joint Gaussian draw from the
+stationary law of a reconstructed VAR. The first policy offers direct control
+over the starting range. The second preserves the correlations required
+between channels and lag positions, following the treatment of initial
+observations in \citet[Section~4 and Appendix]{heaps2023stationarity}.
+
+Useful experimental alternatives include a zero history, a constant nonzero
+history, manually specified lag values, and values close to the limits of
+an allowed domain. These are proposed comparison conditions. The current
+high-level trajectory helpers draw their histories automatically; a common
+user-supplied-history interface remains to be implemented and validated.
+An initialization policy must be checked against the selected generator's
+assumptions before it is used.
+
+\subsection{Restrictions and Guarantees for Each Generator}
+For the Jacobian method, every initial value must lie in the box used to
+verify contraction and domain containment. Changing values within that box
+preserves the verified conditions. Enlarging it requires recomputing the
+bounds and, potentially, changing the equation's scale; see
+Section~\ref{sec:implemented-domain-contraction}.
+
+For Shao--Wu factor saturation, the global conditions permit any fixed finite
+history. The influence of that history decreases under the shared-innovation
+comparison in \citet[Theorem~5.1 and its proof]{shao2007spectral}. Random
+histories need finite second moments for the corresponding second-moment
+comparison. For product-output saturation, the amplitude bound must include
+the size of the chosen initial history. A larger initial range can increase
+the reported bound. Section~\ref{sec:implemented-shao-wu} distinguishes these
+two guarantees.
+
+For Heaps' VAR construction, any finite initial history can be propagated by
+the stable recurrence. Stationarity from the beginning requires the joint
+stationary initialization described in Section~\ref{sec:implemented-heaps}.
+An arbitrary fixed history can instead produce a transient: the distribution
+changes during the initial portion of the trajectory as the effect of the
+starting values fades. The original unconstrained AST accepts finite initial
+values through the recurrence evaluator; its subsequent behaviour is assessed
+empirically.
+
+\subsection{Controlled Comparisons and Evaluation Windows}
+An initialization experiment should keep each sampled mechanism, its
+coefficients, and the innovation law fixed while varying its initial history.
+Using the same future innovation values across those histories isolates the
+effect of initialization. Separate runs with independent future innovations
+answer a different question: whether their statistical behaviour becomes
+similar despite continued trajectory-level differences.
+
+The returned trajectory arrays retain the initial history as a prefix;
+evaluation selects the recursively generated portion that follows it.
+The reported window starts with the first recursively generated
+observation and includes its transient. Comparisons should report the
+starting-history policy, the generated horizon, and early-versus-late
+diagnostics explicitly. Repeated trajectories of the same mechanism allow
+variation due to initialization and noise to be distinguished from variation
+between mechanisms. The explosion, low-amplitude, and tail diagnostics in
+Section~\ref{sec:generator-diagnostics} provide a shared basis for these tests.
+
+% Planned study: zero/nonzero fixed histories; independently sampled histories
+% at several admissible scales; stationary joint VAR histories; boundary cases.
+% Pair identical mechanisms and innovation arrays when isolating initialization.
+% Evaluate forgetting curves, ensemble moments, finite-horizon quality metrics,
+% forecasting performance, initialization cost, and seed/worker reproducibility.
+% Keep theoretical guarantees distinct from observations on finite simulations.

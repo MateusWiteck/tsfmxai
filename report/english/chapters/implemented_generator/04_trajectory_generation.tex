@@ -1,0 +1,31 @@
+\subsection{Trajectory Generation}
+\label{sec:generator-trajectories}
+
+\subsubsection{Initial Histories and Random Innovations}
+The initial history supplies the observations required by every lag leaf.
+The AST represents the deterministic update; the executor adds the
+innovation specified by the mechanism's noise law. These choices are retained
+with the equation, and each generation family declares its own initialization
+and innovation policies in Section~\ref{sec:generator-stability}.
+The initial lag values and recursively generated observations have distinct
+roles: the history is the starting state, and context/future windows select
+their observations from the generated portion of the returned trajectory.
+
+\subsubsection{Synchronous Multivariate Updates}
+At target time $t$, a lag leaf reads $x_{j,t-\ell}$ with $\ell\geq1$.
+Equivalently, from the common origin $\tau$, the first generated target uses
+$t=\tau+1$. The shared executor
+\path{src/tsfmxai/generators/stochastic.py} evaluates every target against the
+same previous multivariate history, adds the supplied innovation, and then
+appends all new values together. This synchronous update preserves the
+intended lag relationships between channels. Model inputs and future targets
+can subsequently be separated without changing the recorded equation.
+
+\subsubsection{Multiple Trajectories from One Mechanism}
+The equation structure, bound coefficients, and lag assignments stay fixed
+while repeated trajectories receive separate initialization and innovation
+streams. This distinguishes variation within one mechanism from variation
+between sampled equations. The mechanism identifier connects those
+trajectories to their shared equation and generation policy. Its executed
+AST is also the source for the explanation references developed in
+Section~\ref{sec:ground-truth-generation}.

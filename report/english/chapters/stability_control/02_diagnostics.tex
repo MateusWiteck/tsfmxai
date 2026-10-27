@@ -1,0 +1,83 @@
+\subsection{Common Diagnostics}
+\label{sec:generator-diagnostics}
+
+Unrestricted feedback can amplify observations over repeated execution.
+A pretraining prior dominated by such behaviour would allocate much
+of its capacity to rapidly growing recurrences. For the intended benchmark,
+explosive cases can instead form an explicitly controlled difficulty group,
+alongside mechanisms producing sustained variation at usable scales.
+
+This section defines explosion, low-amplitude, and tail-flattening diagnostics.
+The experiment configuration and timing protocol are specified in
+Section~\ref{sec:generator-evaluation-protocol}. Their measured trade-offs
+appear in Section~\ref{sec:implemented-generator-results}, where improved
+growth control is weighed against reduced variation and computational cost.
+
+\subsubsection{Explosion Detection}
+
+The evaluator constructs the history according to each family, generates one
+path up to the largest horizon, and reuses its prefixes. No generated prefix
+is discarded before these observations: the original, bounded-domain, and
+Shao--Wu families draw their initial histories directly, while Heaps draws
+from its joint stationary law. It stops at the first
+non-finite value or magnitude greater than 100, retaining that failing value.
+The event remains counted at every later horizon, including a failure at the
+last requested step. Every attempted mechanism stays in the denominator.
+For multivariate use, any failing channel flags the system. These rules are
+implemented in \path{src/tsfmxai/evaluation/stability.py} and
+\path{src/tsfmxai/evaluation/generator_tradeoff.py}.
+
+An amplitude threshold is an operational safeguard: Gaussian innovations have
+unbounded support and can cross any finite threshold even under a stationary
+law. The evaluator records finite threshold crossings separately from
+non-finite outputs.
+
+\subsubsection{Near-Zero Amplitude}
+A completed, non-explosive prefix receives this label when every channel's
+last 24 values lie in $[-0.15,0.15]$. The tolerance is three times the
+innovation standard deviation used in this experiment, $\sigma_\varepsilon=0.05$.
+Thus the label measures occupation of a small band during a finite window.
+It can also be produced by a stationary process fluctuating near zero from
+the beginning. Convergence of a trajectory to zero is a stronger,
+infinite-time property requiring separate evidence.
+
+\subsubsection{Nearly Constant Tails}
+To capture stabilization around levels other than zero, let
+$\bar x^{\mathrm{tail}}_{k,h}$ be the mean of channel $k$ over the last
+$w_{\mathrm{tail}}$ generated observations at horizon $h$. Define
+\begin{equation}
+ V_h^{\mathrm{tail}}=
+ \max_k\max_{h-w_{\mathrm{tail}}<v\leq h}
+ \left|x_{k,\tau+v}-\bar x^{\mathrm{tail}}_{k,h}\right|.
+ \label{eq:generator-flat-tail}
+\end{equation}
+A completed, non-explosive prefix is nearly constant when
+$V_h^{\mathrm{tail}}\leq\delta_{\mathrm{flat}}$. The implementation uses
+$w_{\mathrm{tail}}=24$ and the operational tolerance
+$\delta_{\mathrm{flat}}=3\sigma_\varepsilon=0.15$, retaining each channel's
+mean and variation. Persistence requires both consecutive terminal windows
+to pass, and all 48 terminal observations to satisfy the same tolerance
+around their pooled channelwise mean. This joint check captures level changes
+between individually flat windows. Variation is measured on signed channels
+before taking a maximum across channels.
+
+The first 24 generated observations, after the family's initialization,
+provide a disjoint reference window. Observed flattening requires persistent
+flatness, at least one channel initially above the variation tolerance, and
+a reduction of at least 50\% in every such channel. The reduction compares
+the pooled 48-step terminal variation with the initial 24-step variation.
+Quiet initial and terminal windows are recorded separately; intermediate
+behaviour remains unrestricted. A persistent flat tail is labelled away
+from zero when at least one channel's final mean lies outside $[-0.15,0.15]$.
+
+Amplitude decline towards the near-zero band uses absolute values relative
+to zero: every channel must remain in the band for the final 48 steps,
+at least one channel must initially exceed the band, and every such channel
+must reduce its maximum absolute value by at least 50\%. These finite-window
+labels can overlap. All rates retain every attempted trajectory in the
+denominator; exploded prefixes are ineligible for tail measurements.
+The notebook also reports eligible-only rates and sensitivity to
+$\delta_{\mathrm{flat}}\in\{\sigma_\varepsilon,2\sigma_\varepsilon,
+3\sigma_\varepsilon\}$. These thresholds and the reduction factor are
+configurable project choices. The implementation is in
+\path{src/tsfmxai/evaluation/tail_behavior.py}.

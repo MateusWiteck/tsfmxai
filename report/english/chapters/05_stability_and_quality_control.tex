@@ -1,0 +1,20 @@
+\clearpage
+\section{Stability and Quality Control of Generated Series}
+\label{sec:generator-stability}
+
+The shared AST representation can express mechanisms with very different
+feedback and amplitude behaviour. This chapter defines the properties sought,
+the diagnostics used to assess generated paths, and the controlled generation
+policies. Each method presents its mathematical conditions before explaining
+how the implementation checks them. The original AST supplies the reference;
+bounded-domain contraction, nonlinear product saturation, and stationary VAR
+construction impose different restrictions. Their measured trade-offs are
+reported in Section~\ref{sec:implemented-generator-results}.
+
+\input{chapters/stability_control/01_properties}
+\input{chapters/stability_control/02_diagnostics}
+\input{chapters/stability_control/03_original_baseline}
+\input{chapters/stability_control/04_domain_contraction}
+\input{chapters/stability_control/05_shao_wu}
+\input{chapters/stability_control/06_heaps}
+\input{chapters/stability_control/07_comparison}

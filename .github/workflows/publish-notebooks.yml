@@ -42,7 +42,7 @@ jobs:
       - name: Verify published report
         run: |
           test -s site/relatorio.html
-          cmp report/build/main.pdf site/outputs/report/relatorio.pdf
+          cmp report/english/build/main.pdf site/outputs/report/relatorio.pdf
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

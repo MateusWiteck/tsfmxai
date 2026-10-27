@@ -1,4 +1,4 @@
-"""Canonical expression nodes for discrete-time symbolic mechanisms."""
+"""Expression nodes for discrete-time symbolic mechanisms."""
 
 from __future__ import annotations
 
@@ -132,41 +132,6 @@ def lag_slots(expression: ExpressionNode) -> tuple[str, ...]:
     return tuple(dict.fromkeys(node.slot for node in walk(expression) if isinstance(node, Lag)))
 
 
-def _structural_key(expression: ExpressionNode) -> str:
-    """Build a slot-name-independent key used to order commutative children."""
-
-    if isinstance(expression, Parameter):
-        return "PARAMETER"
-    if isinstance(expression, Time):
-        return "TIME"
-    if isinstance(expression, Lag):
-        return f"LAG[{expression.variable}]"
-    if isinstance(expression, Tanh):
-        return f"TANH({_structural_key(expression.operand)})"
-    if isinstance(expression, Add):
-        return f"ADD({_structural_key(expression.left)},{_structural_key(expression.right)})"
-    if isinstance(expression, Multiply):
-        return f"MULTIPLY({_structural_key(expression.left)},{_structural_key(expression.right)})"
-    raise TypeError(type(expression))
-
-
-def canonicalize_commutative(expression: ExpressionNode) -> ExpressionNode:
-    """Recursively order the children of addition and multiplication."""
-
-    if isinstance(expression, (Parameter, Time, Lag)):
-        return expression
-    if isinstance(expression, Tanh):
-        return Tanh(canonicalize_commutative(expression.operand))
-
-    left = canonicalize_commutative(expression.left)
-    right = canonicalize_commutative(expression.right)
-    if _structural_key(right) < _structural_key(left):
-        left, right = right, left
-    if isinstance(expression, Add):
-        return Add(left, right)
-    return Multiply(left, right)
-
-
 def relabel_slots(expression: ExpressionNode) -> ExpressionNode:
     """Assign deterministic P0... and L0... names in pre-order."""
 
@@ -194,12 +159,6 @@ def relabel_slots(expression: ExpressionNode) -> ExpressionNode:
         return Multiply(left, right)
 
     return visit(expression)
-
-
-def canonicalize_and_relabel(expression: ExpressionNode) -> ExpressionNode:
-    """Canonicalize commutative nodes and then assign deterministic slot names."""
-
-    return relabel_slots(canonicalize_commutative(expression))
 
 
 def node_label(expression: ExpressionNode) -> str:

@@ -42,13 +42,12 @@ ALGORITHM ORIGINAL_AST_MECHANISM(config C, root_seed r, sample_index i)
  7. tree ← SAMPLE_FULL_BINARY_TREE(n, terminals)
                   choose each split with its Catalan shape weight
                   label each internal node as ADD or MULTIPLY
- 8. tree ← CANONICALIZE_COMMUTATIVE_CHILDREN(tree)
- 9. tree ← RELABEL_SLOTS(tree, parameters=P0..., lags=L0...)
-10. FOR each parameter slot Pj in tree:
+ 8. tree ← RELABEL_SLOTS(tree, parameters=P0..., lags=L0...)
+ 9. FOR each parameter slot Pj in tree:
       binding[Pj] ← SAMPLE_SIGNED_MAGNITUDE(C.parameter_range)
-11. FOR each lag slot Lj in tree:
+10. FOR each lag slot Lj in tree:
       binding[Lj] ← RANDOM_INTEGER(C.minimum_lag, C.maximum_lag)
-12. RETURN mechanism(tree, binding, seed=s, sample_index=i)
+11. RETURN mechanism(tree, binding, seed=s, sample_index=i)
 </pre>
 
 The number of binary operators is `n`, so a full binary tree has `n + 1`

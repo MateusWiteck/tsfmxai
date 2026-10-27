@@ -1,0 +1,29 @@
+\subsection{Comparison of Guarantees and Vocabulary Restrictions}
+\label{sec:generator-guarantee-comparison}
+
+All families retain an executable mechanism, but each construction selects a
+different subset of the vocabulary in Section~\ref{sec:generator-vocabulary}.
+The original sampler uses unrestricted sums and products. Bounded-domain
+contraction retains these operators on a certified invariant box with bounded
+innovations; its current constructor is univariate. The Shao--Wu factor mode
+saturates lag leaves inside nonlinear products and checks global sensitivity,
+while the product-output mode bounds the complete product and checks the
+separately derived moment envelope. Standalone linear terms remain available
+in both modes. Heaps generates linear multivariate VAR equations through a
+stationary parameterization and initializes their lag histories jointly.
+
+Table~\ref{tab:four-generator-strategies} provides the cross-method summary of
+these guarantees and restrictions. The original, bounded-domain, and
+Shao--Wu policies use directly sampled uniform histories, while Heaps uses a
+stationary Gaussian history. A verification record must therefore be read
+together with its initialization and innovation laws. The numerical
+comparison in Section~\ref{sec:implemented-generator-results} reports the
+observed explosions, tail behaviour, and generation costs for the explicitly
+recorded policies.
+
+The executed equation after transformation is the reference mechanism.
+Its AST, bindings, sampling configuration, seeds, innovation law,
+initialization policy, and verification record make the process auditable.
+Several trajectories can share this record. Section~\ref{sec:ground-truth-generation}
+will use it to define structural and contribution-based explanation targets
+over the forecast horizon.

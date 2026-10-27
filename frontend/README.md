@@ -37,7 +37,7 @@ meaningfully.
 
 The interface currently shows:
 
-- both canonical AST topologies through an equation selector;
+- both sampled AST topologies through an equation selector;
 - both skeleton and numerically bound formulas;
 - parameter and lag bindings for the selected target;
 - an explicit target-by-source lag-support matrix;
@@ -50,8 +50,7 @@ The interface currently shows:
 
 Candidate next views are horizon-wise dependency propagation, local
 contribution flow between the two equations, a stability map over parameters
-and initial conditions, and a comparison between sampled and canonicalized
-systems.
+and initial conditions.
 
 Playback runs entirely in the browser, advancing through all saved trajectories
 once and stopping at the last one. It does not resample or alter values. The
@@ -75,7 +74,8 @@ trajectory generator; it does not clip trajectories to simulate stability.
 | None | Original unrestricted, coupled AST sampler. |
 | Coefficient-gated lags | Existing heuristic; no stability certificate. |
 | Jacobian contraction | Two independently certified scalar recurrences on `[-1, 1]`, with bounded uniform innovations. |
-| Shao–Wu | Coupled, time-homogeneous `tanh` recurrences, Gaussian innovations, and a directly drawn uniform initial history. The finite trajectory can have an initial transient. |
+| Shao–Wu: factors | The additional selector chooses `product_lags`: `tanh(u) * tanh(v)`, with standalone linear terms and a checked global GMC sensitivity budget. |
+| Shao–Wu: product output | Select `product_output`: `tanh(u * v)`, with coefficients outside the complete product, standalone linear terms, and a checked uniform second-moment amplitude bound. This record has its own guarantee label. |
 | Heaps VAR(p) | Coupled linear stationary VAR; lag bounds select the order and history is drawn from its joint stationary law. |
 | Stationary VAR(1) | Coupled linear VAR with spectral radius below one and stationary Gaussian initialization. |
 

@@ -1,0 +1,34 @@
+\subsection{Motivation for Explicit Autoregressive Mechanisms}
+\label{sec:generator-ar-motivation}
+
+Synthetic pretraining motivates a generator that combines diversity with a
+retained description of how each series was produced. KernelSynth, introduced
+with Chronos, samples sums and products of Gaussian-process kernels and then
+draws complete trajectories from the resulting covariance
+\citep[Section~4.2]{ansari2024chronos}. Chronos-2 uses it alongside AR, ETS, and
+TSI base generators before introducing multivariate dependence
+\citep{ansari2025chronos2}. TimePFN's LMC-Synth mixes independent KernelSynth
+latent trajectories through a shared linear mixing matrix
+\citep{taga2025timepfn}. Toto~2.0 uses the separate \emph{TempoPFN} prior,
+which combines several procedural and stochastic families
+\citep{moroshan2025tempopfn,khwaja2026toto2}. Section~1.3 describes these
+generation procedures and their computational organization.
+
+An explicit autoregressive equation offers a complementary representation:
+each dependence is attached to a source series, a lag, and an operation.
+For a scalar linear example,
+\begin{equation}
+ x_t=b+\sum_{\ell=1}^{L}c_{\ell}x_{t-\ell}+\varepsilon_t.
+ \label{eq:implemented-ar}
+\end{equation}
+The nonlinear AST generator replaces the weighted sum with an expression
+containing selected lags and interactions. Here $L$ is the largest lag required
+by the mechanism; a forecasting model may receive a longer observed context.
+
+The exploratory AR studies motivate this representation by showing strong
+one-step approximation for most evaluated KernelSynth and TimePFN latent
+series. Section~\ref{sec:ar-coverage-results} presents the measured coverage
+and its limitations; the corresponding experimental setup is in
+Section~\ref{sec:ar-coverage-protocol}. These studies concern approximation
+of observed dynamics, while recovery of the original stochastic mechanism
+remains a separate question.

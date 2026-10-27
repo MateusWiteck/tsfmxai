@@ -44,11 +44,18 @@
               <option value="none">Nenhum — AST livre</option>
               <option value="coefficient_gate">Coeficientes nos lags — heurística</option>
               <option value="contraction">Contração por Jacobiano — domínio limitado</option>
-              <option value="shao_wu">Shao–Wu — contração global / GMC</option>
+              <option value="shao_wu">Shao–Wu — saturação de produtos</option>
               <option value="heaps">Heaps — VAR(p) estacionário</option>
               <option value="stationary_var1">VAR(1) — raio espectral menor que 1</option>
             </select>
             <p class="muted" id="stability-description"></p>
+          </div>
+          <div class="field full" id="shao-wu-mode-field" hidden>
+            <label for="shao-wu-mode">Onde aplicar tanh</label>
+            <select id="shao-wu-mode">
+              <option value="product_lags">Nos fatores — tanh(u) × tanh(v)</option>
+              <option value="product_output">Após o produto — tanh(u × v)</option>
+            </select>
           </div>
           <div class="field full">
             <label for="tree-seed">Seed do mecanismo</label>

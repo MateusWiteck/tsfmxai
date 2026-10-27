@@ -1,0 +1,118 @@
+\subsection{Stationary VAR Generation: Heaps' Parameterization}
+\label{sec:implemented-heaps}
+
+\subsubsection{Desired Property and Mathematical Conditions}
+We want linear multivariate series whose statistical regime is the same
+throughout generation, including the first returned generated value. For a
+fixed Gaussian VAR, this means choosing stable coefficients and drawing
+the whole initial lag history from its stationary joint distribution.
+In practical terms, the mean, variance, and correlations at a fixed time
+separation remain unchanged when the observation window moves. Individual
+trajectories still fluctuate because each step receives a new innovation.
+
+\paragraph{Why the method is called Heaps.}
+The name credits Sarah E. Heaps' symmetric parameterization and reconstruction
+procedure, which build on the earlier mapping of
+\citet{ansley1986reparameterizing}. Here, \emph{symmetric} describes the matrix
+square roots used in that procedure. The reconstructed coefficient matrices
+can be asymmetric: the influence of series $j$ on series $k$ can differ from
+the influence in the opposite direction. Our generator uses this construction
+with a project-defined sampling distribution.
+
+\paragraph{Published result used.}
+\citet[Sections~2.1--2.2 and Appendix]{heaps2023stationarity} parameterizes
+stationary Gaussian VAR($L$) models through intermediate parameters with
+simple constraints. A \emph{partial autocorrelation} describes the remaining
+linear association between two observations after accounting for the
+observations between them. For several series, these associations are
+represented by matrices $\mathbf P_\ell^{\mathrm{PAC}}$ built from standardized
+prediction errors. Every singular value of each matrix must be below one.
+A singular value measures how strongly a matrix scales a direction in its
+input space; this condition therefore limits all directions together.
+
+Equation~\eqref{eq:heaps-pac-map} obtains these matrices from freely chosen
+$\mathbf U_\ell$ by mapping each singular value $u\geq0$ to
+$u/\sqrt{1+u^2}<1$. Given these admissible partial autocorrelations and a
+positive-definite innovation covariance $\Sigma_\varepsilon$, the paper's
+reverse covariance and coefficient recursions recover stationary VAR
+coefficients. Positive definiteness means that every nonzero linear
+combination of the innovation components has positive variance.
+
+The resulting causal VAR satisfies $\rho(\mathbf B)<1$: every eigenvalue of
+the companion matrix $\mathbf B$ has magnitude below one. This matrix
+advances the entire lag history by one step. Its powers tend to zero, so
+the effect of changing the initial history disappears when future
+innovations are held equal. Together with independent Gaussian innovations,
+this gives a unique causal stationary law. Drawing the initial history from
+that law also makes the finite generated trajectory stationary from its start.
+
+\subsubsection{Implementation and Stationary Initialization}
+\path{src/tsfmxai/generators/heaps.py} implements the following sequence.
+
+\paragraph{Step 1: sample the free parameters.}
+The mechanism sampler samples the order $L$, one square
+matrix $\mathbf U_\ell$ per lag, and the stationary mean. The recorded
+comparison uses orders uniformly drawn from 1--12, independent normal
+matrix entries with standard deviation 0.45, and a mean fixed at zero.
+The sampler fixes $\Sigma_\varepsilon=0.05^2 I$ from the configured innovation
+scale. The lower-level constructor also accepts a user-specified
+positive-definite covariance, including correlations between series.
+These sampling choices determine which mechanisms occur most often.
+
+\paragraph{Step 2: reconstruct jointly stable coefficients.}
+The implementation applies the singular-value map using a singular-value
+decomposition. The coefficient reconstruction follows the Appendix's two
+recursions: it first recovers prediction-error covariances, then reconstructs
+the coefficient matrices $\mathbf C_\ell$ and lagged covariances. This is
+necessary because the combined effect of all coefficients determines
+stability. The intermediate partial autocorrelations provide coordinates
+in which that joint restriction is already satisfied. For one series and
+one lag, the result is an AR(1) coefficient satisfying $|c_{1,1,1}|<1$;
+the sign of the sampled scalar parameter is preserved.
+
+\paragraph{Step 3: construct the equations and check their covariance.}
+The final coefficients are converted to one linear AST per target, including
+the intercept required by the selected stationary mean. The constructor
+forms the joint lag-state covariance $\mathbf V$ from the reconstructed
+autocovariances and checks
+\begin{equation}
+ \mathbf V=\mathbf B\mathbf V\mathbf B^\top+\mathbf Q,
+ \label{eq:implemented-heaps-lyapunov}
+\end{equation}
+where $\mathbf Q$ inserts $\Sigma_\varepsilon$ into the newest lag block.
+The equation balances the covariance propagated from the previous state
+with the covariance introduced by the next innovation. For a stable
+$\mathbf B$, its solution is
+$\mathbf V=\sum_{v=0}^{\infty}\mathbf B^v\mathbf Q(\mathbf B^\top)^v$.
+Independent numerical checks require a companion spectral radius below one,
+partial-autocorrelation singular values below one, positive-definite
+$\mathbf V$, and a relative Lyapunov residual below $10^{-8}$. The residual
+is the Frobenius norm of the difference between the two sides of
+Equation~\eqref{eq:implemented-heaps-lyapunov}, divided by the Frobenius norm
+of $\mathbf V$. It checks reconstruction accuracy in floating-point
+arithmetic. A mechanism failing these checks raises an error.
+
+\paragraph{Step 4: draw a compatible history and simulate.}
+The entire initial lag history is drawn jointly from the corresponding
+Gaussian stationary distribution, using a Cholesky factor of $\mathbf V$.
+This factor transforms independent standard-normal draws into correlated
+values with the required covariance. Sampling all initial values together
+preserves both cross-series and cross-lag correlations. The recurrence then
+runs immediately with fresh Gaussian innovations independent across time
+and independent of the initial history. Each innovation vector has covariance
+$\Sigma_\varepsilon$. No preliminary simulation is needed for this
+initialization; stationarity holds in exact arithmetic, subject to the
+reported numerical checks. This treatment of initial observations follows
+\citet[Section~4 and Appendix, pp.~8 and 11]{heaps2023stationarity}.
+
+\paragraph{Scope of the implementation and evaluation.}
+The implementation supports several series and lags; VAR(1) is the single-lag
+case. The main trade-off experiment uses one series, while the unit tests
+also check multivariate covariance reconstruction, agreement between the
+AST and the matrix equation, and joint stationary initialization. The final
+equations expose signed linear coefficients and variable--lag support.
+Nonlinear products belong to the preceding AST families. Gaussian innovations
+have unbounded support, so stationary trajectories can still cross a finite
+amplitude threshold. The explosion diagnostic measures these realized
+events, and the low-amplitude diagnostic separately measures paths that
+remain small within the observed window.

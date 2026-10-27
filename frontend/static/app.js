@@ -36,6 +36,7 @@ async function postJson(path, payload) {
 function mechanismRequest() {
   return {
     stability_method: $("stability-method").value,
+    shao_wu_mode: $("shao-wu-mode").value,
     innovation_std: numberValue("innovation"),
     seed: numberValue("tree-seed"),
     minimum_operators: numberValue("min-operators"),
@@ -68,7 +69,7 @@ async function generateMechanism() {
   const button = $("generate-tree");
   button.disabled = true;
   $("generate-series").disabled = true;
-  setStatus("Sorteando e canonizando as duas equações…");
+  setStatus("Sorteando as duas equações…");
   try {
     state.mechanism = await postJson("/api/mechanisms", mechanismRequest());
     state.trajectories = null;
@@ -111,7 +112,10 @@ async function generateTrajectories() {
 
 function renderMechanism(mechanism) {
   const certified = mechanism.certificates?.length > 0 && mechanism.certificates.every((c) => c.holds);
-  $("stability-summary").textContent = `${$("stability-method").selectedOptions[0].textContent} · ${certified ? "Certificado validado para o mecanismo e sua lei de inovação." : "Sem certificado de estabilidade."}`;
+  const amplitudeBound = mechanism.certificates?.some((c) => c.guarantee === "uniform_second_moment_bound");
+  const guarantee = amplitudeBound ? "Limite uniforme do segundo momento verificado."
+    : "Condições da garantia matemática verificadas.";
+  $("stability-summary").textContent = `${$("stability-method").selectedOptions[0].textContent} · ${certified ? guarantee : "Sem verificação matemática de estabilidade."}`;
   renderEquationCards(mechanism.equations);
   const labels = {
     equations: "equações",
@@ -645,18 +649,23 @@ function updateStabilityControls() {
     none: "Sem restrição de estabilidade ou corte por magnitude. Valores não finitos interrompem a geração.",
     coefficient_gate: "Adiciona coeficientes aos lags; pode reduzir explosões, mas não certifica estabilidade.",
     contraction: "Duas recorrências independentes, certificadas em [−1, 1], com inovação uniforme limitada. Não usa o terminal tempo.",
-    shao_wu: "Recorrências com tanh e contração global. Histórico inicial uniforme em [-1, 1], sorteado diretamente, e inovação gaussiana; pode haver transiente inicial. Não impõe limite rígido de amplitude.",
+    shao_wu: $("shao-wu-mode").value === "product_lags"
+      ? "Tanh nos fatores dos produtos de lags. Verifica contração global e esquecimento do histórico sob o mesmo ruído. Termos lineares ficam livres."
+      : "Tanh após o produto completo. Verifica um limite uniforme do segundo momento da amplitude; a contração global requer análise adicional. Termos lineares ficam livres.",
+    shao_wu_all_tanh: "Cada lag passa por tanh antes da equação. Permite produtos de lags com ganho global certificado, mas também satura dependências lineares.",
+    shao_wu_product_lags: "Tanh apenas nos lags de produtos não lineares; termos com um único lag continuam lineares. Produtos de até quatro lags podem ser amostrados, conforme a configuração de operadores.",
     heaps: "VAR(p) linear com histórico gaussiano estacionário. Lag mínimo/máximo escolhem a ordem p; os operadores da AST livre não se aplicam.",
     stationary_var1: "VAR(1) linear com histórico gaussiano estacionário. Usa somente lag 1; os operadores da AST livre não se aplicam.",
   };
   $("stability-description").textContent = descriptions[method];
+  $("shao-wu-mode-field").hidden = method !== "shao_wu";
   ["initial-min", "initial-max"].forEach((id) => { $(id).disabled = !free; });
   ["min-operators", "max-operators", "p-parameter", "p-lag", "p-add"].forEach((id) => { $(id).disabled = linear; });
   $("require-lag").disabled = !free;
   ["p-time", "require-time"].forEach((id) => { $(id).disabled = !free; });
   ["min-lag", "max-lag"].forEach((id) => { $(id).disabled = method === "stationary_var1"; });
   if (!free) { $("p-time").value = "0"; $("require-time").checked = false; $("require-lag").checked = true; }
-  const positiveNoise = ["heaps", "stationary_var1", "shao_wu"].includes(method);
+  const positiveNoise = ["heaps", "stationary_var1", "shao_wu", "shao_wu_all_tanh", "shao_wu_product_lags"].includes(method);
   $("innovation").min = positiveNoise ? "0.01" : "0";
   $("innovation").max = method === "contraction" ? "0.99" : "1";
   if (positiveNoise && numberValue("innovation") === 0) $("innovation").value = "0.05";
@@ -674,6 +683,9 @@ $("stability-method").addEventListener("change", () => {
   $("generate-series").disabled = true;
   updateStabilityControls();
   setStatus("Método alterado. Clique em Gerar duas equações.");
+});
+$("shao-wu-mode").addEventListener("change", () => {
+  $("stability-method").dispatchEvent(new Event("change"));
 });
 $("randomize-tree-seed").addEventListener("click", () => {
   $("tree-seed").value = randomSeed();

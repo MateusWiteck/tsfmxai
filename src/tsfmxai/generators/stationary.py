@@ -19,7 +19,6 @@ from tsfmxai.representations.expression import (
     MechanismBinding,
     Multiply,
     Parameter,
-    canonicalize_commutative,
     format_tree,
     to_bound_formula,
     to_skeleton_formula,
@@ -283,12 +282,11 @@ def _sum_expressions(expressions: Sequence[ExpressionNode]) -> ExpressionNode:
     return result
 
 
-def _canonicalize_bound_expression(
+def _relabel_bound_expression(
     expression: ExpressionNode,
     parameter_values: dict[str, float],
     lag_values: dict[str, int],
 ) -> tuple[ExpressionNode, MechanismBinding]:
-    canonical = canonicalize_commutative(expression)
     rebound_parameters: dict[str, float] = {}
     rebound_lags: dict[str, int] = {}
     parameter_index = 0
@@ -312,7 +310,7 @@ def _canonicalize_bound_expression(
             return Multiply(visit(node.left), visit(node.right))
         raise TypeError(type(node))
 
-    rebound_expression = visit(canonical)
+    rebound_expression = visit(expression)
     return rebound_expression, MechanismBinding(rebound_parameters, rebound_lags)
 
 
@@ -332,7 +330,7 @@ def _build_ar_expression(
         terms.append(
             Multiply(Parameter(parameter_slot), Lag(variable=0, slot=lag_slot))
         )
-    return _canonicalize_bound_expression(
+    return _relabel_bound_expression(
         _sum_expressions(terms), parameter_values, lag_values
     )
 
@@ -361,7 +359,7 @@ def _build_var1_expressions(
                     Lag(variable=source, slot=lag_slot),
                 )
             )
-        expression, binding = _canonicalize_bound_expression(
+        expression, binding = _relabel_bound_expression(
             _sum_expressions(terms), parameter_values, lag_values
         )
         expressions.append(expression)

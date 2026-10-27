@@ -1,0 +1,13 @@
+\subsection{Original AST Generator as the Reference}
+\label{sec:implemented-original-baseline}
+
+The reference uses the expression sampler described in
+Section~\ref{sec:generator-expression-pipeline}, with the comparison settings
+in Section~\ref{sec:generator-evaluation-protocol}.
+It executes the sampled sums and products of lagged values directly,
+starting from a uniform history in $[-1,1]$ and adding Gaussian innovations
+with standard deviation 0.05. Its sampled coefficients remain unchanged.
+Every attempted mechanism enters the evaluation, including trajectories
+that trigger the stopping rule. This supplies the reference rates of
+explosion and low amplitude, and the generation cost against which the
+three controlled constructions below are compared.

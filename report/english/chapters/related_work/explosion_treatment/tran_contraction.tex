@@ -1,0 +1,23 @@
+\subsubsection{Contraction of Discrete-Time Nonlinear Systems}
+
+\citet{tran2019convergence} compare convergence to one bounded trajectory
+with incremental stability, which compares different trajectories.
+Their Definition~6 controls small state perturbations through the Jacobian
+in a uniformly bounded metric with a uniformly bounded inverse.
+For the fixed nonsingular metric transformation $\Theta$ relevant to this
+implementation, the transformed Jacobian is
+\begin{equation}
+ \mathcal J_\Theta(t,\mathbf{s})
+ =\Theta J_{\mathcal F}(t,\mathbf{s})\Theta^{-1},
+ \qquad
+ \mathcal J_\Theta^\top\mathcal J_\Theta\preceq(1-\mu)I,
+ \quad \mu>0.
+\end{equation}
+The transformation specifies how distances are measured. Theorem~15
+relates contraction to exponential incremental stability; Theorem~16
+adds compact positive invariance to obtain convergence to a unique bounded
+trajectory. The benchmark uses a fixed induced norm and a convex invariant
+box with $\sup_{\mathbf{s}\in D}\|J_{\mathcal F}(\mathbf{s})\|\leq\gamma<1$.
+The derivative bound limits amplification of a difference along the entire
+segment between two histories. With the same innovation at each future
+step, repeated updates then decrease this difference geometrically.

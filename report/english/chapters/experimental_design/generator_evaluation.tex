@@ -1,0 +1,58 @@
+\subsection{Generator Evaluation Protocol}
+\label{sec:generator-evaluation-protocol}
+
+\subsubsection{Autoregressive Approximation Studies}
+\label{sec:ar-coverage-protocol}
+The executed KernelSynth prediction study evaluates 33 entries of the official
+kernel bank and 20 sampled compositions. For each mechanism it draws 16 training
+and 16 independent test trajectories of length 1024. A pooled linear AR model
+with an intercept is fitted by ridge regression, with penalty $10^{-5}$ on
+the lag coefficients. The orders tested are
+$\{1,2,4,8,16,32,64,128,256\}$. Predictions use the observed preceding values
+at every test position. The reported score is the pooled mean squared error
+divided by the pooled test-target variance plus $10^{-12}$.
+
+The companion TimePFN experiment evaluates 33 latent series from 11 LMC
+mechanisms, using three latents per mechanism and orders up to 128. This is an
+\emph{oracle-latent} experiment: the latent series are supplied directly to
+the AR models. Order selection uses the smallest score on the same test set
+being summarized, so the results describe exploratory best-of-grid
+approximation capacity. The saved results and links to the executed records
+appear in Section~\ref{sec:ar-coverage-results}.
+
+\subsubsection{Four-Family Stability Comparison}
+The executed notebook
+\path{experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb}
+uses root seed 20261001, 5,000 independent mechanisms per family, and one
+trajectory per mechanism. Each run has one channel, a lag range of 1--12,
+and diagnostic horizons $h\in\{96,192,384\}$. The original trees contain
+1--6 binary operations, addition probability 0.8, parameter/lag leaf
+probabilities 0.55/0.45, and coefficient magnitudes in $[0.05,0.8]$ with
+random signs. Explicit time leaves are disabled in this comparison.
+
+The evaluator applies the explosion and tail diagnostics defined in
+Section~\ref{sec:generator-diagnostics}. It retains every attempt in the
+denominators and reuses the prefixes of one trajectory for the different
+horizons. The family-specific construction, initialization, and innovation
+laws are described in Section~\ref{sec:generator-stability}; results identify
+the historical all-lag Shao--Wu saturation policy used in this completed
+comparison.
+
+\subsubsection{Timing and Repeated-Run Protocol}
+Timing includes sampling/certification, initialization, innovation generation,
+AST execution, and diagnostics, including the tail measurements and their
+three-tolerance sensitivity analysis. Completed full-horizon trajectories per
+second uses the total wall-clock cost, including failed attempts. This prevents
+early-stopping generators from appearing efficient solely because they
+evaluate fewer time steps.
+
+For timing uncertainty, Notebook~6 executes the complete 5,000-mechanism
+workflow five times per family on the same machine, with BLAS restricted to
+one thread. Each run rebuilds the mechanisms with the same seeds, samples
+histories and innovations, and evaluates the same diagnostics. The method
+order rotates in the additional runs. Identical seeds make the outcome counts
+reproducible, so the spread in wall-clock time reflects execution conditions
+rather than a different draw of mechanisms. We report the mean and sample
+standard deviation across runs, plus their observed minimum--maximum range.
+These are descriptive measurements, not confidence intervals for performance
+on other hardware. The first run is included without a separate cache warm-up.

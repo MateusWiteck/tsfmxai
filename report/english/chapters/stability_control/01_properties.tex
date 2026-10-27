@@ -1,0 +1,38 @@
+\subsection{Desired Mathematical Properties}
+\label{sec:generator-properties}
+
+The mathematical distinctions reviewed in
+Section~\ref{sec:explosion-treatment} guide the construction and interpretation
+of the generator families. A verification record states the property checked
+for a mechanism together with its domain, innovation law, and initialization
+assumptions.
+
+\subsubsection{Amplitude and Moment Bounds}
+An invariant bounded domain controls every trajectory for every allowed
+innovation sequence. A uniform second-moment bound instead controls the
+expected squared magnitude across repeated realizations, uniformly over
+generated time. Gaussian innovations have unbounded support, so a process
+with finite controlled moments can still cross a finite amplitude threshold.
+The threshold-crossing diagnostic in Section~\ref{sec:generator-diagnostics}
+therefore records finite-path events separately from the mathematical
+property certified by the constructor.
+
+\subsubsection{Contraction and Forgetting Initial Conditions}
+Contraction compares two histories passed through the same update rule and
+the same sampled innovation values at each future step. A geometric decrease
+in their distance, or its specified moment, describes how the influence of
+their initial histories disappears. Fresh innovations continue to drive the
+process. The bounded-domain method and Shao--Wu factor mode verify this
+property under their respective conditions in
+Sections~\ref{sec:implemented-domain-contraction}
+and~\ref{sec:implemented-shao-wu}.
+
+\subsubsection{Stationarity and Initialization}
+Strict stationarity means that the joint probability laws of a process are
+unchanged by time shifts. A recurrence can admit a stationary solution while
+a finite simulation starts from a separately chosen history distribution.
+The uniform histories used by the AST families can consequently produce
+initialization transients. The Heaps constructor instead draws the whole
+initial lag history jointly from the stationary Gaussian law, as explained
+in Section~\ref{sec:implemented-heaps}. Initialization, contraction, and
+amplitude control are thus recorded as distinct properties of each policy.

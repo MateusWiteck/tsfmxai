@@ -14,7 +14,7 @@ benchmarks for forecasting, mechanism recovery, and explainability.
 | `configs/` | Generator, dataset, model, and benchmark configurations | tracked |
 | `references/` | Paper summaries and canonical bibliography | summaries tracked; PDFs local |
 | `docs/` | Research, architecture, and methodology documentation | tracked |
-| `report/` | Thesis manuscript in LaTeX | sources tracked; `build/` ignored |
+| `report/` | English LaTeX thesis | sources tracked; build files ignored |
 | `experiments/` | Curated scientific evidence | tracked |
 | `experiments_local/` | Exploratory notebooks, cloned repositories, and temporary analyses | ignored |
 | `data/` | Data lifecycle and small samples | generated/full data ignored |
@@ -118,7 +118,7 @@ The Quarto website publishes saved outputs from every notebook under
 `experiments/`, including nested directories. New notebooks are discovered
 automatically. `experiments_local/` and `notebooks/` are outside the site.
 Rendering never executes notebook cells or requires the experiment dependencies.
-The **Relatório** tab embeds the PDF compiled from `report/main.tex` and offers
+The **Relatório** tab embeds the PDF compiled from `report/english/main.tex` and offers
 open/download links, preserving the manuscript's equations, figures, tables,
 and bibliography. The same PDF is staged under ignored `outputs/report/` and
 copied into the website; the LaTeX source remains the single source of truth.
@@ -172,6 +172,6 @@ Run the mechanism studio from the repository root:
 .\.venv\Scripts\python.exe frontend\app.py
 ```
 
-Then open <http://127.0.0.1:8000>. The interface samples a canonical two-series
+Then open <http://127.0.0.1:8000>. The interface samples a two-series
 system, retains one equation per target, and generates multiple reproducible
 multivariate trajectories while keeping both mechanisms fixed.

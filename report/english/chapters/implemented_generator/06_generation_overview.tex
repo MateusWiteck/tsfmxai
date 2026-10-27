@@ -1,0 +1,252 @@
+\subsection{Generation Overview}
+\label{sec:generation-overview}
+
+A mechanism is the equation executed at every generated step. Its structure,
+coefficients, and lag assignments remain fixed while the initial history and
+innovation sequence determine a particular trajectory. The same final equation,
+initial history, and numerical innovations produce the same trajectory, up to
+floating-point effects. A construction method can change that equation before
+execution. The original and transformed equations must therefore be retained
+separately, with ground-truth explanations referring to the executed mechanism.
+
+Tables~\ref{tab:generation-overview-linear} and~\ref{tab:generation-overview-nonlinear}
+show nine sampled examples, selected under restricted sampling configurations
+to make these changes readable. The first column gives the original recurrence;
+the middle columns give the recurrence produced by each construction; the last
+column explains the feature being illustrated. The cases cover individual lags,
+an offset, multiple memory scales, repeated factors, and nonlinear interactions.
+They are worked examples rather than estimates of how often those structures
+occur under the benchmark's full sampling prior.
+
+\paragraph{Reading the equations and the innovations.}
+To keep the tables compact, write $z_\ell=x_{t-\ell}$ and
+$T_\ell=\tanh(z_\ell)$. A squared lag is displayed as $z_1^2$; its AST contains
+two lag leaves joined by multiplication. The index $t$ is the current generated
+step, so the first update after history ending at time zero uses $t=1$.
+Every recurrence explicitly includes a fresh additive innovation, identified
+by its superscript: O denotes the original AST, J the Jacobian method,
+F factor saturation, P product-output saturation, and H Heaps. This term is
+the generator's random innovation; forecast errors are measured later by
+comparing predictions with generated observations.
+
+Here the configured standard deviation is $\sigma_\varepsilon=0.05$.
+The O, F, P, and H policies use i.i.d. Gaussian innovations with distribution
+$\mathcal N(0,0.05^2)$. The J policy uses i.i.d. uniform innovations on
+$[-\sqrt{3}(0.05),\sqrt{3}(0.05)]$ to respect its finite noise bound while
+matching that standard deviation. These method labels identify policies;
+actual noise sequences may be shared or independently drawn according to the
+comparison protocol. Matching standard deviations alone leaves different noise
+laws. A trajectory comparison must also specify its initial history and which
+numerical innovations are shared. The constructors scale only the deterministic
+expression; the innovation is added afterwards at every step.
+
+\paragraph{Construction settings used in the tables.}
+The Jacobian calculation uses $r_D=1$, $q_w=1.25$, target gain 0.9, and safety
+multiplier 0.95. It scales the complete AST to meet both the sensitivity and
+domain-containment checks of Section~\ref{sec:implemented-domain-contraction}.
+The two Shao--Wu-inspired modes use target gain 0.8 and safety multiplier 0.95.
+Factor saturation replaces lag leaves inside nonlinear products by their
+hyperbolic tangents, then checks global sensitivity using the condition of
+\citet[Theorem~5.1]{shao2007spectral}. Product-output saturation bounds each
+complete nonlinear product and checks the project's second-moment envelope,
+as detailed in Section~\ref{sec:implemented-shao-wu}. Their verification records
+therefore certify different properties. Both preserve standalone linear terms
+before applying their root multiplier. Even a candidate already within a
+target bound receives the implementation's 0.95 safety multiplier.
+
+\paragraph{How the Heaps column is matched to a linear example.}
+Heaps constructs a linear VAR from free parameter matrices and an innovation
+covariance \citep[Sections~2.1--2.2 and Appendix]{heaps2023stationarity}.
+For this illustration, each scalar coefficient in the original linear formula
+is supplied as the corresponding one-by-one free matrix $\mathbf U_\ell$;
+missing lags receive zero. This is an explicit comparison convention, with
+the same numerical entries interpreted in different parameter spaces.
+The constructor then reconstructs the final AR coefficients jointly. We choose
+its stationary mean to preserve the original intercept: after reconstruction,
+divide that intercept by one minus the sum of the final AR coefficients.
+With one lag, free entry 2 consequently produces coefficient
+$2/\sqrt{5}\approx0.894427$. In R4, the free entries at lags 1 and 3 also
+produce a coefficient at lag 2. Nonlinear rows indicate the linear scope of
+this constructor. Section~\ref{sec:implemented-heaps} explains its standard
+stationary-history sampling; the equations below describe the transition rule
+separately from that initialization choice.
+
+\paragraph{Reproduction and interpretation.}
+The input equations are actual outputs of
+\path{src/tsfmxai/generators/random_expression.py}, with the seeds shown in the
+tables. Their configurations use one series, no time terminals, and no automatic
+lag-coefficient gates; selected parameter magnitudes are fixed at 0.5 or 2 to
+keep the arithmetic readable. Operator counts, sampling weights, and lag ranges
+for each case are recorded in \path{scripts/check_generation_overview.py}.
+Running \texttt{python} \path{scripts/check_generation_overview.py} reconstructs the
+nine samples, checks all 27 AST transformations and five matched Heaps
+constructions, and verifies the formulas numerically. Coefficients shown with
+$\approx$ are rounded to six decimals; calculations retain full precision.
+These examples compare construction rules. Explosion rates, initialization
+effects, and generation speed require the separate trajectory experiments.
+
+\begin{landscape}
+\begingroup
+\renewcommand{\baselinestretch}{1}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{.97\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{.13\linewidth}
+>{\raggedright\arraybackslash}p{.14\linewidth}
+>{\raggedright\arraybackslash}p{.15\linewidth}
+>{\raggedright\arraybackslash}p{.17\linewidth}
+>{\raggedright\arraybackslash}p{.17\linewidth}
+>{\raggedright\arraybackslash}p{.19\linewidth}@{}}
+\caption{Generation Overview: linear and affine sampled recurrences. Each cell
+includes the innovation added at step $t$. The Heaps column uses the explicitly
+declared free-parameter convention.}\label{tab:generation-overview-linear}\\
+\toprule
+Sampled equation / original AST & Jacobian: scaled AST & Shao--Wu: factors & Shao--Wu: product output & Heaps: linear construction & Why this example?\\
+\midrule
+\endfirsthead
+\toprule
+Sampled equation / original AST & Jacobian: scaled AST & Shao--Wu: factors & Shao--Wu: product output & Heaps: linear construction & Why this example?\\
+\midrule
+\endhead
+\textbf{Operation}\newline
+Keep the sampled formula and add the innovation at each step. &
+Scale the complete deterministic expression to meet contraction and domain
+bounds. In R2, multiply by $0.4275$. &
+Apply $\tanh$ to lag factors inside nonlinear products, then scale the whole
+expression to limit sensitivity. In R2, multiply by $0.38$. &
+Apply $\tanh$ after the complete nonlinear product, then scale the whole
+expression to satisfy the second-moment bound. &
+Map free parameters to stable AR coefficients. For AR(1),
+$a=u/\sqrt{1+u^2}$; $u=2$ gives $a\approx0.894427$. &
+Each following row applies these operations to one input equation.
+The innovation is added after the deterministic transformation.\\
+\midrule
+\textbf{R1; seed 0}\newline
+$x_t=z_1+\varepsilon_t^{(\mathrm O)}$ &
+$x_t=0.855z_1$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.76z_1$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.76z_1$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+$x_t\approx0.707107z_1$\newline $+\varepsilon_t^{(\mathrm H)}$ &
+Unit feedback: the original is a random walk. All three constructions change
+its memory strength.\\
+\addlinespace
+\textbf{R2; seed 0}\newline
+$x_t=2z_1+\varepsilon_t^{(\mathrm O)}$ &
+$x_t=0.855z_1$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.76z_1$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.76z_1$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+$x_t\approx0.894427z_1$\newline $+\varepsilon_t^{(\mathrm H)}$ &
+Amplifying feedback. Scaling maps R1 and R2 to identical J/F/P drifts, while
+the Heaps parameter map retains a difference.\\
+\addlinespace
+\textbf{R3; seed 2}\newline
+$x_t=z_1-0.5$\newline $+\varepsilon_t^{(\mathrm O)}$ &
+$x_t\approx0.578485$\newline $\times(z_1-0.5)$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.76(z_1-0.5)$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.76(z_1-0.5)$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+$x_t\approx0.707107z_1$\newline $-0.5+\varepsilon_t^{(\mathrm H)}$ &
+Offset: the AST root multiplier scales the intercept too. J reserves space
+for offset and noise; H preserves the intercept by the stated convention.\\
+\addlinespace
+\textbf{R4; seed 0}\newline
+$x_t=z_1+z_3$\newline $+\varepsilon_t^{(\mathrm O)}$ &
+$x_t\approx0.333659$\newline $\times(z_1+z_3)$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.38(z_1+z_3)$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.38(z_1+z_3)$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+$x_t\approx0.707107z_1$\newline $-0.5z_2+0.707107z_3$\newline $+\varepsilon_t^{(\mathrm H)}$ &
+Separated lags: J weights older memory more strongly. Joint H reconstruction
+introduces a lag-2 coefficient.\\
+\addlinespace
+\textbf{R5; seed 0}\newline
+$x_t=z_{12}+\varepsilon_t^{(\mathrm O)}$ &
+$x_t\approx0.073444z_{12}$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.76z_{12}$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.76z_{12}$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+$x_t\approx0.707107z_{12}$\newline $+\varepsilon_t^{(\mathrm H)}$ &
+Long delay: the J weight $1.25^{11}$ requires substantially more attenuation
+than in R1. Formula size alone misses this difficulty.\\
+\bottomrule
+\end{longtable}
+\endgroup
+\end{landscape}
+
+\begin{landscape}
+\begingroup
+\renewcommand{\baselinestretch}{1}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{.97\linewidth}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{@{}
+>{\raggedright\arraybackslash}p{.13\linewidth}
+>{\raggedright\arraybackslash}p{.14\linewidth}
+>{\raggedright\arraybackslash}p{.15\linewidth}
+>{\raggedright\arraybackslash}p{.17\linewidth}
+>{\raggedright\arraybackslash}p{.17\linewidth}
+>{\raggedright\arraybackslash}p{.19\linewidth}@{}}
+\caption{Generation Overview: nonlinear sampled recurrences.
+Here $z_\ell=x_{t-\ell}$ and $T_\ell=\tanh(z_\ell)$.
+Factor mode verifies global sensitivity; product-output mode verifies a
+second-moment bound.}\label{tab:generation-overview-nonlinear}\\
+\toprule
+Sampled equation / original AST & Jacobian: scaled AST & Shao--Wu: factors & Shao--Wu: product output & Heaps: linear construction & Why this example?\\
+\midrule
+\endfirsthead
+\toprule
+Sampled equation / original AST & Jacobian: scaled AST & Shao--Wu: factors & Shao--Wu: product output & Heaps: linear construction & Why this example?\\
+\midrule
+\endhead
+\textbf{Operation}\newline
+Keep the sampled formula and add the innovation at each step. &
+Scale the complete deterministic expression to meet contraction and domain
+bounds. In R2, multiply by $0.4275$. &
+Apply $\tanh$ to lag factors inside nonlinear products, then scale the whole
+expression to limit sensitivity. In R2, multiply by $0.38$. &
+Apply $\tanh$ after the complete nonlinear product, then scale the whole
+expression to satisfy the second-moment bound. &
+Map free parameters to stable AR coefficients. For AR(1),
+$a=u/\sqrt{1+u^2}$; $u=2$ gives $a\approx0.894427$. &
+Each following row applies these operations to one input equation.
+The innovation is added after the deterministic transformation.\\
+\midrule
+\textbf{R6; seed 0}\newline
+$x_t=z_1z_2+\varepsilon_t^{(\mathrm O)}$ &
+$x_t=0.38z_1z_2$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.38T_1T_2$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.95\tanh(z_1z_2)$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+Outside the linear VAR vocabulary. &
+Two distinct lag factors: contrast a scaled polynomial, bounded factors,
+and a bounded complete product.\\
+\addlinespace
+\textbf{R7; seed 0}\newline
+$x_t=z_1^2+\varepsilon_t^{(\mathrm O)}$ &
+$x_t=0.4275z_1^2$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.38T_1^2$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.95\tanh(z_1^2)$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+Outside the linear VAR vocabulary. &
+Repeated coordinate: two leaves refer to one lag. The conservative
+derivative bound counts both occurrences.\\
+\addlinespace
+\textbf{R8; seed 5}\newline
+$x_t=z_1^2z_2z_3$\newline $+\varepsilon_t^{(\mathrm O)}$ &
+$x_t\approx0.177662$\newline $\times z_1^2z_2z_3$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.19T_1^2T_2T_3$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.95$\newline $\times\tanh(z_1^2z_2z_3)$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+Outside the linear VAR vocabulary. &
+Four factors: increasing product degree raises the sensitivity budget.
+P saturates the entire connected product once.\\
+\addlinespace
+\textbf{R9; seed 1438}\newline
+$x_t=0.5z_1+z_1z_2$\newline $+\varepsilon_t^{(\mathrm O)}$ &
+$x_t\approx0.310909$\newline $\times(0.5z_1+z_1z_2)$\newline $+\varepsilon_t^{(\mathrm J)}$ &
+$x_t=0.304$\newline $\times(0.5z_1+T_1T_2)$\newline $+\varepsilon_t^{(\mathrm F)}$ &
+$x_t=0.95$\newline $\times[0.5z_1+\tanh(z_1z_2)]$\newline $+\varepsilon_t^{(\mathrm P)}$ &
+Outside the linear VAR vocabulary. &
+Mixed linear and nonlinear feedback: selective saturation preserves the
+linear lag; the root multiplier still scales both terms.\\
+\bottomrule
+\end{longtable}
+\endgroup
+\end{landscape}

@@ -105,6 +105,36 @@ def test_builder_scales_an_unstable_base_expression_into_the_certificate() -> No
     assert augmented_jacobian_norm(mechanism, [0.2, -0.3]) <= 0.9
 
 
+def test_report_worked_example_matches_the_constructor_and_finite_changes() -> None:
+    expression, binding = nonlinear_expression()
+    config = ContractionTreeConfig(
+        tree_config=compact_config().tree_config,
+        innovation_bound=np.sqrt(3) * 0.05,
+    )
+    mechanism = build_contractive_mechanism(expression, binding, config)
+    certificate = mechanism.certificate
+    assert mechanism.scale == pytest.approx(0.95)
+    np.testing.assert_allclose(certificate.derivative_absolute_bounds, [0.285, 0.095])
+    assert certificate.top_row_gain_bound == pytest.approx(0.40375)
+    assert certificate.lipschitz_upper_bound == pytest.approx(0.8)
+    assert certificate.noisy_output_bound == pytest.approx(0.285 + np.sqrt(3) * 0.05)
+    assert certificate.holds
+
+    weights = np.asarray(certificate.state_weights)
+    rng = np.random.default_rng(71)
+    for first, second in rng.uniform(-1, 1, size=(100, 2, 2)):
+        noise = rng.uniform(-config.innovation_bound, config.innovation_bound)
+        outputs = []
+        for state in (first, second):
+            value, _ = evaluate_expression_with_gradient(
+                mechanism.expression, mechanism.binding, state)
+            outputs.append(np.array([value + noise, state[0]]))
+        initial_distance = np.max(np.abs(first - second) / weights)
+        updated_distance = np.max(np.abs(outputs[0] - outputs[1]) / weights)
+        assert updated_distance <= 0.8 * initial_distance + 1e-12
+        assert max(np.abs(output).max() for output in outputs) <= 1 + 1e-12
+
+
 def test_sampled_mechanisms_are_reproducible_and_independent_of_global_rng() -> None:
     config = compact_config()
     random.seed(1)

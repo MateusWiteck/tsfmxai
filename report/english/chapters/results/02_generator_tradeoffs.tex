@@ -1,0 +1,165 @@
+\subsection{Generator Stability, Tail Behaviour, and Throughput}
+\label{sec:implemented-generator-results}
+
+Tables~\ref{tab:generator-outcomes}, \ref{tab:generator-speed}, and
+\ref{tab:generator-tail-outcomes} summarize
+the executed four-family experiment introduced in
+Section~\ref{sec:generator-evaluation-protocol}.\footnote{Notebook 6. Its
+complete saved record includes configuration, seeds, source hashes, and
+reproduction instructions.}
+The Shao--Wu row in this completed experiment uses the historical
+\emph{all-lag} saturation mode. These saved measurements identify that
+specific construction. The two standard modes now offered in
+Section~\ref{sec:implemented-shao-wu} have distinct verification records
+and require their own complete evaluations before receiving comparable
+performance or tail-behaviour results.
+All families use 5,000 mechanisms, one channel, one trajectory per mechanism,
+and innovation standard deviation 0.05. The original, bounded-domain, and
+Shao--Wu families start from uniform histories, with each family using its
+specified radius. Heaps uses joint stationary Gaussian histories. The construction rules and
+noise distributions are part of each family's definition, so this compares
+complete generation policies.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+& \multicolumn{3}{c}{Explosion rate (\%)} & Near-zero band (\%) \\
+\cmidrule(lr){2-4}
+Generator & $h=96$ & $h=192$ & $h=384$ & $h=384$ \\
+\midrule
+Original AST & 45.96 & 49.32 & 52.86 & 10.80 \\
+Bounded-domain contraction & 0.00 & 0.00 & 0.00 & 44.18 \\
+Shao--Wu (all lags) & 0.00 & 0.00 & 0.00 & 23.48 \\
+Heaps VAR & 0.00 & 0.00 & 0.00 & 41.54 \\
+\bottomrule
+\end{tabular}
+\caption{Finite-horizon diagnostics, with all 5,000 attempts in each
+denominator. Near-zero band means that the final 24 values lie within
+$[-0.15,0.15]$ in a non-explosive prefix.}
+\label{tab:generator-outcomes}
+\end{table}
+
+The revised initialization changes Shao--Wu's finite trajectories and their
+measured outcomes; the benchmark re-evaluates all four families.
+By step 384, the original sampler crosses the operational explosion criterion
+in 2,643 of 5,000 trajectories (52.86\%).
+All original-AST failures in this record are finite threshold crossings;
+execution stops at their first crossing. Each controlled
+family records zero crossings in these 5,000 trials. The notebook's 95\%
+Wilson interval has an upper endpoint of approximately 0.077\% for a
+zero-event count. The probabilistic interpretation concerns draws from the
+configured mechanism/trajectory prior. Analytic domain containment provides
+the stronger pathwise statement for the bounded-domain family under its
+bounded noise law.
+
+\begin{table}[H]
+\centering\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+& Sampling + & Initialization & Diagnostics & Total \\
+Generator & certificate (s) & (s) & (s) & (s) \\
+\midrule
+Original AST & $2.05\pm0.30$ & $0.58\pm0.07$ & $4.41\pm0.74$ & $31.85\pm5.18$ \\
+Bounded-domain & $4.32\pm0.73$ & $0.78\pm0.08$ & $8.64\pm1.12$ & $64.35\pm8.02$ \\
+Shao--Wu & $4.64\pm0.77$ & $0.36\pm0.03$ & $7.79\pm0.73$ & $65.89\pm5.71$ \\
+Heaps VAR & $18.83\pm3.16$ & $0.55\pm0.04$ & $7.69\pm0.66$ & $95.44\pm8.78$ \\
+\bottomrule
+\end{tabular}
+\par\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Generator & Observed total range (s) & Complete paths/s & Output values/s \\
+\midrule
+Original AST & $[28.79,41.07]$ & $75.32\pm10.10$ & $33{,}957\pm4{,}555$ \\
+Bounded-domain & $[59.56,78.57]$ & $78.55\pm8.46$ & $30{,}162\pm3{,}250$ \\
+Shao--Wu & $[59.83,71.61]$ & $76.35\pm6.73$ & $29{,}318\pm2{,}586$ \\
+Heaps VAR & $[82.61,104.33]$ & $52.76\pm5.07$ & $20{,}260\pm1{,}947$ \\
+\bottomrule
+\end{tabular}
+\caption{Serial wall-clock performance over five complete runs with fixed
+seeds and one BLAS thread. Entries are mean $\pm$ sample standard deviation;
+brackets show the observed minimum--maximum total time. Complete paths/s
+counts trajectories reaching step 384 successfully; output values/s counts
+evaluated post-initialization values, including failed attempts. Both rates
+divide by total time, including initialization and the extended diagnostics.
+The notebook records every run and the observed ranges of every metric.}
+\label{tab:generator-speed}
+\end{table}
+
+These CPU timings come from the recorded Python~3.11.9/NumPy~1.26.4 Windows
+environment. Other notebook runs shared the machine during this execution;
+the larger timing spread therefore reflects workload as well as generator cost.
+The standard deviations and ranges describe these five runs, not
+hardware-independent performance intervals. Initialization
+is timed before executing the trajectory; an explosion cannot trigger
+resampling or increase this stage's duration. The original and bounded-domain
+families traverse each AST to find its maximum required lag. Shao--Wu retains
+that order in its verification record and draws a uniform history directly;
+Heaps draws its joint Gaussian history using a precomputed covariance factor.
+The bounded-domain trees contain additional coefficient gates, contributing
+to their larger initialization cost. Heaps is also executed through the
+common AST evaluator, prioritizing a shared execution path over a specialized
+matrix solver. Shao--Wu's largest recorded total lag gain is 0.76, below one;
+the largest Heaps relative Lyapunov residual is
+$1.595159\times10^{-15}$.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+& Persistent & Quiet & Observed & Nonzero & Amplitude \\
+Generator & flatness & endpoints & flattening & plateau & decline \\
+\midrule
+Original AST & 16.02 & 3.62 & 9.58 & 5.18 & 5.18 \\
+Bounded-domain & 99.68 & 58.56 & 25.26 & 36.84 & 4.64 \\
+Shao--Wu & 75.08 & 12.94 & 49.92 & 47.50 & 5.66 \\
+Heaps VAR & 29.36 & 22.98 & 0.22 & 0.02 & 0.30 \\
+\bottomrule
+\end{tabular}
+\caption{Tail diagnostics at $h=384$, as percentages of all 5,000 attempts.
+Flatness uses tolerance 0.15 with 24-step windows and 48-step persistence;
+flattening and amplitude decline require at least a 50\% reduction from the
+initial window, as defined in Section~\ref{sec:generator-diagnostics}.
+Labels may overlap.}
+\label{tab:generator-tail-outcomes}
+\end{table}
+
+Shao--Wu illustrates the effect of direct initialization: 75.08\% satisfy
+persistent flatness, but only 12.94\% are quiet at both observed endpoints;
+49.92\% exhibit the required reduction in variation from the initial window.
+This finite-horizon change is compatible with forgetting a uniformly sampled
+past and should not be conflated with convergence of individual noisy paths
+to a constant. Its 47.50\% of persistent nonzero plateaus also show why the
+level-independent diagnostic adds information beyond the near-zero band.
+For the original AST,
+2,357 trajectories reach step 384; persistent flatness is 33.98\% among these
+eligible paths, compared with 16.02\% of all attempts.
+
+The tolerance matters substantially. At 0.05, all four families have zero
+persistent-flatness events in this sample. At 0.10, their rates are 1.58\%,
+67.84\%, 6.30\%, and 1.50\%, respectively, in the table's order.
+Thus the 0.15 classification describes variation at the chosen noise-relative
+scale. The notebook retains all three tolerance results and Wilson intervals
+for the primary diagnostics.
+
+
+\paragraph{Implications for dataset construction.}
+The controlled families substantially reduce observed explosion events while
+changing small-amplitude behaviour and generation cost. The added diagnostics
+separate observed flattening from quiet initial and terminal windows, and
+capture persistent small variation at nonzero levels. Their 0.15 tolerance
+is three innovation standard deviations and includes some fluctuating
+processes. Changes between finite windows can also arise from stochastic
+variation, especially in stationary-initialized families. These measurements
+provide operational dataset strata together with their noise scale, tolerance,
+and observation duration.
+
+\paragraph{Verification and reproduction.}
+The retained mechanism information is described in
+Section~\ref{sec:generator-guarantee-comparison}, and the planned explanation
+references are developed in Section~\ref{sec:ground-truth-generation}.
+Generator unit tests cover bound propagation, covariance checks,
+synchronous updates, seeds, and failure accounting; the notebooks preserve
+the empirical evidence and its complete reproduction record.

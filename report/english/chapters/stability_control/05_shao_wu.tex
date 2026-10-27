@@ -1,0 +1,320 @@
+\subsection{Shao--Wu-Inspired Nonlinear Generation}
+\label{sec:implemented-shao-wu}
+
+The generator offers two standard positions for the hyperbolic tangent:
+\texttt{product\_lags} applies it to the lag factors before multiplication,
+whereas \texttt{product\_output} applies it once after the complete product.
+For two historical inputs $z_1,z_2$, these choices give
+$\tanh(z_1)\tanh(z_2)$ and $\tanh(z_1z_2)$, respectively. A term containing
+only a coefficient and one lag remains linear in both modes. The selected
+mode is retained with the mechanism. Each mode carries a verification record
+stating the particular property checked below.
+
+\subsubsection{Desired Property and Shao--Wu's Theorem}
+\label{sec:implemented-shao-wu-theory}
+A generated series should retain useful stochastic variation while its
+magnitudes remain controlled. We also seek a stronger property: the effect
+of an arbitrarily supplied initial history should disappear. Imagine running
+the same equation twice from different histories, then supplying exactly the
+same sampled noise value to both runs at every future step. A decreasing
+distance then measures the loss of dependence on their initial histories.
+
+\citet[Section~3, Eq.~(3.1), electronic reprint p.~5]{shao2007spectral}
+formalize this comparison as \emph{geometric moment contraction} (GMC).
+For the second-moment version used here,
+\begin{equation}
+ \mathbb E\|\mathbf x_{\tau+v}-\mathbf x'_{\tau+v}\|_2^2
+ \leq C_{\mathrm{GMC}}\rho_{\mathrm{GMC}}^{v},
+ \qquad C_{\mathrm{GMC}}>0,\quad 0<\rho_{\mathrm{GMC}}<1.
+ \label{eq:implemented-gmc-forgetting}
+\end{equation}
+The expectation averages squared distances across repeated noise
+realizations. The upper bound decreases geometrically; individual
+distances can fluctuate from step to step. In the paper's stationary
+comparison the histories arise from independent past innovation sequences,
+and the future innovation values are shared. Theorem~5.1 also supplies
+forgetting bounds for fixed initial histories in its proof.
+
+\paragraph{Theorem used for the factor mode.}
+Let $\mathbf{s}_t=(\mathbf x_t,\ldots,\mathbf x_{t-L+1})$ store the $L$
+historical vectors required for the next update, and write
+\begin{equation}
+ \mathbf x_{t+1}=\mathcal R_{\mathcal T}(\mathbf{s}_t;
+                                      \boldsymbol\varepsilon_{t+1})
+ =F_{\mathcal T}(\mathbf{s}_t)+\boldsymbol\varepsilon_{t+1}.
+ \label{eq:implemented-gmc-recurrence}
+\end{equation}
+Here $F_{\mathcal T}$ is the deterministic expression executed by the AST.
+We use the following specialization of
+\citet[Theorem~5.1 and its proof, electronic reprint pp.~11--12]{shao2007spectral}
+to second moments:
+\begin{enumerate}
+\item The update rule is measurable and fixed over time. Its innovations
+are independent and identically distributed over time.
+\item The next observation has a finite second moment at some fixed
+reference history. We use the zero history:
+$\|\mathcal R_{\mathcal T}(\mathbf0;\boldsymbol\varepsilon)\|_{L^2}<\infty$,
+where $\|Z\|_{L^2}=(\mathbb E\|Z\|_2^2)^{1/2}$.
+\item For every pair of possible histories, the same-innovation comparison
+satisfies
+\begin{equation}
+\begin{split}
+ \|\mathcal R_{\mathcal T}(\mathbf{s};\boldsymbol\varepsilon)
+      -\mathcal R_{\mathcal T}(\mathbf{s}';\boldsymbol\varepsilon)\|_{L^2}
+ &\leq\sum_{d=0}^{L-1}a_d^{\mathrm{GMC}}
+                       \|\mathbf{s}_d-\mathbf{s}'_d\|_2,\\
+ a_d^{\mathrm{GMC}}&\geq0,\qquad
+ c_{\mathrm{GMC}}:=\sum_{d=0}^{L-1}a_d^{\mathrm{GMC}}<1.
+\end{split}
+\label{eq:implemented-gmc-condition}
+\end{equation}
+The vector $\mathbf{s}_d\in\mathbb R^N$ contains all channels at offset $d$.
+Each $a_d^{\mathrm{GMC}}$ is a sensitivity budget for one historical vector;
+their sum limits the combined feedback through all channels and lags.
+\end{enumerate}
+These conditions yield a causal strictly stationary solution with GMC:
+present and past innovations determine the solution, and its joint
+distributions are unchanged by time shifts. The finite histories supplied
+to the simulator have their own declared distribution, so early generated
+observations can show an initialization transient.
+
+\subsubsection{Factor Saturation and Contraction Verification}
+The implementation in \path{src/tsfmxai/generators/shao_wu.py}
+samples a tree of sums and products with finite coefficients and positive
+lags. It then performs the following checks.
+
+\subparagraph{1. Saturate the factors that create nonlinear feedback.}
+When a product combines two lag-dependent factors, its lag leaves receive
+$\tanh$ before the product is evaluated. For example,
+$a x_t x_{t-1}+b x_{t-2}$ becomes
+$a\tanh(x_t)\tanh(x_{t-1})+b x_{t-2}$.
+This controls the magnitudes of the nonlinear factors and their derivatives.
+The last term keeps its linear dependence; its derivative is the finite
+coefficient $b$. Every output uses fixed parameters and i.i.d. Gaussian
+innovations with covariance $\sigma_\varepsilon^2 I$.
+
+\subparagraph{2. Calculate conservative bounds along the AST.}
+For each subtree $e$, let $A(e)$ bound its absolute value and let $D(e)$
+contain nonnegative absolute derivative bounds by source and lag.
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Subexpression & Amplitude bound $A$ & Derivative bounds $D$\\
+\midrule
+Constant $c$ & $|c|$ & $0$\\
+Lag leaf & $+\infty$ & $1$ at its source/lag, $0$ elsewhere\\
+$\tanh(e)$ & $1$ & $D(e)$\\
+$e_1+e_2$ & $A(e_1)+A(e_2)$ & $D(e_1)+D(e_2)$\\
+$e_1e_2$ & $A(e_1)A(e_2)$ & $A(e_2)D(e_1)+A(e_1)D(e_2)$\\
+\bottomrule
+\end{tabular}
+\caption{Project rules for global size and derivative bounds. A zero
+derivative contributes zero even when the other amplitude bound is infinite.
+The $\tanh$ row uses $|\tanh'(z)|\leq1$ and can overestimate the true derivative.}
+\label{tab:ast-global-bounds}
+\end{table}
+For a product, a perturbation in either factor is multiplied by the other
+factor's magnitude; this is the product rule. Saturating the nonlinear
+factors makes these upper bounds finite. A free linear term can have
+unbounded amplitude and a finite derivative. The theorem uses the
+derivative budgets and the moment at the reference history, so such terms
+can remain in the factor-mode construction.
+
+\subparagraph{3. Scale the combined sensitivity below one.}
+For offset $d$, stack all target-by-source derivative bounds into an
+$N\times N$ nonnegative matrix $\mathbf D_d$. Its largest singular value
+bounds the amplification of a change in that whole historical vector.
+Set
+\begin{equation}
+ \widetilde a_d=\|\mathbf D_d\|_2,\qquad
+ \widetilde c=\sum_d\widetilde a_d,\qquad
+ \eta_{\mathrm{GMC}}=
+ \eta_{\mathrm{safe}}\min\{1,g_\star/\widetilde c\}.
+ \label{eq:implemented-gmc-scaling}
+\end{equation}
+When $\widetilde c=0$, the minimum is defined as one. The defaults
+$g_\star=0.8$ and $\eta_{\mathrm{safe}}=0.95$ give a final summed budget
+$c_{\mathrm{GMC}}\leq0.76$. All output trees receive the same calculated
+root multiplier, stored as \texttt{GMC\_SCALE}. It is computed after
+sampling the structure and bindings. This changes the executed
+coefficients while preserving the lag support.
+
+Integrating the derivative bound along the line between two histories
+gives Eq.~\eqref{eq:implemented-gmc-condition}. The additive innovation
+cancels in that comparison because its numerical value is shared.
+Using a whole matrix for each lag accounts for feedback between channels.
+
+\subparagraph{4. Check the reference moment and retain the verification record.}
+With the scaled drift $F_{\mathcal T}$, the Gaussian innovation law gives
+\begin{equation}
+ \|\mathcal R_{\mathcal T}(\mathbf0;\boldsymbol\varepsilon)\|_{L^2}
+ =\left(\|F_{\mathcal T}(\mathbf0)\|_2^2+
+                   N\sigma_\varepsilon^2\right)^{1/2}<\infty.
+ \label{eq:implemented-gmc-anchor}
+\end{equation}
+Thus the theorem's reference-moment condition is checked directly even
+when the drift is unbounded away from zero.
+\texttt{ShaoWuCertificate} stores the lag budgets, their sum, the reference
+moment, and the innovation moment. Its guarantee is identified as
+\path{geometric_moment_contraction}.
+
+For example, the proposed drift $0.3\tanh(x_t)\tanh(x_{t-1})$ has two
+derivative bounds of $0.3$. Applying the default safety factor gives
+\begin{equation}
+ x_{t+1}=0.285\tanh(x_t)\tanh(x_{t-1})+\varepsilon_{t+1},
+ \qquad \varepsilon_{t+1}\sim\mathcal N(0,0.05^2).
+ \label{eq:implemented-gmc-example}
+\end{equation}
+The final total sensitivity bound is $0.57<1$ and the reference moment is
+finite. This is a worked project construction using the cited theorem.
+
+\subsubsection{Product-Output Saturation and Moment Bounds}
+The second standard option evaluates the product first, then applies
+$\tanh$ once. Its construction keeps history-independent multiplicative
+coefficients outside the saturation: both $a(z_1z_2)$ and $(az_1)z_2$
+therefore produce $a\tanh(z_1z_2)$. For three or more factors the entire
+connected product is saturated once. Additive terms keep their original
+roles.
+
+This choice directly bounds the product's output. Its sensitivity has a
+different behaviour:
+\begin{equation}
+ \frac{\partial\,\tanh(z_1z_2)}{\partial z_1}
+ =z_2\bigl[1-\tanh^2(z_1z_2)\bigr].
+ \label{eq:implemented-product-output-derivative}
+\end{equation}
+At $z_1=0$, this derivative equals $z_2$. Distinct lag coordinates can make
+it arbitrarily large. Repeated occurrences of the same coordinate require
+a separate calculation: $\tanh(z^2)$ has a bounded derivative.
+Consequently, the conservative AST derivative test records what it can
+verify; an infinite computed upper bound can represent overestimation.
+
+The standard product-output mode checks a \emph{uniform second-moment
+bound} by a separate project argument. Its growth envelope is
+\begin{equation}
+ \|F_{\mathcal T}(\mathbf{s})\|_2
+ \leq B_{\mathrm{amp}}+
+      \sum_{d=0}^{L-1} b_d^{\mathrm{amp}}\|\mathbf{s}_d\|_2,
+ \qquad q_{\mathrm{amp}}:=\sum_d b_d^{\mathrm{amp}}<1.
+ \label{eq:implemented-amplitude-envelope}
+\end{equation}
+Here $B_{\mathrm{amp}}$ covers constants and bounded nonlinear terms.
+The nonnegative $b_d^{\mathrm{amp}}$ cover the magnitude of the remaining
+unsaturated historical terms. They are \emph{growth coefficients}, whereas
+$a_d^{\mathrm{GMC}}$ bound differences between histories.
+
+To compute the envelope, a parameter contributes its absolute value to
+the bounded part; a lag contributes one to its source/lag growth
+coefficient; $\tanh(e)$ contributes a bounded part of one. Addition sums
+these bounds. Multiplication by a bounded factor scales them. A product of
+two unbounded envelopes is flagged for another construction. The mode
+stacks the nonnegative growth coefficients into one target-by-source matrix
+per lag and uses its largest singular value for $b_d^{\mathrm{amp}}$;
+$B_{\mathrm{amp}}$ is the Euclidean norm of the componentwise bounded parts.
+The mode
+scales the complete drift using Eq.~\eqref{eq:implemented-gmc-scaling}
+with the unscaled growth-coefficient sum in place of $\widetilde c$.
+It stores the correspondingly scaled envelope for the executed equation.
+Its root multiplier is stored as \texttt{AMPLITUDE\_SCALE}.
+
+Let $M_0$ bound the $L^2$ norm of every initial lag vector. Minkowski's
+inequality, the triangle inequality for root mean squared magnitudes, gives
+\begin{equation}
+ \|\mathbf x_{t+1}\|_{L^2}
+ \leq B_{\mathrm{amp}}+
+      \sum_d b_d^{\mathrm{amp}}\|\mathbf x_{t-d}\|_{L^2}
+      +\sigma_\varepsilon\sqrt N.
+ \label{eq:implemented-amplitude-recursion}
+\end{equation}
+Define
+\begin{equation}
+ M_{\mathrm{amp}}=
+ \max\left\{M_0,\,
+       \frac{B_{\mathrm{amp}}+\sigma_\varepsilon\sqrt N}
+            {1-q_{\mathrm{amp}}}\right\}.
+ \label{eq:implemented-amplitude-bound}
+\end{equation}
+If the historical vectors have $L^2$ norms at most $M_{\mathrm{amp}}$,
+the next vector has norm at most
+$B_{\mathrm{amp}}+q_{\mathrm{amp}}M_{\mathrm{amp}}
++\sigma_\varepsilon\sqrt N\leq M_{\mathrm{amp}}$.
+Induction therefore yields
+$\sup_{v\geq1}\mathbb E\|\mathbf x_{\tau+v}\|_2^2
+\leq M_{\mathrm{amp}}^2$.
+The uniform initial box gives the safe choice $M_0=r_0\sqrt N$.
+The implementation stores these quantities in
+\texttt{AmplitudeMoment\-Certificate}, with guarantee
+\path{uniform_second_moment_bound}. This is our derived amplitude
+criterion. Exponential forgetting and a stationary initialization require
+their own additional conditions.
+
+The pure saturated-product example
+$x_{t+1}=\tanh(s_0s_1)+\varepsilon_{t+1}$ is particularly simple:
+independent zero-mean Gaussian innovations give
+$\mathbb E x_{t+1}^2\leq1+\sigma_\varepsilon^2$ at every generated step.
+If two inputs are instead supplied by an already jointly stationary
+external process, applying a fixed pointwise transformation preserves
+their time-shift-invariant joint laws. In a feedback generator, the
+history belongs to the newly defined recurrence, whose own growth or
+contraction conditions must be checked as above.
+
+For a scalar example
+$F(\mathbf{s})=0.2s_0+0.4\tanh(s_0s_1)$, the growth coefficient is $0.2$
+and the bounded part is $0.4$. The default multiplier is $0.95$, giving
+$q_{\mathrm{amp}}=0.19$ and $B_{\mathrm{amp}}=0.38$.
+With $r_0=1$ and $\sigma_\varepsilon=0.05$,
+Eq.~\eqref{eq:implemented-amplitude-bound} gives $M_{\mathrm{amp}}=1$.
+This example controls expected squared magnitude while allowing stochastic
+fluctuations and sensitivity to the history.
+
+\subsubsection{Initialization and Independent Innovations}
+Both standard modes draw their initial $N\times L$ history directly from
+$[-r_0,r_0]$, then generate the requested observations with independent
+Gaussian innovations. The initial values are retained as a separate history
+in the returned array; the subsequent entries are recursively generated.
+A dataset window or diagnostic must select those generated entries explicitly.
+
+The two standard transformations admit the configured sums/products through
+their respective checks; a numerical verification failure is reported.
+Legacy all-lag saturation and unsaturated sampling remain available for
+reproducing earlier experiments. The unsaturated sampler rejects the entire
+candidate mechanism when its conservative global derivative bound is
+infinite, then samples a new skeleton, coefficients, and lags with a
+deterministically derived attempt seed. This retry cost belongs to mechanism
+sampling. A recorded zero-rejection rate for a standard mode describes the
+chosen prior and execution.
+
+Gaussian innovations have unbounded support. A finite amplitude threshold
+can therefore be crossed even by a process with a uniform second-moment
+bound or a stationary law. Tail flatness, low amplitude, and their observed
+changes remain empirical diagnostics, as defined in
+Section~\ref{sec:generator-diagnostics}.
+
+\paragraph{Independent innovations and the interpretation of convergence.}
+\label{sec:implemented-shao-wu-independent-noise}
+The GMC comparison shares the actual numerical innovation at each future
+step. Independent dataset trajectories receive distinct initialization and
+innovation streams, derived from the root seed and trajectory index.
+
+For the factor mode, the contraction and moment assumptions imply
+forgetting of initialization and convergence in distribution to a common
+stationary law. \citet[Theorem~2, p.~427; discussion pp.~426--428]{wu2004iterated}
+give the underlying random-iteration result. Applying it separately to two
+independent runs gives
+\begin{equation}
+ \operatorname{Law}(\mathbf x_{\tau+v})\Rightarrow\pi_{\mathrm{GMC}},
+ \qquad
+ \operatorname{Law}(\mathbf x'_{\tau+v})\Rightarrow\pi_{\mathrm{GMC}}.
+ \label{eq:implemented-gmc-independent-laws}
+\end{equation}
+Independent trajectories can have different values while their laws
+approach the same regime. For independent stationary copies, direct
+expansion of the square yields
+\begin{equation}
+ \mathbb E\|\mathbf x_t-\mathbf x'_t\|_2^2
+ =2\sum_{k=1}^{N}\operatorname{Var}_{\pi_{\mathrm{GMC}}}(x_{k,t}).
+ \label{eq:implemented-gmc-independent-distance}
+\end{equation}
+The product-output amplitude record certifies the moment bound derived
+above; distributional convergence is a separate question for that mode.

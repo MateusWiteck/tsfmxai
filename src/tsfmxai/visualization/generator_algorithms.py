@@ -8,7 +8,7 @@ ALGORITHMS = {
          ("Sample parameter and lag leaves (time optional)", False),
          ("Sample Catalan-weighted binary tree shape", False),
          ("Label ADD/MULTIPLY operators", False),
-         ("Canonicalize and bind coefficients and lags", False),
+         ("Name slots and bind coefficients and lags", False),
          ("Retain the executable mechanism", False),
          ("Sample a uniform initial history", False),
          ("Execute AST and add Gaussian innovations", False),

@@ -1,0 +1,19 @@
+\subsubsection{Stationary Laws of Random Function Iterations}
+
+\citet[Theorem~1]{diaconis1999iterated} represent a Markov chain as
+$\mathbf{s}_{t+1}=\mathcal F_{\xi_{t+1}}(\mathbf{s}_t)$ with i.i.d.
+random Lipschitz maps. On a complete separable metric space, the theorem
+requires a finite expected Lipschitz factor, a finite expected displacement
+from some reference state, and contraction on average:
+\begin{equation}
+ \mathbb E[\log K_\xi]<0.
+\end{equation}
+Here $K_\xi$ bounds the amplification of a state difference by the sampled
+map. The conclusion is a unique stationary distribution and geometric
+convergence in the Prokhorov distance, a distance between probability laws.
+The benchmark's uniform bound $K_\xi\leq\gamma<1$, together with the
+bounded invariant domain, supplies a stronger sufficient construction.
+The result explains why persistent innovations can sustain fluctuations
+while the distribution forgets the initial state. Forward simulations
+approach a stationary law; coupling two starting histories with the same
+noise gives a separate comparison of their realized paths.

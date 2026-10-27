@@ -1,0 +1,293 @@
+\subsection{Jacobian-Based Contraction on an Invariant Domain}
+\label{sec:implemented-domain-contraction}
+
+\subsubsection{Pipeline Overview}
+The starting point is a randomly sampled equation that uses past observations
+to generate the next value. We adjust its coefficients so that it can be
+repeated safely within a chosen range. The pipeline is:
+\begin{enumerate}
+\item \textbf{Sample the equation.} Generate an AST with lagged inputs and
+coefficients, preserving an explicit formula for the mechanism.
+\item \textbf{Choose the allowed range and noise.} Specify where all initial
+values may lie and the largest innovation that may be added at each step.
+\item \textbf{Bound the output and its sensitivity.} Calculate conservative
+limits on the equation's magnitude and on how changes in its historical
+inputs affect the next state, including the copied lag values.
+\item \textbf{Scale and verify the equation.} Reduce its overall strength
+until the generated values remain in the allowed range and differences
+between histories shrink under shared future noise.
+\item \textbf{Generate trajectories.} Draw initial values inside that range
+and execute the adjusted equation with bounded random innovations.
+\item \textbf{Check the implementation empirically.} Simulate several
+trajectories and check that their values and measured sensitivities respect
+the calculated limits.
+\end{enumerate}
+Steps 3--4 establish the sufficient mathematical conditions; Step 6 tests
+whether the implementation behaves consistently with them. The following
+steps explain both the calculation and its purpose.
+
+\subsubsection{Steps 1--2: Sample the Equation and Define Its Allowed Inputs}
+This method controls the feedback created when generated values become inputs
+to later steps. We want two properties: every observation stays inside a
+chosen interval, and differences caused by the initial history shrink over
+time. To examine the second property, run the same equation from two different
+histories and give both runs exactly the same sampled noise value at each
+future step. Their remaining difference then reflects the effect of the
+initial histories. Fresh noise can keep both series fluctuating.
+
+The sampler in \path{src/tsfmxai/generators/contraction.py} generates a
+sum/product AST and attaches coefficients to its lag leaves. We choose
+an allowed interval $[-r_D,r_D]$ and a noise bound $b_\varepsilon<r_D$.
+Every initial lag value must belong to that interval. These choices define
+where the equation will be checked and reserve room for the innovations.
+
+\paragraph{Store the values needed for the next update.}
+Consider the two-lag example
+\begin{equation}
+ x_{t+1}=0.2x_t+0.1x_tx_{t-1}+\varepsilon_{t+1},
+ \qquad F_{\mathcal T}(s_0,s_1)=0.2s_0+0.1s_0s_1.
+ \label{eq:jacobian-explanatory-recurrence}
+\end{equation}
+The function $F_{\mathcal T}$ is the deterministic part of the equation;
+$\varepsilon_{t+1}$ is the random innovation added at that step.
+The next value requires both $x_t$ and $x_{t-1}$, so store them together as
+$\mathbf{s}_t=(x_t,x_{t-1})^\top$. This vector is called the \emph{state}:
+it contains the complete history needed for one update. Its first coordinate,
+$s_0$, is the newest value; $s_1$ is the preceding value.
+
+After generating $x_{t+1}$, the new state is $(x_{t+1},x_t)^\top$:
+insert the new value, move the previous newest value one position back, and
+discard the oldest value. When the largest lag is $L$, the state stores the
+$L$ most recent observations, and this complete update is
+\begin{equation}
+ \mathcal F_\varepsilon(\mathbf{s})=
+ \bigl(F_{\mathcal T}(\mathbf{s})+\varepsilon,
+       s_0,\ldots,s_{L-2}\bigr)^\top.
+ \label{eq:implemented-state-transition}
+\end{equation}
+Thus $\mathcal F_\varepsilon$ describes both the equation and its memory
+update. Stacking lagged observations this way is the \emph{augmented-state}
+representation discussed by \citet{laraba2016setinvariance}.
+
+\subsubsection{Step 3: Bound the Output and the Sensitivity of the Whole State}
+\paragraph{Use derivatives to measure sensitivity to that history.}
+A partial derivative measures how an output changes when one input changes
+slightly while the other inputs stay fixed. The \emph{Jacobian} collects
+these derivatives for every output coordinate of the state update.
+For the example above,
+\begin{equation}
+ J_{\mathcal F}(\mathbf{s})=
+ \begin{pmatrix}
+  \partial F_{\mathcal T}/\partial s_0 &
+  \partial F_{\mathcal T}/\partial s_1\\
+  1 & 0
+ \end{pmatrix}
+ =\begin{pmatrix}
+   0.2+0.1s_1 & 0.1s_0\\
+   1 & 0
+  \end{pmatrix}.
+ \label{eq:jacobian-explanatory-matrix}
+\end{equation}
+The first row measures the sensitivity of the newly generated value.
+The second row describes memory: the previous newest value is copied with
+multiplier one. The additive noise has derivative zero with respect to the
+history. In the two-run comparison its value is shared, so it also cancels
+when subtracting the two updates.
+
+\paragraph{Evaluate the bounds over every allowed history.}
+Choose a radius $r_D>0$ and require every stored value to lie in
+$[-r_D,r_D]$. The set of all allowed histories is
+$D=[-r_D,r_D]^L$, called a \emph{box}. With two lags and $r_D=1$, it contains
+every pair $(s_0,s_1)$ whose coordinates are between $-1$ and $1$.
+Write $\overline d_d$ for an upper bound on the magnitude of the derivative
+with respect to coordinate $s_d$. On this box, the example's bounds are
+$\overline d_0=0.3$ and $\overline d_1=0.1$.
+They cover every allowed history, rather than only the values visited by
+sampled trajectories.
+
+Derivatives initially describe small changes. To control a finite difference
+between two histories, consider the straight line joining them. Every point
+on that line remains inside a box; this property is called \emph{convexity}.
+The derivative bound therefore applies along the entire line and bounds the
+total output difference. The argument requires a continuously differentiable
+update: the derivatives exist and vary continuously. The sampled sums and
+products satisfy this smoothness requirement.
+
+\paragraph{Measure changes in the whole state, including copied lags.}
+For $L\geq2$, each memory-copy row has one entry equal to one. The ordinary
+infinity norm takes the largest absolute row sum, so the augmented Jacobian
+has norm at least one even when the recurrence eventually forgets its
+history. To establish strict contraction at each update, we use weights
+that account for information moving into older memory positions while
+retaining its influence on new observations. Specifically, we use fixed
+positive weights $w_d=q_w^d$, with $q_w>1$, and measure a state
+difference $\Delta\mathbf{s}=\mathbf{s}-\mathbf{s}'$ by
+\begin{equation}
+ \|\Delta\mathbf{s}\|_{\mathbf w,\infty}
+ =\max_{0\leq d<L}\frac{|s_d-s'_d|}{w_d}.
+ \label{eq:jacobian-weighted-distance}
+\end{equation}
+In words, divide each coordinate difference by its weight and take the largest
+result. This is the \emph{weighted infinity norm}; the same weights are used
+at every step. For two lags with $q_w=1.25$, an unchanged difference copied
+from the newest to the older position is divided by 1.25, giving a factor
+of 0.8. At the same time, the older lag's sensitivity in the new-value row is
+multiplied by 1.25, so its effect on future observations remains included.
+
+Combining the new-value row and the memory-shift rows gives, for $L\geq2$,
+\begin{equation}
+ \sup_{\mathbf{s}\in D}\|J_{\mathcal F}(\mathbf{s})\|_{\mathbf w,\infty}
+ \leq\max\left\{\sum_{d=0}^{L-1}\overline d_d q_w^d,
+                       q_w^{-1}\right\}<1.
+ \label{eq:implemented-weighted-contraction}
+\end{equation}
+Here $\sup$ means the worst case over all histories in the box, and the matrix
+norm measures the largest amplification of the state difference in
+Eq.~\eqref{eq:jacobian-weighted-distance}. The sum bounds the new-value row;
+$q_w^{-1}$ bounds each copy into the next history position. For $L=1$,
+only the new-value row exists. Call a verified common upper bound $\gamma<1$.
+While both runs remain in $D$, one update reduces the measured distance by
+a factor at most $\gamma$. Repeating this comparison for $v$ updates gives
+\begin{equation}
+ \|\mathbf{s}_{\tau+v}-\mathbf{s}'_{\tau+v}\|_{\mathbf w,\infty}
+ \leq\gamma^v
+       \|\mathbf{s}_{\tau}-\mathbf{s}'_{\tau}\|_{\mathbf w,\infty}.
+ \label{eq:jacobian-history-forgetting}
+\end{equation}
+The distance decreases geometrically. For example, $\gamma=0.8$ limits it
+after ten updates to $0.8^{10}\approx0.107$ times its initial value.
+This is a guaranteed upper bound on the remaining distance; particular
+trajectories can lose their dependence on the initial history faster.
+Each coordinate difference is at most its fixed weight multiplied by this
+measured distance. As the distance tends to zero, every individual
+lag-coordinate difference therefore tends to zero as well. The weighting
+changes how we measure the histories while leaving their generated values
+unchanged.
+
+\paragraph{Bound the output to keep subsequent states inside the checked box.}
+The bound above remains useful only while the states stay inside $D$.
+We therefore also require
+$\mathcal F_\varepsilon(D)\subseteq D$ for every allowed innovation: starting
+inside the box must produce another state inside it. This property is called
+\emph{invariance}. With $|\varepsilon_t|\leq b_\varepsilon$, it is ensured by
+\begin{equation}
+ \sup_{\mathbf{s}\in D}|F_{\mathcal T}(\mathbf{s})|
+       +b_\varepsilon\leq r_D.
+ \label{eq:jacobian-domain-containment}
+\end{equation}
+The equation reserves enough room for both the deterministic output and the
+largest allowed noise value. The copied lag values already belong to the
+interval. Starting with a history in $D$, the same reasoning applies again
+at every step: all observations stay bounded, and the sensitivity estimate
+remains applicable.
+
+\paragraph{Connection to the published theory.}
+\citet[Definition~6 and Theorems~15--16]{tran2019convergence} develop the
+relationship between contraction and \emph{incremental stability}, the
+decrease of differences between trajectories. The fixed weighted norm and
+box argument above are the project's sufficient construction for this
+property. The state stacking and invariant-set viewpoint follow the concepts
+reviewed by \citet{laraba2016setinvariance}. The conclusions here concern
+histories inside the specified box and the specified bounded innovations.
+
+\paragraph{Calculate conservative bounds from the AST.}
+Starting at the leaves, the code records a possible value interval and
+absolute derivative bounds for each subtree. Addition adds the bounds;
+multiplication combines the intervals and uses the product rule for the
+derivatives. For example, $s_0s_1$ lies in $[-1,1]$ when both inputs do, and
+its derivatives are $s_1$ and $s_0$, each bounded in absolute value by one.
+These calculations cover the full box. They can overestimate the actual
+range, particularly when repeated leaves refer to the same coordinate.
+
+\subsubsection{Step 4: Scale the Equation and Verify Both Conditions}
+The constructor multiplies the complete expression by a calculated factor.
+Reducing this factor decreases both the
+deterministic output bound and the new-value row's derivative bounds. The
+factor must leave room for the noise in
+Eq.~\eqref{eq:jacobian-domain-containment} and meet the target gain in
+Eq.~\eqref{eq:implemented-weighted-contraction}. The copied-lag gain depends
+on $q_w$, so this weight parameter is chosen to meet the target as well.
+The final expression retains the multiplier, making the executed equation
+available for inspection and ground-truth extraction.
+
+\paragraph{Worked example using the implemented rules.}
+For Eq.~\eqref{eq:jacobian-explanatory-recurrence} on $[-1,1]^2$, the
+unscaled deterministic magnitude is at most 0.3 and the derivative bounds
+are $(0.3,0.1)$. The comparison settings use $q_w=1.25$, target gain 0.9,
+and uniform innovations with
+$b_\varepsilon=\sqrt{3}\,0.05\approx0.0866$. This uniform law has standard
+deviation 0.05, matching the Gaussian noise scale in the other families.
+These numerical settings are implementation choices within the admissible
+conditions: the target 0.9 leaves a gap of 0.1 below the contraction threshold,
+and $q_w=1.25$ gives a memory-copy gain of 0.8, below that target. The safety
+multiplier 0.95 applies a further 5\% reduction to the allowed drift scale.
+Both checks already pass; the constructor still applies its 0.95 safety
+multiplier. The executed drift is therefore
+$0.19s_0+0.095s_0s_1$. Its derivative bounds are $(0.285,0.095)$, giving
+\begin{equation}
+\begin{gathered}
+ \gamma=\max\{0.285+1.25(0.095),\,0.8\}=0.8,
+ \\
+ 0.285+\sqrt{3}(0.05)\approx0.3716<1.
+\end{gathered}
+ \label{eq:jacobian-worked-checks}
+\end{equation}
+Here the memory-copy row determines the final gain of 0.8; scaling the drift
+reduces only the new-value row. The first check controls forgetting of the
+initial history; the second
+keeps the generated values inside $[-1,1]$. This is a hand-worked project
+example, checked against the constructor in the test suite.
+
+\paragraph{Retain the verification record.}
+After scaling, the constructor checks the adjusted equation and stores the
+domain, noise bound, derivative bounds, and resulting gain. These quantities
+describe the equation that will actually be simulated. The implementation
+uses floating-point calculations and a safety margin when evaluating the
+bounds.
+
+\paragraph{Effect on the sampled mechanisms.}
+The scale changes the coefficients of the sampled equation and therefore
+the dynamics represented in the benchmark. Older lags receive larger
+multipliers in the sensitivity bound: with $q_w=1.25$, offset $d=11$
+(lag 12) contributes with weight $1.25^{11}\approx11.64$. This can require
+stronger attenuation of the whole expression. With the innovation scale
+held fixed, that attenuation can weaken dependence on the history and
+increase the relative influence of noise. These possible effects motivate
+the amplitude and nearly constant-tail diagnostics in
+Section~\ref{sec:generator-diagnostics}. The bound is a sufficient condition;
+an expression exceeding it may still satisfy a different stability criterion.
+
+\subsubsection{Step 5: Draw Initial Histories and Generate Trajectories}
+The current constructor handles one series and excludes an explicit time
+terminal. Its initial history is sampled uniformly inside the box; subsequent
+observations are generated directly. Uniform innovations supply the finite
+noise bound required for containment in the box.
+The mathematical checks permit any fixed initial history inside the box;
+uniform sampling is the current implementation's choice. A larger allowed
+range requires recalculating the bounds and the scale. The trajectory
+generator also checks that each newly generated value remains finite and
+inside the certified interval.
+
+\paragraph{Stationary law and initialization.}
+For each fixed sampled mechanism, the contraction and bounded invariant
+domain above, together with i.i.d. innovations, satisfy the conditions of
+\citet[Theorem~1]{diaconis1999iterated} for a unique stationary distribution
+of the lag state. The state distribution approaches this law from an
+arbitrary initial history inside the box. Strict stationarity from the
+start requires drawing the initial lag state jointly from that stationary
+law, independently of future innovations. Our uniform history sampling can
+instead produce an initialization transient, during which the distribution
+changes as the process approaches its stationary law. As discussed in
+Section~\ref{sec:generator-properties}, containment and forgetting still
+hold throughout that transient.
+
+\subsubsection{Step 6: Test the Implementation by Simulation}
+Monte Carlo simulations exercise the generator using several sampled
+histories and innovation sequences. They check whether generated values
+remain inside the chosen interval and whether local Jacobian values respect
+the verified gain. This can reveal an error in the bound calculation, lag
+ordering, or trajectory execution. The mathematical guarantee comes from
+the full-domain checks in Steps 3--4; the simulations provide an additional
+implementation check. The common diagnostics in
+Section~\ref{sec:generator-diagnostics} then measure explosions, low amplitude,
+and nearly constant tails under the declared evaluation protocol.

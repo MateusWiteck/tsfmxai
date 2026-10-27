@@ -1,4 +1,4 @@
-"""Canonical symbolic mechanism representations."""
+"""Symbolic mechanism representations."""
 
 from tsfmxai.representations.expression import (
     Add,
@@ -10,8 +10,6 @@ from tsfmxai.representations.expression import (
     Parameter,
     Time,
     Tanh,
-    canonicalize_and_relabel,
-    canonicalize_commutative,
     children,
     format_tree,
     lag_slots,
@@ -38,8 +36,6 @@ __all__ = [
     "Parameter",
     "Time",
     "Tanh",
-    "canonicalize_and_relabel",
-    "canonicalize_commutative",
     "children",
     "format_tree",
     "lag_slots",

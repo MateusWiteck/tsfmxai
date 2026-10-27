@@ -1,0 +1,21 @@
+\subsection{Reproducible and Parallel Generation}
+\label{sec:generator-parallel}
+
+\subsubsection{Seeds and Independent Random Streams}
+Seeds are derived from the root seed and explicit job, attempt, and stream
+indices. Local random-number generators isolate these draws from the
+caller's global random state. Separate streams identify the mechanism,
+initialization, and innovations; changing the number of workers preserves
+the indexed draws and their final ordering. Worker-count and seed
+independence are tested in the test suite.
+
+\subsubsection{Parallel Jobs and Batch Construction}
+The existing batch builder assigns one mechanism and several trajectories to
+each job, then assembles windows with a requested minimum number of distinct
+skeletons. It is implemented in
+\path{src/tsfmxai/datasets/parallel_batch.py}. Ordering is restored when jobs
+finish. This batch builder currently uses the original sampler with acceptance
+checks; the four-family diagnostic comparison in
+Section~\ref{sec:generator-evaluation-protocol} evaluates every attempted
+mechanism and records failures. The generator policies and the empirical
+comparison therefore retain their respective acceptance and accounting rules.

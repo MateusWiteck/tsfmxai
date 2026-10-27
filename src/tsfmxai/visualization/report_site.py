@@ -1,4 +1,4 @@
-"""Compile the canonical LaTeX report and stage its PDF for the Quarto site."""
+"""Compile the LaTeX report and stage its PDF for the Quarto site."""
 
 from pathlib import Path
 import shutil
@@ -16,7 +16,7 @@ def prepare_report_site(repository: Path) -> Path:
     A failed build never silently publishes a previously compiled PDF.
     """
     repository = Path(repository).resolve()
-    report = repository / "report"
+    report = repository / "report" / "english"
     for required in (report / "main.tex", repository / "references/library.bib"):
         if not required.is_file():
             raise FileNotFoundError(f"Required report source is missing: {required}")

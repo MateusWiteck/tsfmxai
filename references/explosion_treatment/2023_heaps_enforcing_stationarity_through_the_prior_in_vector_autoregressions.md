@@ -37,8 +37,10 @@ note's basename.
 
 # Implemented adaptation and limits
 
-The implementation draws \(U_1,\ldots,U_p\) and positive-definite
-\(\Sigma_\varepsilon\). It maps to partial autocorrelations, uses the Appendix's
+The implementation draws \(U_1,\ldots,U_p\) for a specified positive-definite
+\(\Sigma_\varepsilon\). The sampler fixes this covariance from the configured
+innovation scale; the lower-level constructor accepts a full covariance matrix.
+It maps to partial autocorrelations, uses the Appendix's
 two recursions, verifies the companion radius, and converts the final
 coefficients to one linear AST per target. It preserves the specified symmetric
 square-root convention and matrix multiplication order.
