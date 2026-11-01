@@ -1,5 +1,13 @@
 """Symbolic mechanism representations."""
 
+from tsfmxai.representations.canonical_polynomial import (
+    CanonicalPolynomial,
+    CanonicalTerm,
+    canonicalize_polynomial,
+    format_canonical_polynomial,
+    format_monomial,
+    monomial_order,
+)
 from tsfmxai.representations.expression import (
     Add,
     Expression,
@@ -28,6 +36,8 @@ from tsfmxai.representations.expression import (
 
 __all__ = [
     "Add",
+    "CanonicalPolynomial",
+    "CanonicalTerm",
     "Expression",
     "ExpressionNode",
     "Lag",
@@ -37,11 +47,15 @@ __all__ = [
     "Time",
     "Tanh",
     "children",
+    "canonicalize_polynomial",
     "format_tree",
+    "format_canonical_polynomial",
+    "format_monomial",
     "lag_slots",
     "leaf_count",
     "node_count",
     "node_label",
+    "monomial_order",
     "operator_count",
     "parameter_slots",
     "relabel_slots",

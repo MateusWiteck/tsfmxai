@@ -1,5 +1,10 @@
 """Mechanism and trajectory generators."""
 
+from tsfmxai.generators.combinatorial_expression import (
+    CombinatorialTreeConfig,
+    CombinatorialTreeSampler,
+)
+
 from tsfmxai.generators.heaps import (
     HeapsCertificate, HeapsVARConfig, HeapsVARMechanism,
     build_heaps_var_mechanism, initialize_heaps_history,
@@ -83,6 +88,8 @@ from tsfmxai.generators.kernel_synth import (
 )
 
 __all__ = [
+    "CombinatorialTreeConfig",
+    "CombinatorialTreeSampler",
     "HeapsCertificate", "HeapsVARConfig", "HeapsVARMechanism",
     "build_heaps_var_mechanism", "initialize_heaps_history",
     "partial_autocorrelations_to_var", "unconstrained_to_partial_autocorrelations",
