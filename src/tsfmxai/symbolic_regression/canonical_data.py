@@ -5,20 +5,23 @@ from __future__ import annotations
 from hashlib import sha256
 import json
 from math import isfinite
+from dataclasses import replace
 
 from tsfmxai.generators import CombinatorialTreeConfig, CombinatorialTreeSampler, derive_sample_seed
-from tsfmxai.representations import Add, Multiply, Parameter, Lag, canonicalize_polynomial
+from tsfmxai.representations import Add, Multiply, Parameter, Lag, Tanh, canonicalize_polynomial
+from tsfmxai.generators.shao_wu import saturate_product_lags
 
 PAD, BOS, EOS, END_TERM = 0, 1, 2, 3
-ATOM_OFFSET = 4
+TANH_TOKEN, ATOM_OFFSET = 4, 5
 
 
 class CanonicalCodec:
     """Prefix AST input; sorted sparse factors separated by END_TERM output.
 
-    Source token IDs 1/2/3 denote ADD/MUL/PARAM; IDs >=4 identify series-lag
-    atoms. Numeric values are a separate source channel. Target token IDs
-    1/2/3 denote BOS/EOS/END_TERM; IDs >=4 use the same atom dictionary.
+    Source IDs 1/2/3/4 denote ADD/MUL/PARAM/TANH. Factor IDs begin at 5;
+    each (series, lag) has separate RAW and TANH IDs. Numeric parameter
+    values use a separate source channel. Target IDs 1/2/3 denote
+    BOS/EOS/END_TERM and share the factor IDs with the source.
     """
 
     def __init__(self, num_series=1, minimum_lag=1, maximum_lag=12, max_degree=4):
@@ -27,18 +30,21 @@ class CanonicalCodec:
         self.maximum_lag = maximum_lag
         self.max_degree = max_degree
         self.lag_count = maximum_lag - minimum_lag + 1
-        self.vocab_size = ATOM_OFFSET + num_series * self.lag_count
+        self.vocab_size = ATOM_OFFSET + 2 * num_series * self.lag_count
 
-    def atom_token(self, series, lag):
+    def atom_token(self, series, lag, transformation="raw"):
         if not (0 <= series < self.num_series and self.minimum_lag <= lag <= self.maximum_lag):
             raise ValueError("Atom outside codec vocabulary.")
-        return ATOM_OFFSET + series * self.lag_count + lag - self.minimum_lag
+        if transformation not in ("raw", "tanh"):
+            raise ValueError("Unknown lag transformation.")
+        return ATOM_OFFSET + 2 * (series * self.lag_count + lag - self.minimum_lag) + (transformation == "tanh")
 
     def token_atom(self, token):
         if not ATOM_OFFSET <= token < self.vocab_size:
             raise ValueError("Token is not a lag atom.")
-        series, offset = divmod(token - ATOM_OFFSET, self.lag_count)
-        return (series, self.minimum_lag + offset)
+        atom, kind = divmod(token - ATOM_OFFSET, 2)
+        series, offset = divmod(atom, self.lag_count)
+        return (series, self.minimum_lag + offset, "tanh") if kind else (series, self.minimum_lag + offset)
 
     def encode(self, mechanism):
         prefix_ids, prefix_values = [], []
@@ -50,13 +56,15 @@ class CanonicalCodec:
             elif isinstance(node, Lag):
                 token = self.atom_token(node.variable, mechanism.binding.lag_values[node.slot])
                 value = 0.0
+            elif isinstance(node, Tanh) and isinstance(node.operand, Lag):
+                token, value = TANH_TOKEN, 0.0
             elif isinstance(node, (Add, Multiply)):
                 token, value = (1 if isinstance(node, Add) else 2), 0.0
             else:
-                raise TypeError("Neural experiment supports polynomial ASTs only.")
+                raise TypeError("Only RAW and TANH lag atoms are supported.")
             prefix_ids.append(token)
             prefix_values.append(value)
-            left = visit(node.left) if isinstance(node, (Add, Multiply)) else -1
+            left = visit(node.left) if isinstance(node, (Add, Multiply)) else visit(node.operand) if isinstance(node, Tanh) else -1
             right = visit(node.right) if isinstance(node, (Add, Multiply)) else -1
             index = len(tree_ids)
             tree_ids.append(token)
@@ -83,7 +91,8 @@ class CanonicalCodec:
             'target': target, 'coefficient_targets': coefficient_targets,
             'skeleton': polynomial.skeleton, 'coefficients': polynomial.coefficients,
             'formula': mechanism.formula, 'sample_index': mechanism.sample_index,
-            'operator_count': (len(tree_ids) - 1) // 2,
+            'operator_count': sum(token in (1, 2) for token in tree_ids),
+            'tanh_count': tree_ids.count(TANH_TOKEN),
             'parameter_count': tree_ids.count(3),
             'degree': max(map(len, polynomial.skeleton), default=0),
         }
@@ -116,7 +125,7 @@ class CanonicalCodec:
                 'valid': bool(valid and ended and not current), 'ended': ended}
 
     def target_text(self, tokens):
-        names = {PAD: 'PAD', BOS: 'BOS', EOS: 'EOS', END_TERM: 'END_TERM'}
+        names = {PAD: 'PAD', BOS: 'BOS', EOS: 'EOS', END_TERM: 'END_TERM', TANH_TOKEN: 'TANH'}
         return ' '.join(names[t] if t < ATOM_OFFSET else f'LAG{self.token_atom(t)}' for t in tokens)
 
 
@@ -128,6 +137,23 @@ def split_for_skeleton(skeleton, split_seed):
     key = f'{split_seed}|{skeleton_digest(skeleton)}'.encode()
     bucket = int.from_bytes(sha256(key).digest()[:8], 'big') % 10_000
     return 'train' if bucket < 8000 else 'validation' if bucket < 9000 else 'test'
+
+
+def select_canonical_mechanism(sampled, *, probability, root_seed, sample_index):
+    """Select the original or protected AST using a per-example deterministic draw.
+
+    The choice has its own seed namespace, so sampling the AST and changing
+    worker count cannot alter it. Both encoder input and decoder target are
+    subsequently derived from the selected expression.
+    """
+    if not isinstance(probability, (int, float)) or not isfinite(probability) or not 0 <= probability <= 1:
+        raise ValueError("protection_probability must be finite and inside [0, 1].")
+    if type(root_seed) is not int or root_seed < 0 or type(sample_index) is not int or sample_index < 0:
+        raise ValueError("root_seed and sample_index must be non-negative integers.")
+    draw = int.from_bytes(sha256(f"protection|{root_seed}|{sample_index}".encode()).digest()[:8], "big") / 2**64
+    selected = draw < probability
+    return (replace(sampled, expression=saturate_product_lags(sampled.expression))
+            if selected else sampled), selected
 
 
 def generate_canonical_dataset(config):
@@ -143,7 +169,12 @@ def generate_canonical_dataset(config):
         if index >= 50 * sum(sizes.values()):
             raise RuntimeError('Requested split quotas are unreachable with this generation budget.')
         seed = derive_sample_seed(config['data_seed'], index)
-        example = codec.encode(sampler.sample(seed=seed, sample_index=index))
+        sampled = sampler.sample(seed=seed, sample_index=index)
+        mechanism, selected = select_canonical_mechanism(
+            sampled, probability=config.get('protection_probability', 1.0),
+            root_seed=config['data_seed'], sample_index=index)
+        example = codec.encode(mechanism)
+        example['protection_selected'] = selected
         partition = split_for_skeleton(example['skeleton'], config['split_seed'])
         if len(datasets[partition]) < sizes[partition]:
             if len(example['target']) - 1 > config['max_decode_steps']:
@@ -164,5 +195,8 @@ def generate_canonical_dataset(config):
         'fingerprint': fingerprint.hexdigest(), 'split_intersections': 0,
         'max_source_nodes': max(len(e['tree_ids']) for ds in datasets.values() for e in ds),
         'max_target_steps': max(len(e['target']) - 1 for ds in datasets.values() for e in ds),
+        'selected_by_protection': {
+            name: sum(e['protection_selected'] for e in examples)
+            for name, examples in datasets.items()},
     }
     return datasets, summary, codec

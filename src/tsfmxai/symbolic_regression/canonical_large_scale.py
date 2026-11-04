@@ -18,7 +18,9 @@ import torch
 
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig, CombinatorialTreeSampler
 from tsfmxai.generators.random_expression import derive_sample_seed
-from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec, skeleton_digest
+from tsfmxai.symbolic_regression.canonical_data import (
+    CanonicalCodec, select_canonical_mechanism, skeleton_digest,
+)
 from tsfmxai.symbolic_regression.canonical_models import CanonicalEncoderDecoder, collate_canonical, supervised_loss
 from tsfmxai.symbolic_regression.canonical_training import atomic_json, evaluate_greedy, evaluate_teacher, utc_now
 
@@ -27,7 +29,9 @@ SPLITS = ("train", "validation", "test")
 SCHEMA = pa.schema([
     ("sample_index", pa.int64()), ("skeleton_hash", pa.binary(32)),
     ("skeleton_json", pa.string()), ("formula", pa.string()),
-    ("operator_count", pa.int16()), ("parameter_count", pa.int16()), ("degree", pa.int16()),
+    ("operator_count", pa.int16()), ("parameter_count", pa.int16()),
+    ("tanh_count", pa.int16()), ("protection_selected", pa.bool_()),
+    ("degree", pa.int16()),
     *[(name, pa.list_(pa.int16())) for name in
       ("prefix_ids", "tree_ids", "left_children", "right_children", "target")],
     *[(name, pa.list_(pa.float64())) for name in
@@ -47,7 +51,8 @@ def _row(example):
             "skeleton_json": json.dumps(example["skeleton"], separators=(",", ":")),
             "formula": example["formula"],
             **{name: example[name] for name in (
-                "operator_count", "parameter_count", "degree", "prefix_ids", "tree_ids",
+                "operator_count", "parameter_count", "tanh_count", "protection_selected",
+                "degree", "prefix_ids", "tree_ids",
                 "left_children", "right_children", "target", "prefix_values", "tree_values",
                 "coefficient_targets", "coefficients")}}
 
@@ -95,6 +100,25 @@ def make_unique_evaluation_corpus(source_dir, run_dir, status):
         status("deduplicating", deduplicated_split=split, unique_skeletons=len(seen))
 
 
+def deduplicate_evaluation_in_place(run_dir, status):
+    """Keep one deterministic row for each validation/test skeleton."""
+    run_dir = Path(run_dir)
+    for split in ("validation", "test"):
+        seen = set()
+        for source in _files(run_dir, split):
+            table = pq.read_table(source)
+            selected = []
+            for index, digest in enumerate(table["skeleton_hash"].to_pylist()):
+                if digest not in seen:
+                    seen.add(digest)
+                    selected.append(index)
+            temporary = source.with_suffix(".tmp")
+            pq.write_table(table.take(pa.array(selected, type=pa.int64())), temporary,
+                           compression="zstd", compression_level=3)
+            temporary.replace(source)
+        status("deduplicating", deduplicated_split=split, unique_skeletons=len(seen))
+
+
 def _generate_shard(config, run_dir, shard):
     run_dir = Path(run_dir)
     generator = CombinatorialTreeSampler(CombinatorialTreeConfig(**config["generator"]))
@@ -108,7 +132,12 @@ def _generate_shard(config, run_dir, shard):
     rows = {split: [] for split in SPLITS}
     for index in range(shard * shard_size, min(size, (shard + 1) * shard_size)):
         seed = derive_sample_seed(config["data_seed"], index)
-        example = codec.encode(generator.sample(seed=seed, sample_index=index))
+        sampled = generator.sample(seed=seed, sample_index=index)
+        mechanism, selected = select_canonical_mechanism(
+            sampled, probability=config.get("protection_probability", 1.0),
+            root_seed=config["data_seed"], sample_index=index)
+        example = codec.encode(mechanism)
+        example["protection_selected"] = selected
         rows[split_for_skeleton(example["skeleton"], config["split_seed"])].append(_row(example))
     for split in SPLITS:
         _write_rows(paths[split], rows[split])
@@ -141,19 +170,33 @@ def count_corpus(config, run_dir, status):
     keys = {split: set() for split in SPLITS}
     counts = {split: 0 for split in SPLITS}
     frequencies = {split: defaultdict(int) for split in SPLITS}
+    selected = {split: 0 for split in SPLITS}
+    activated = {split: 0 for split in SPLITS}
     for split in SPLITS:
         for file in _files(run_dir, split):
-            table = pq.read_table(file, columns=["skeleton_hash", "operator_count"])
+            fields = set(pq.read_schema(file).names)
+            columns = ["skeleton_hash", "operator_count"]
+            columns += [name for name in ("protection_selected", "tanh_count") if name in fields]
+            table = pq.read_table(file, columns=columns)
             hashes = table["skeleton_hash"].to_pylist()
             operators = table["operator_count"].to_pylist()
             keys[split].update(hashes)
             counts[split] += len(hashes)
             for n in operators:
                 frequencies[split][n] += 1
+            if "protection_selected" in fields:
+                selected[split] += sum(table["protection_selected"].to_pylist())
+            if "tanh_count" in fields:
+                activated[split] += sum(n > 0 for n in table["tanh_count"].to_pylist())
         status("counting", counted_split=split, counted=sum(counts.values()))
     stored = sum(counts.values())
-    if stored != config.get("expected_rows", config["ast_count"]):
+    expected = config.get("expected_rows")
+    if expected is None and not config.get("unique_eval_skeletons"):
+        expected = config["ast_count"]
+    if expected is not None and stored != expected:
         raise RuntimeError("Parquet row count does not equal the expected count.")
+    if config.get("unique_eval_skeletons") and stored > config["ast_count"]:
+        raise RuntimeError("Deduplicated corpus exceeds the sampled AST count.")
     if config.get("unique_eval_skeletons") and any(
             counts[split] != len(keys[split]) for split in ("validation", "test")):
         raise RuntimeError("Validation or test still contains duplicate skeletons.")
@@ -164,6 +207,8 @@ def count_corpus(config, run_dir, status):
             "distinct_skeletons_by_split": {k: len(v) for k, v in keys.items()},
             "distinct_skeletons_total": sum(map(len, keys.values())),
             "operator_counts_by_split": {k: dict(v) for k, v in frequencies.items()},
+            "protection_selected_by_split": selected,
+            "tanh_inserted_by_split": activated,
             "skeleton_overlap": 0, "parquet_root": str((Path(run_dir) / "parquet").resolve())}
 
 

@@ -6,10 +6,10 @@ import pytest
 torch = pytest.importorskip('torch')
 
 from tsfmxai.generators import SampledMechanism
-from tsfmxai.representations import Add, Multiply, Parameter, Lag, MechanismBinding
+from tsfmxai.representations import Add, Multiply, Parameter, Lag, Tanh, MechanismBinding
 from tsfmxai.symbolic_regression.canonical_data import (
     BOS, EOS, END_TERM, CanonicalCodec, generate_canonical_dataset, skeleton_digest,
-    split_for_skeleton,
+    split_for_skeleton, select_canonical_mechanism,
 )
 from tsfmxai.symbolic_regression.canonical_models import (
     CanonicalEncoderDecoder, collate_canonical, supervised_loss,
@@ -32,6 +32,7 @@ def small_config():
                       'minimum_lag': 1, 'maximum_lag': 3, 'max_degree': 3},
         'dataset_sizes': {'train': 32, 'validation': 8, 'test': 8},
         'data_seed': 13, 'split_seed': 31, 'training_seed': 44,
+        'protection_probability': .5,
         'max_decode_steps': 24, 'batch_size': 16, 'epochs': 2, 'minimum_epochs': 1,
         'patience': 2, 'learning_rate': .001, 'weight_decay': .0001,
         'coefficient_weight': 1., 'gradient_clip': 1., 'validation_greedy_size': 4,
@@ -53,6 +54,57 @@ def test_roundtrip_sparse_targets_coefficients_and_tree_edges():
     assert example['prefix_values'].count(-2.) == 1
 
 
+def test_codec_distinguishes_raw_and_tanh_lags():
+    codec = CanonicalCodec(num_series=2)
+    x = Lag(0, 'x')
+    y = Lag(1, 'y')
+    mechanism = SampledMechanism(Add(x, Multiply(Tanh(x), Tanh(y))),
+                               MechanismBinding({}, {'x': 1, 'y': 2}), 7, 0)
+    example = codec.encode(mechanism)
+    decoded = codec.decode(example['target'][1:], example['coefficient_targets'][1:])
+    assert decoded['valid']
+    assert decoded['skeleton'] == (((0, 1),), ((0, 1, 'tanh'), (1, 2, 'tanh')))
+    assert example['tanh_count'] == 2
+    assert example['operator_count'] == 2
+
+
+def test_protection_choice_keeps_source_and_target_aligned():
+    sampled = sample_formula()
+    codec = CanonicalCodec(num_series=2)
+    raw, raw_selected = select_canonical_mechanism(
+        sampled, probability=0.0, root_seed=11, sample_index=4)
+    protected, protected_selected = select_canonical_mechanism(
+        sampled, probability=1.0, root_seed=11, sample_index=4)
+    assert not raw_selected and protected_selected
+    assert raw == sampled
+    assert codec.encode(raw)['tanh_count'] == 0
+    assert codec.encode(protected)['tanh_count'] == 2
+    assert codec.encode(raw)['skeleton'] != codec.encode(protected)['skeleton']
+    for probability in (0.0, 0.5, 1.0):
+        choices = [select_canonical_mechanism(sampled, probability=probability,
+                    root_seed=11, sample_index=i)[1] for i in range(100)]
+        assert choices == [select_canonical_mechanism(sampled, probability=probability,
+                    root_seed=11, sample_index=i)[1] for i in range(100)]
+        if probability == 0.5:
+            assert 30 < sum(choices) < 70
+    with pytest.raises(ValueError, match='protection_probability'):
+        select_canonical_mechanism(sampled, probability=1.5, root_seed=11, sample_index=0)
+
+
+@pytest.mark.parametrize('encoder', ['transformer', 'tree_lstm'])
+def test_model_accepts_unary_tanh_source(encoder):
+    codec = CanonicalCodec(num_series=2)
+    x, y = Lag(0, 'x'), Lag(1, 'y')
+    example = codec.encode(SampledMechanism(Multiply(Tanh(x), Tanh(y)),
+        MechanismBinding({}, {'x': 1, 'y': 2}), 7, 0))
+    batch = collate_canonical([example])
+    model = CanonicalEncoderDecoder(codec.vocab_size, encoder, False, dimension=16,
+        heads=2, encoder_layers=1, dropout=0., max_nodes=20)
+    loss, _ = supervised_loss(model, batch)
+    loss.backward()
+    assert torch.isfinite(loss)
+
+
 def test_zero_polynomial_and_invalid_output_detection():
     codec = CanonicalCodec()
     zero = SampledMechanism(Add(Parameter('a'), Parameter('b')),
@@ -72,6 +124,7 @@ def test_dataset_is_reproducible_and_split_by_whole_skeleton():
     first, summary, _ = generate_canonical_dataset(config)
     second, other, _ = generate_canonical_dataset(config)
     assert summary == other and first == second
+    assert 0 < sum(e['protection_selected'] for ds in first.values() for e in ds) < 48
     sets = {name: {skeleton_digest(e['skeleton']) for e in ds} for name, ds in first.items()}
     assert not (sets['train'] & sets['test'] or sets['train'] & sets['validation']
                 or sets['test'] & sets['validation'])

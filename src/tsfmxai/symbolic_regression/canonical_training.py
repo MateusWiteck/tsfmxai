@@ -148,7 +148,7 @@ def evaluate_greedy(model, examples, codec, config, collect_examples=False, devi
                     abs_tol=config['coefficient_atol'], rel_tol=config['coefficient_rtol'])
                     for t, v in truth.items())
                 joint_correct += joint
-            rows.append({'operator_count': actual['operator_count'], 'degree': actual['degree'],
+            rows.append({'operator_count': actual['operator_count'], 'tanh_count': actual['tanh_count'], 'degree': actual['degree'],
                          'parameter_count': actual['parameter_count'], 'terms': len(truth_set),
                          'exact': int(exact), 'valid': int(decoded['valid'])})
             if collect_examples and seen_illustrations[bool(exact)] < 6:
@@ -160,7 +160,7 @@ def evaluate_greedy(model, examples, codec, config, collect_examples=False, devi
                     'joint_exact': bool(joint) if model.predict_coefficients else None})
         offset += len(generated)
     groups = []
-    for field in ('operator_count', 'degree', 'parameter_count', 'terms'):
+    for field in ('operator_count', 'tanh_count', 'degree', 'parameter_count', 'terms'):
         for value in sorted({r[field] for r in rows}):
             subset = [r for r in rows if r[field] == value]
             groups.append({'group': field, 'value': value, 'count': len(subset),

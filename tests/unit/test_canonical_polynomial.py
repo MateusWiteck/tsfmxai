@@ -6,6 +6,7 @@ from itertools import product
 import pytest
 
 from tsfmxai.generators.trajectory import evaluate_bound_expression
+from tsfmxai.generators.shao_wu import saturate_product_lags
 from tsfmxai.representations import (
     Add,
     Lag,
@@ -79,11 +80,31 @@ def test_four_factors_allowed_and_five_rejected() -> None:
         canonicalize_polynomial(Multiply(four, x), binding)
 
 
-@pytest.mark.parametrize("node", [Tanh(Lag(0, "L"))])
+@pytest.mark.parametrize("node", [Tanh(Multiply(Lag(0, "L"), Lag(0, "L")))])
 def test_nonpolynomial_nodes_rejected(node) -> None:
     binding = MechanismBinding({}, {"L": 1} if isinstance(node, Tanh) else {})
-    with pytest.raises(TypeError, match="outside the polynomial subgrammar"):
+    with pytest.raises(TypeError, match=r"Only Tanh\(Lag\)"):
         canonicalize_polynomial(node, binding)
+
+
+def test_raw_and_tanh_factors_remain_distinct() -> None:
+    x = Lag(0, "L")
+    expression = Add(x, Tanh(x))
+    result = canonicalize_polynomial(expression, MechanismBinding({}, {"L": 1}))
+    assert result.skeleton == (((0, 1),), ((0, 1, "tanh"),))
+    assert result.evaluate({0: [2.0]}) == pytest.approx(2.0 + __import__("math").tanh(2.0))
+
+
+def test_saturation_precedes_distribution_and_preserves_ast_local_meaning() -> None:
+    x, y, two = Lag(0, "x"), Lag(1, "y"), Parameter("two")
+    binding = MechanismBinding({"two": 2.0}, {"x": 1, "y": 2})
+    left = Multiply(Add(x, two), y)
+    right = Add(Multiply(x, y), Multiply(two, y))
+    a = canonicalize_polynomial(saturate_product_lags(left), binding)
+    b = canonicalize_polynomial(saturate_product_lags(right), binding)
+    assert a.skeleton == (((1, 2, "tanh"),), ((0, 1, "tanh"), (1, 2, "tanh")))
+    assert b.skeleton == (((1, 2),), ((0, 1, "tanh"), (1, 2, "tanh")))
+    assert a.canonical_key != b.canonical_key
 
 
 def test_term_budget_and_invalid_binding() -> None:

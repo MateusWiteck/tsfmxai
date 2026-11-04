@@ -1,6 +1,6 @@
-"""Exact sparse polynomial normal form for the polynomial AST subgrammar.
+"""Exact sparse normal form over RAW and TANH lag factors.
 
-Lag atoms are identified by resolved (series, lag), not by AST slot names.
+Lag atoms use resolved (series, lag, transformation), not AST slot names.
 Parameter products are retained symbolically and evaluated exactly from the
 binary floating-point binding using ``Fraction.from_float``.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from math import isfinite
+from math import isfinite, tanh
 
 from tsfmxai.representations.expression import (
     Add,
@@ -23,14 +23,14 @@ from tsfmxai.representations.expression import (
     validate_binding,
 )
 
-LagAtom = tuple[int, int]
+LagAtom = tuple[int, int] | tuple[int, int, str]
 Monomial = tuple[LagAtom, ...]
 ParameterMonomial = tuple[str, ...]
 SymbolicCoefficient = tuple[tuple[ParameterMonomial, int], ...]
 
 
 def monomial_order(key: Monomial) -> tuple[int, Monomial]:
-    """Order by degree, then lexicographically by (series, lag)."""
+    """Order by degree, then series, lag, and RAW before TANH."""
 
     return len(key), key
 
@@ -91,7 +91,7 @@ class CanonicalPolynomial:
         contain observations up to time-1; explicit time permits longer arrays.
         """
 
-        sources = {series for key in self.skeleton for series, _ in key}
+        sources = {atom[0] for key in self.skeleton for atom in key}
         if time is None:
             try:
                 lengths = {len(histories[series]) for series in sources}
@@ -106,10 +106,12 @@ class CanonicalPolynomial:
         total = 0.0
         for term in self.terms:
             value = term.coefficient
-            for series, lag in term.monomial:
+            for atom in term.monomial:
+                series, lag = atom[:2]
                 if series not in histories or time < lag or time > len(histories[series]):
                     raise ValueError(f"History for s_{series}[t-{lag}] is unavailable at t={time}.")
-                value *= histories[series][time - lag]
+                factor = histories[series][time - lag]
+                value *= tanh(factor) if len(atom) == 3 else factor
             total += value
         return total
 
@@ -152,7 +154,8 @@ def canonicalize_polynomial(
 ) -> CanonicalPolynomial:
     """Distribute products, combine equal lag monomials, and sort sparse terms.
 
-    ``Tanh`` is outside this polynomial subgrammar. A product
+    ``Tanh(Lag)`` is a distinct bounded factor; other tanh expressions are
+    outside this subgrammar. A product
     exceeding ``max_degree`` raises before numeric cancellations, including
     zero-bound coefficients. The degree limit defines the supported input
     expansion, not just the degree of the final numerically simplified result.
@@ -215,7 +218,14 @@ def canonicalize_polynomial(
                         raise ValueError(f"Expanded polynomial exceeds max_terms={max_terms}.")
             return result
         if isinstance(node, Tanh):
-            raise TypeError(f"{type(node).__name__} is outside the polynomial subgrammar.")
+            if not isinstance(node.operand, Lag):
+                raise TypeError("Only Tanh(Lag) is supported as a canonical factor.")
+            lag = node.operand
+            if type(lag.variable) is not int or lag.variable < 0:
+                raise ValueError("Series IDs must be non-negative integers.")
+            if max_degree < 1:
+                raise ValueError("A lag term exceeds max_degree=0.")
+            return {((lag.variable, binding.lag_values[lag.slot], "tanh"),): {(): 1}}
         raise TypeError(f"Unsupported expression node: {type(node).__name__}.")
 
     symbolic = expand(expression)
@@ -243,7 +253,10 @@ def canonicalize_polynomial(
 def format_monomial(monomial: Monomial) -> str:
     """Render one sorted lag product with multiplicity as repeated factors."""
 
-    return " * ".join(f"s_{series}[t-{lag}]" for series, lag in monomial) or "1"
+    return " * ".join(
+        f"tanh(s_{atom[0]}[t-{atom[1]}])" if len(atom) == 3
+        else f"s_{atom[0]}[t-{atom[1]}]" for atom in monomial
+    ) or "1"
 
 
 def format_canonical_polynomial(polynomial: CanonicalPolynomial, *, exact: bool = False) -> str:
