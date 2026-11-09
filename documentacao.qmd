@@ -1,0 +1,358 @@
+---
+title: Documentação
+subtitle: Geração multissérie para treinamento e equation heads
+sidebar: false
+toc: true
+toc-depth: 2
+code-fold: false
+code-copy: true
+---
+
+Gere sistemas com dependências entre canais, simule trajetórias e receba batches
+com alvos de previsão, skeletons canônicos e parâmetros do ruído. Os exemplos
+abaixo usam a API implementada em `tsfmxai` e podem ser executados em sequência.
+Os blocos são exibidos sem executar simulações durante a publicação do site.
+
+::: {.callout-note}
+## Escopo atual
+
+Tratamentos por canal: **AST original** e **Shao–Wu por fatores**. Heaps e
+contração em domínio limitado ainda não têm adaptação nesta API e são rejeitados
+explicitamente. Sistemas mistos não recebem uma alegação de estabilidade conjunta.
+Os lags, graus e demais números dos exemplos são ilustrativos; o experimento de
+coverage deve definir a configuração de referência.
+:::
+
+## Escolha a função
+
+| Função | Quando usar | Retorno |
+|---|---|---|
+| `sample_multiseries_system(config, seed=...)` | Sortear um sistema pelas probabilidades fornecidas | Sistema com equações, fontes permitidas, tratamentos e ruído |
+| `build_multiseries_system(...)` | Informar as equações e escolhas explicitamente | Sistema construído sem sorteios ocultos |
+| `generate_training_batches(...)` | Gerar dados para treinamento, de sistemas sorteados ou explícitos | Iterador de batches, com `.codec` e `.stats` |
+
+As duas primeiras funções estão em `tsfmxai.generators.multiseries`; a terceira,
+em `tsfmxai.datasets`. Execute os exemplos em um ambiente com o projeto instalado:
+
+```bash
+python -m pip install -e .
+```
+
+## 1. Configurar o sorteio
+
+```python
+from dataclasses import replace
+
+from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
+from tsfmxai.generators.initialization import HistorySpec
+from tsfmxai.generators.multiseries import (
+    MultiseriesConfig, NoiseConfig, TreatmentSpec, InnovationSpec,
+    sample_multiseries_system, build_multiseries_system,
+)
+from tsfmxai.datasets import (
+    TrajectoryConfig, TrainingFormat, generate_training_batches,
+)
+
+config = MultiseriesConfig(
+    ast_config=CombinatorialTreeConfig(
+        minimum_operators=0,
+        maximum_operators=3,
+        minimum_lag=1,
+        maximum_lag=8,
+        max_degree=2,
+    ),
+    channel_count_probs={1: 0.25, 2: 0.25, 4: 0.50},
+    dependency_probs={
+        "independent": 0.25,
+        "linked_chain": 0.25,
+        "previous_chain": 0.25,
+        "random": 0.25,
+    },
+    treatment_probs={"original": 0.5, "shao_wu": 0.5},
+    max_external_sources=2,
+    self_source_weight=3.0,
+    allow_no_lags=True,
+    noise=NoiseConfig(std_range=(0.01, 0.10)),
+)
+```
+
+Cada distribuição deve somar um. As categorias são sorteadas; as proporções
+observadas no dataset não precisam coincidir exatamente com as probabilidades.
+
+| Controle | Significado |
+|---|---|
+| `channel_count_probs` | Probabilidade de cada quantidade de canais; `{3: 1.0}` fixa três canais |
+| `dependency_probs` | Uma categoria de dependência sorteada por sistema |
+| `treatment_probs` | Um tratamento sorteado por canal |
+| `max_external_sources` | Máximo de fontes externas permitidas por canal |
+| `self_source_weight` | Peso relativo da própria série ao escolher cada lag; fontes externas têm peso 1 |
+| `allow_no_lags` | Permite equações sem lags, como constante + ruído |
+| `ast_config` | Limites de operadores, lags, grau e magnitudes dos parâmetros |
+| `noise.std_range` | Faixa de sorteio uniforme do desvio padrão por canal, constante no tempo |
+| `target_gain`, `safety_factor` | Controles da reescala por equação tratada; padrões 0,8 e 0,95 |
+
+O número de séries da AST é controlado pela amostragem de canais; o campo
+`ast_config.num_series` é substituído internamente. `allow_no_lags` controla
+`require_lag`. O peso próprio não obriga a equação a usar seu passado.
+
+### Dependências disponíveis
+
+| Categoria | Fontes externas que podem ser usadas |
+|---|---|
+| `independent` — independente | Nenhuma |
+| `linked_chain` — cadeia ligada | Canal imediatamente anterior na ordem sorteada |
+| `previous_chain` — cadeia com anteriores | Subconjunto de canais anteriores na ordem sorteada |
+| `random` — aleatória | Subconjunto dos outros canais; ciclos com lags positivos são permitidos |
+
+**Conexões são permitidas, não obrigatórias.** Uma fonte disponível pode não
+aparecer na AST ou desaparecer após cancelamentos. Na cadeia com anteriores e
+na aleatória, a quantidade de fontes externas é sorteada uniformemente entre zero
+e o máximo aplicável. Na cadeia ligada, o predecessor fica disponível se o limite
+de fontes externas for positivo.
+
+## 2. Sortear e inspecionar um sistema
+
+```python
+system = sample_multiseries_system(config, seed=42)
+
+print("Canais:", system.num_channels)
+print("Categoria:", system.dependency)
+print("Ordem:", system.channel_order)
+print("Fontes permitidas:", system.allowed_sources)
+print("Fontes efetivas:", system.effective_sources)
+print("Histórico necessário:", system.history_length)
+
+for channel, equation in enumerate(system.equations):
+    print(channel, equation.formula)
+    print("Skeleton:", system.canonical[channel].skeleton)
+    print("Ruído:", system.innovations[channel])
+```
+
+`original_equations` preserva as ASTs anteriores ao tratamento; `equations`
+contém as expressões executadas. O skeleton é calculado após o tratamento.
+`treatment_scales` informa as reescalas aplicadas. `joint_certificate` é `None`.
+
+## 3. Construir um sistema explícito
+
+Este exemplo usa memória própria no primeiro canal e uma dependência do primeiro
+para o segundo. Cada canal recebe seu próprio ruído; o builder explícito também
+aceita a família uniforme.
+
+```python
+from tsfmxai.generators.random_expression import SampledMechanism
+from tsfmxai.representations import (
+    Add, Multiply, Parameter, Lag, MechanismBinding,
+)
+
+# x(t) = 0.5 * x(t-1) + inovação
+equation_x = SampledMechanism(
+    expression=Multiply(Parameter("a"), Lag(0, "L")),
+    binding=MechanismBinding({"a": 0.5}, {"L": 1}),
+    seed=0,
+    sample_index=0,
+)
+
+# y(t) = 0.3 * x(t-2) + 0.2 * y(t-1) + inovação
+equation_y = SampledMechanism(
+    expression=Add(
+        Multiply(Parameter("b"), Lag(0, "Lx")),
+        Multiply(Parameter("c"), Lag(1, "Ly")),
+    ),
+    binding=MechanismBinding({"b": 0.3, "c": 0.2}, {"Lx": 2, "Ly": 1}),
+    seed=0,
+    sample_index=1,
+)
+
+explicit_system = build_multiseries_system(
+    equations=[equation_x, equation_y],
+    allowed_sources={0: [0], 1: [0, 1]},
+    treatments=[TreatmentSpec("original"), TreatmentSpec("shao_wu")],
+    innovations=[
+        InnovationSpec("gaussian", std=0.05),
+        InnovationSpec("uniform", std=0.10),
+    ],
+    max_degree=2,
+)
+```
+
+O tratamento pode alterar os coeficientes finais. Uniforme com desvio `std`
+significa suporte entre `-sqrt(3) * std` e `sqrt(3) * std`.
+O sorteador automático usa gaussianas independentes por canal e instante;
+`NoiseConfig` atualmente suporta `std_sampling="uniform"` e
+`family_policy="by_treatment"`.
+
+## 4. Escolher a inicialização
+
+`HistorySpec` reutiliza as estratégias dos experimentos de inicialização. Não há
+burn-in implícito. O histórico é separado dos passos gerados e não entra nas janelas.
+
+```python
+initializations = {
+    "zero": HistorySpec("zero", "zero"),
+    "constant": HistorySpec("constante 0.5", "constant", offset=0.5),
+    "uniform": HistorySpec("uniforme [-1, 1]", "uniform", amplitude=1.0),
+    "cosine": HistorySpec("cosseno completo", "cosine", period=48),
+    "half_cosine": HistorySpec("meio cosseno", "cosine", period=48, fraction=0.5),
+    "quarter_cosine": HistorySpec("quarto de cosseno", "cosine", period=48, fraction=0.25),
+}
+
+trajectory = TrajectoryConfig(
+    generated_steps=128,
+    initialization=initializations["uniform"],
+    max_initialization_retries=3,
+    on_retry_exhausted="skip",
+    resample_innovations=False,
+)
+```
+
+`amplitude` e `offset` controlam escala e deslocamento da uniforme e do cosseno.
+O prefixo de cosseno precisa cobrir todos os lags requeridos; não é esticado nem
+preenchido. Inicialização estacionária conjunta não está disponível para esses
+sistemas mistos.
+
+## 5. Gerar batches para treinamento
+
+### A partir de probabilidades
+
+```python
+training = TrainingFormat(
+    context_length=32,
+    prediction_length=16,
+    stride=16,
+    batch_size=8,
+    dtype="float32",
+    layout="batch_time_channel",
+    noise_target="scale_and_family",
+)
+
+stream = generate_training_batches(
+    config=config,
+    num_systems=8,
+    trajectories_per_system=2,
+    trajectory=trajectory,
+    training=training,
+    seed=123,
+)
+
+for batch in stream:
+    print(batch.context.shape, batch.future.shape)
+    print(batch.channel_mask.shape, batch.equation_targets.shape)
+
+print("Aceitas:", stream.stats.accepted_trajectories)
+print("Ignoradas:", stream.stats.skipped_trajectories)
+print("Tentativas com falha:", len(stream.stats.failures))
+```
+
+O iterador é consumido uma única vez. Crie outro com a mesma configuração e seed
+para reproduzir a geração. `generated_steps` deve comportar contexto + horizonte.
+O último batch pode ter menos exemplos que `batch_size`.
+
+### A partir de sistemas já construídos
+
+```python
+explicit_stream = generate_training_batches(
+    systems=[explicit_system],
+    trajectories_per_system=3,
+    trajectory=trajectory,
+    training=training,
+    seed=123,
+)
+first_batch = next(explicit_stream)
+```
+
+Forneça **`config` + `num_systems` ou `systems`**. Não combine os dois modos.
+
+### Formatos alternativos
+
+```python
+scale_only = replace(training, noise_target="scale")
+channels_first = replace(training, layout="batch_channel_time")
+double_precision = replace(training, dtype="float64")
+
+alternative_stream = generate_training_batches(
+    systems=[explicit_system],
+    trajectory=trajectory,
+    training=replace(channels_first, noise_target="scale", dtype="float64"),
+    seed=123,
+)
+alternative_batch = next(alternative_stream)
+```
+
+## 6. Ler os alvos da equation head
+
+| Campo | Conteúdo |
+|---|---|
+| `context`, `future` | Arrays NumPy no layout selecionado |
+| `channel_mask` | Máscara `[batch, canal]` para canais reais versus padding |
+| `equation_targets` | Tokens `[batch, canal, token]` do skeleton canônico final |
+| `equation_mask` | Máscara dos tokens válidos |
+| `noise_targets["std"]` | Desvio da inovação por canal, nas unidades originais |
+| `noise_targets["family"]` | Quando solicitado: gaussiana `0`, uniforme `1`, padding `-1` |
+| `metadata` | Sistema, histórico inicial, configurações, índices e seeds por janela |
+
+```python
+token_mask = first_batch.equation_mask[0, 0]
+tokens = first_batch.equation_targets[0, 0][token_mask]
+
+# O decoder recebe os tokens posteriores a BOS.
+decoded = explicit_stream.codec.decode(tokens[1:])
+assert decoded["valid"]
+assert decoded["skeleton"] == explicit_system.canonical[0].skeleton
+
+print(first_batch.noise_targets["std"])
+print(first_batch.noise_targets["family"])
+print(first_batch.metadata[0]["initialization_seed"])
+print(first_batch.metadata[0]["innovation_seed"])
+```
+
+O vocabulário de `.codec` é fixo dentro do stream. O tamanho do padding de tokens
+pode variar por batch. O target não inclui coeficientes nem o valor sorteado da
+inovação. Família e escala continuam no sistema mesmo ao treinar apenas a escala.
+
+Os arrays não têm normalização externa ou tokenização temporal específica de
+uma arquitetura. Para PyTorch, use `torch.from_numpy(batch.context)` em um ambiente
+com PyTorch instalado e adapte a chamada ao modelo. Qualquer normalização adicional
+precisa preservar a interpretação dos targets nas unidades originais.
+
+## 7. Controlar o currículo
+
+```python
+stage_1 = replace(config, channel_count_probs={1: 1.0})
+stage_2 = replace(config, channel_count_probs={1: 0.5, 2: 0.5})
+stage_3 = replace(config, channel_count_probs={2: 0.3, 4: 0.7})
+
+curriculum_stream = generate_training_batches(
+    config=stage_2,
+    num_systems=4,
+    trajectory=trajectory,
+    training=training,
+    seed=456,
+)
+```
+
+A rotina de treinamento decide quando mudar de etapa. Também é possível usar
+`replace` para modificar as probabilidades de dependência e tratamentos.
+Para avaliar generalização a mecanismos novos, mantenha todas as trajetórias e
+janelas de um sistema no mesmo split. A API não cria splits automaticamente.
+
+## 8. Falhas e reprodução
+
+Não existe corte de magnitude. Valores finitos grandes são aceitos. A simulação
+usa `float64`; a conversão para o dtype final também é verificada. `NaN`, infinito
+e overflow aritmético são registrados como falhas.
+
+```python
+strict_trajectory = replace(trajectory, on_retry_exhausted="raise")
+resample_both = replace(trajectory, resample_innovations=True)
+no_retries = replace(trajectory, max_initialization_retries=0)
+```
+
+Há uma tentativa inicial mais o número configurado de novas tentativas. Por
+padrão, muda apenas o histórico inicial; o ruído é repetido. Inicializações
+determinísticas, como zero e constante, continuam iguais nessas tentativas.
+`skip` ignora a trajetória após esgotar tentativas; `raise` lança uma exceção.
+Não se sorteia automaticamente um sistema substituto, nem se aproveita um prefixo
+de uma trajetória que falhou. Erros de configuração são reportados diretamente.
+
+Os metadados são objetos Python em memória. A função não salva um corpus nem
+gera um manifesto em disco automaticamente.

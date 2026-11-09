@@ -1,5 +1,10 @@
 """Dataset, windowing, and batching interfaces."""
 
+from tsfmxai.datasets.multiseries import (
+    TrajectoryConfig, TrainingFormat, TrainingBatch, TrainingBatchStream,
+    GenerationStats, generate_training_batches,
+)
+
 from tsfmxai.datasets.parallel_batch import (
     MechanismJobResult,
     ParallelGenerationConfig,
@@ -11,6 +16,12 @@ from tsfmxai.datasets.parallel_batch import (
 )
 
 __all__ = [
+    "TrajectoryConfig",
+    "TrainingFormat",
+    "TrainingBatch",
+    "TrainingBatchStream",
+    "GenerationStats",
+    "generate_training_batches",
     "MechanismJobResult",
     "ParallelGenerationConfig",
     "SyntheticForecastBatch",

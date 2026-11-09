@@ -37,12 +37,14 @@ jobs:
       - uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: '1.8.27'
-      - name: Render experiments and report page
+      - name: Render experiments, report and documentation
         run: quarto render --no-execute
       - name: Verify published report
         run: |
           test -s site/relatorio.html
           cmp report/english/build/main.pdf site/outputs/report/relatorio.pdf
+      - name: Verify documentation page
+        run: test -s site/documentacao.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
