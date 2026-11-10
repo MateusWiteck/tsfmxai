@@ -20,6 +20,16 @@ from tsfmxai.representations import (
 )
 
 
+def test_sampler_vocabulary_contains_only_parameters_and_lags() -> None:
+    config = RandomTreeConfig()
+    assert set(config.__dataclass_fields__).isdisjoint({"time_probability", "require_time"})
+    for sample in sample_random_mechanisms(config, root_seed=109, count=100):
+        assert all(
+            isinstance(node, (Add, Multiply, Parameter, Lag))
+            for node in walk(sample.expression)
+        )
+
+
 def test_catalan_shape_counts() -> None:
     assert [full_binary_tree_shape_count(index) for index in range(6)] == [1, 1, 2, 5, 14, 42]
 
@@ -85,21 +95,18 @@ def test_indexed_batch_is_order_independent() -> None:
     assert len({sample.seed for sample in batch}) == len(batch)
 
 
-def test_required_lag_and_time_are_both_preserved() -> None:
+def test_required_lag_is_preserved() -> None:
     config = RandomTreeConfig(
         minimum_operators=1,
         maximum_operators=1,
         parameter_probability=1.0,
-        time_probability=0.0,
         lag_probability=0.0,
         require_lag=True,
-        require_time=True,
     )
 
     for seed in range(20):
         sample = sample_random_mechanism(config, seed=seed)
         assert lag_slots(sample.expression)
-        assert "t" in sample.skeleton_formula
 
 
 def test_coefficient_gating_wraps_every_lag_and_preserves_lag_bindings() -> None:
@@ -107,14 +114,12 @@ def test_coefficient_gating_wraps_every_lag_and_preserves_lag_bindings() -> None
         minimum_operators=4,
         maximum_operators=4,
         parameter_probability=0.0,
-        time_probability=0.0,
         lag_probability=1.0,
     )
     gated_config = RandomTreeConfig(
         minimum_operators=4,
         maximum_operators=4,
         parameter_probability=0.0,
-        time_probability=0.0,
         lag_probability=1.0,
         coefficient_gate_lags=True,
     )

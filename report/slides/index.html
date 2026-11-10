@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Synthetic Pretraining Slides</title>
+  <link rel="stylesheet" href="vendor/reveal/reset.css">
+  <link rel="stylesheet" href="vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- 1. Cover -->
+<section id="cover">
+  <div class="cover">
+    <canvas id="cover-canvas"></canvas>
+    <div class="text">
+      <div class="kicker">Time-series foundation models</div>
+      <h1>Teaching time-series foundation models with synthetic mechanisms we can explain</h1>
+      <div class="name">Mateus Witeck</div>
+      <div class="advisors">Advisors: <b>Eliana Pastore</b> &nbsp;·&nbsp; <b>Artur Jordão</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Foundation models -->
+<section id="fm">
+  <div class="canvas">
+    <div class="kicker">Context</div>
+    <h2>Foundation models</h2>
+    <div class="row" style="gap:40px">
+      <div style="width:470px">
+        <ul>
+          <li class="fragment" data-fragment-index="1">Pretrained <b>once</b>, on broad data at scale</li>
+          <li class="fragment" data-fragment-index="2">Then reused on <b>many tasks</b>, often with no task-specific training</li>
+          <li class="fragment" data-fragment-index="3">
+            Language: <b>BERT</b>, <b>T5</b>, <b>GPT</b><br>
+            Time series: <b>Chronos</b>, <b>TimesFM</b>, <b>Moirai</b>
+          </li>
+        </ul>
+      </div>
+      <div style="width:660px">
+        <div class="flow" style="margin-top:6px">
+          <div class="col" style="gap:8px">
+            <div class="node fragment" data-fragment-index="1">Energy</div>
+            <div class="node fragment" data-fragment-index="1">Retail</div>
+            <div class="node fragment" data-fragment-index="1">Weather</div>
+            <div class="node fragment" data-fragment-index="1">Web traffic</div>
+            <div class="node ours fragment" data-fragment-index="1">Synthetic</div>
+          </div>
+          <div class="cmp-arrow fragment" data-fragment-index="2">→</div>
+          <div class="node accent fragment" data-fragment-index="2" style="padding:34px 22px;font-size:0.95em">
+            One pretrained model
+            <small>weights shared by every task</small>
+          </div>
+          <div class="cmp-arrow fragment" data-fragment-index="3">→</div>
+          <div class="node fragment" data-fragment-index="3" style="padding:24px 18px">
+            Forecasts for <b>new</b> series
+            <small>zero-shot, no retraining</small>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="box ours fragment" data-fragment-index="4" style="position:absolute;left:0;bottom:6px;width:1160px;font-size:0.82em">
+      <b>The catch:</b> a forecast comes with <b>no reason</b>. We cannot tell why the model decided what it did.
+    </div>
+  </div>
+</section>
+
+<!-- 3. Chronos-2 -->
+<section id="chronos2">
+  <div class="canvas">
+    <div class="kicker">A very recent model</div>
+    <h2>Chronos-2</h2>
+    <div class="row" style="gap:48px">
+      <div style="width:470px">
+        <div style="position:relative;height:340px">
+          <div style="position:absolute;left:30px;top:10px;bottom:10px;width:4px;background:var(--line);border-radius:2px"></div>
+          <div class="fragment" data-fragment-index="1" style="position:absolute;left:0;top:10px">
+            <span style="position:absolute;left:21px;top:6px;width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid var(--muted)"></span>
+            <div style="margin-left:70px">
+              <div class="pill" style="background:#eceae2;color:var(--muted)">12 Mar 2024</div>
+              <div style="font-weight:650">Chronos</div>
+              <div class="small">Forecasting as language modelling over tokenised values</div>
+            </div>
+          </div>
+          <div class="fragment" data-fragment-index="2" style="position:absolute;left:0;top:190px">
+            <span class="pulse" style="position:absolute;left:21px;top:6px;width:22px;height:22px;border-radius:50%;background:#fff;border:4px solid var(--accent)"></span>
+            <div style="margin-left:70px">
+              <div class="pill">17 Oct 2025</div>
+              <div style="font-weight:650">Chronos-2</div>
+              <div class="small">Published about one year ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="width:660px">
+        <h3>Why it matters</h3>
+        <ul style="font-size:0.9em">
+          <li class="fragment" data-fragment-index="3"><b>One model</b> for univariate, multivariate and covariate-informed forecasting, zero-shot</li>
+          <li class="fragment" data-fragment-index="4"><b>Group attention</b>: related series exchange information inside the model</li>
+          <li class="fragment" data-fragment-index="5">State of the art on <b>fev-bench</b>, <b>GIFT-Eval</b> and <b>Chronos Benchmark II</b></li>
+          <li class="fragment" data-fragment-index="6">120M parameters, public code and checkpoint</li>
+        </ul>
+        <div class="box accent fragment" data-fragment-index="7" style="font-size:0.82em;margin-top:6px">
+          Its multivariate and covariate abilities come <b>entirely from synthetic data</b>.
+        </div>
+      </div>
+    </div>
+    <div class="src">Ansari et al., 2024 (Chronos); Ansari et al., 2025 (Chronos-2, arXiv:2510.15821)</div>
+  </div>
+</section>
+
+<!-- 4. Training -->
+<section id="training" data-auto-animate>
+  <div class="canvas">
+    <div class="kicker">How Chronos-2 is trained</div>
+    <h2>Pretraining on real and synthetic data</h2>
+    <div class="row" style="gap:20px;align-items:stretch;height:250px">
+      <div class="col" style="gap:14px;width:380px">
+        <div class="box" data-id="real" style="flex:1">
+          <div class="tag-col">Real data</div>
+          <div style="font-size:0.72em">Selected datasets from the Chronos and GIFT-Eval pretraining corpora</div>
+        </div>
+        <div class="box ours" data-id="synth" style="flex:1.25">
+          <div class="tag-col" style="color:var(--ours)">Synthetic data &nbsp;<span class="pill ours">our focus</span></div>
+          <div style="font-size:0.72em">Generated series, and the multivariate structure built on top of them</div>
+        </div>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="1">→</div>
+      <div class="node accent fragment" data-fragment-index="1" style="width:230px;align-self:center;padding:22px 14px">
+        Stage 1: pretraining
+        <small>context up to 2048</small>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="2">→</div>
+      <div class="node accent fragment" data-fragment-index="2" style="width:230px;align-self:center;padding:22px 14px">
+        Stage 2: long context
+        <small>context 8192, more output patches</small>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="3">→</div>
+      <div class="node fragment" data-fragment-index="3" style="width:170px;align-self:center;padding:22px 14px">
+        Chronos-2
+        <small>used zero-shot</small>
+      </div>
+    </div>
+    <div class="box fragment" data-fragment-index="4" style="margin-top:34px;font-size:0.86em">
+      <b>Chronos-2-Synth</b>, trained <b class="ours">only on synthetic data</b>, performs only slightly below the model that also saw real data
+      <span class="small">(GIFT-Eval and Chronos Benchmark II).</span><br>
+      <span class="small">The authors suggest that, with further research, real data may not even be required.</span>
+    </div>
+    <div class="src">Ansari et al., 2025, Sections 3.3, 4 and 5</div>
+  </div>
+</section>
+
+<!-- 5. Zoom: synthetic data -->
+<section id="synthetic" data-auto-animate>
+  <div class="canvas">
+    <div class="box ours" data-id="synth" style="width:1160px;padding:12px 22px;margin-bottom:34px">
+      <span class="tag-col" style="color:var(--ours)">Zoom in</span>
+      <span style="font-size:1.2em;font-weight:700;margin-left:12px">Synthetic data in Chronos-2</span>
+    </div>
+    <div class="flow" style="align-items:stretch;gap:16px">
+      <div class="col" style="gap:10px;width:310px">
+        <div class="tag-col">Base univariate generators</div>
+        <div class="node clickable fragment" data-gen="ar" data-fragment-index="1">AR<small>autoregressive models</small><span class="more">details ▸</span></div>
+        <div class="node clickable fragment" data-gen="ets" data-fragment-index="1">ETS<small>exponential smoothing</small><span class="more">details ▸</span></div>
+        <div class="node clickable fragment" data-gen="tsi" data-fragment-index="1">TSI<small>trend, seasonality, irregularity</small><span class="more">details ▸</span></div>
+        <div class="node accent pulse fragment" data-fragment-index="2" style="border-width:3px">KernelSynth<small>Gaussian-process prior</small></div>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="3">→</div>
+      <div class="col" style="gap:10px;width:380px;justify-content:center">
+        <div class="tag-col">Multivariatizers</div>
+        <div class="node fragment" data-fragment-index="3">Cotemporaneous<small>transform series at the same time step</small></div>
+        <div class="node fragment" data-fragment-index="3">Sequential<small>lead–lag effects, cointegration</small></div>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="4">→</div>
+      <div class="col" style="gap:10px;width:300px;justify-content:center">
+        <div class="tag-col">Training tasks</div>
+        <div class="node fragment" data-fragment-index="4">Multivariate forecasting</div>
+        <div class="node fragment" data-fragment-index="4">Covariate-informed forecasting</div>
+      </div>
+    </div>
+    <p class="small fragment" data-fragment-index="5" style="margin-top:22px">
+      Click <b>AR</b>, <b>ETS</b> or <b>TSI</b> to see how they work. Next: how does <b class="hl">KernelSynth</b> create one series?
+    </p>
+    <div class="src">Ansari et al., 2025, Section 4. The base generators include these four.</div>
+  </div>
+</section>
+
+<!-- 6. Gaussian processes -->
+<section id="gp">
+  <div class="canvas">
+    <div class="kicker">Background</div>
+    <h2 style="font-size:1.3em;margin-bottom:.3em">Gaussian processes: kernels define random functions</h2>
+    <p style="font-size:0.78em;margin-bottom:.3em">
+      A kernel κ(t, t′) says how related two time points are. It builds a covariance matrix
+      <b>K</b>ᵢⱼ = κ(tᵢ, tⱼ), and a series is one draw&nbsp; <b>x ∼ 𝒩(0, K)</b>.
+    </p>
+    <div class="row" style="gap:30px;margin-top:6px">
+      <div class="gpcol fragment" data-fragment-index="1">
+        <h3>RBF, ℓ = 0.1 <span class="tiny">smooth</span></h3>
+        <canvas class="heat"></canvas>
+        <div class="tiny" style="margin:2px 0 6px">covariance K</div>
+        <canvas class="draws"></canvas>
+      </div>
+      <div class="gpcol fragment" data-fragment-index="2">
+        <h3>Periodic, p = 1/8 <span class="tiny">repeating</span></h3>
+        <canvas class="heat"></canvas>
+        <div class="tiny" style="margin:2px 0 6px">covariance K</div>
+        <canvas class="draws"></canvas>
+      </div>
+      <div class="gpcol fragment" data-fragment-index="3">
+        <h3>Linear, σ₀ = 1 <span class="tiny">trending</span></h3>
+        <canvas class="heat"></canvas>
+        <div class="tiny" style="margin:2px 0 6px">covariance K</div>
+        <canvas class="draws"></canvas>
+      </div>
+    </div>
+    <div class="src">Rasmussen &amp; Williams, 2006. Two independent draws per kernel.</div>
+  </div>
+</section>
+
+<!-- 7. KernelSynth animation -->
+<section id="ks">
+  <div class="canvas" style="height:640px">
+    <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:14px">
+      <h2 style="margin:0">KernelSynth, step by step</h2>
+      <span class="small">press → to advance</span>
+    </div>
+    <div class="ks"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+    <span class="fragment ks-frag" data-fragment-index="3"></span>
+    <span class="fragment ks-frag" data-fragment-index="4"></span>
+    <span class="fragment ks-frag" data-fragment-index="5"></span>
+    <span class="fragment ks-frag" data-fragment-index="6"></span>
+    <span class="fragment ks-frag" data-fragment-index="7"></span>
+    <span class="fragment ks-frag" data-fragment-index="8"></span>
+  </div>
+</section>
+
+<!-- 8. Multivariatizers animation -->
+<section id="mv">
+  <div class="canvas" style="height:640px;position:relative">
+    <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:14px">
+      <h2 style="margin:0;flex:none;white-space:nowrap">From one series to many: multivariatizers</h2>
+      <span class="small" style="white-space:nowrap">press → to advance</span>
+    </div>
+    <button class="dep-open" type="button" style="position:absolute;right:0;top:62px;z-index:5">inside the multivariatizer &#9656;</button>
+    <div class="mv"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+    <span class="fragment ks-frag" data-fragment-index="3"></span>
+    <span class="fragment ks-frag" data-fragment-index="4"></span>
+    <span class="fragment ks-frag" data-fragment-index="5"></span>
+    <span class="fragment ks-frag" data-fragment-index="6"></span>
+    <span class="fragment ks-frag" data-fragment-index="7"></span>
+  </div>
+</section>
+
+<!-- 9. What the model receives -->
+<section id="receives">
+  <div class="canvas">
+    <div class="kicker">What the pretraining sees</div>
+    <h2>The series survives. The recipe does not.</h2>
+    <div class="row" style="gap:40px">
+      <div class="fig fragment" data-fragment-index="1">
+        <canvas id="split-canvas"></canvas>
+      </div>
+      <div style="width:560px">
+        <ul style="font-size:0.88em">
+          <li class="fragment" data-fragment-index="2">Each stored record keeps only a start date and the <b>target values</b></li>
+          <li class="fragment" data-fragment-index="3">The kernel expression κ* is <b class="ours">discarded</b></li>
+          <li class="fragment" data-fragment-index="4">One training signal: <b>predict the future</b> from the context</li>
+        </ul>
+        <div class="box ours fragment" data-fragment-index="5" style="font-size:0.78em;margin-top:8px">
+          The model never learns <i>how</i> a series was generated, and nothing is left to check an explanation against.
+        </div>
+      </div>
+    </div>
+    <div class="src">Official KernelSynth script (amazon-science/chronos-forecasting); Ansari et al., 2025, Section 3.3</div>
+  </div>
+</section>
+
+<!-- 10. Lessons from language models -->
+<section id="nlp">
+  <div class="canvas">
+    <div class="kicker">An idea from language models</div>
+    <h2>Pretraining with several tasks builds better encoders</h2>
+    <div class="row" style="gap:30px">
+      <div class="box card3 fragment" data-fragment-index="1">
+        <h3>BERT</h3>
+        <div class="who">Devlin et al., 2019</div>
+        <p><b>Masked language modelling</b> and <b>next-sentence prediction</b></p>
+        <div><span class="tok">The</span><span class="tok">cat</span><span class="tok mask">[MASK]</span><span class="tok">on</span><span class="tok">the</span><span class="tok">mat</span> <span class="tok ans">→ sat</span></div>
+      </div>
+      <div class="box card3 fragment" data-fragment-index="2">
+        <h3>BART</h3>
+        <div class="who">Lewis et al., 2020</div>
+        <p>Corrupt the text, then <b>reconstruct</b> it: token masking, deletion, text infilling, sentence permutation, document rotation</p>
+      </div>
+      <div class="box card3 fragment" data-fragment-index="3">
+        <h3>T5</h3>
+        <div class="who">Raffel et al., 2020</div>
+        <p><b>Span corruption</b>, and every task cast as <b>text-to-text</b> in one multi-task mixture</p>
+      </div>
+    </div>
+    <div class="box accent fragment" data-fragment-index="4" style="margin-top:22px;font-size:0.84em;width:1160px">
+      Several pretraining objectives shape a richer representation. <b>We want the same for time series</b>:
+      today a forecaster is trained on essentially one task, predicting the future.
+    </div>
+  </div>
+</section>
+
+<!-- 11. Explainability -->
+<section id="xai">
+  <div class="canvas">
+    <div class="kicker">The second problem</div>
+    <h2>Why did the model forecast that?</h2>
+    <div class="row" style="gap:40px">
+      <div class="fig"><canvas id="xai-canvas"></canvas></div>
+      <div style="width:560px">
+        <ul style="font-size:0.86em">
+          <li class="fragment" data-fragment-index="1">A foundation model returns a forecast, <b>not a reason</b></li>
+          <li class="fragment" data-fragment-index="2">Attribution methods such as SHAP can say which inputs mattered to the model</li>
+          <li class="fragment" data-fragment-index="3">On real data the <b>true cause is unknown</b>, so we cannot tell whether an explanation is right</li>
+        </ul>
+        <div class="box accent fragment" data-fragment-index="4" style="font-size:0.8em;margin-top:8px">
+          In a synthetic generator the mechanism <b>is</b> known, so the ground-truth explanation is exact.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11b. What lagged recurrences can already do -->
+<section id="arcap">
+  <div class="canvas" style="height:660px">
+    <div class="crumb"><b>Before our generator</b> &middot; what lagged recurrences can already do</div>
+    <div class="zoom"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+  </div>
+</section>
+
+<!-- 12. Proposal -->
+<section id="proposal">
+  <div class="canvas">
+    <div class="kicker">Our proposal</div>
+    <h2>Two problems, one method</h2>
+    <div class="flow" style="align-items:stretch;gap:14px">
+      <div class="node ours fragment" data-fragment-index="1" style="width:260px;padding:16px 14px">
+        Generator with a <b>known mechanism</b>
+        <small>equations over lagged series, kept as an abstract syntax tree</small>
+        <a class="zoomlink" href="#/zoom-gen">zoom in &#9656;</a>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="2">→</div>
+      <div class="node fragment" data-fragment-index="2" style="width:210px;padding:16px 14px">
+        Observed series
+        <small>plus the mechanism that produced it</small>
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="3">→</div>
+      <div class="node accent fragment" data-fragment-index="3" style="width:200px;padding:16px 14px">
+        Shared encoder
+      </div>
+      <div class="cmp-arrow fragment" data-fragment-index="4">→</div>
+      <div class="col" style="gap:10px;width:290px">
+        <div class="node fragment" data-fragment-index="4">Forecast head<small>the future, with uncertainty</small></div>
+        <div class="node ours fragment" data-fragment-index="5">Equation head<small>symbolic regression: the <b>direct</b> dependencies</small><a class="zoomlink" href="#/zoom-head">zoom in &#9656;</a></div>
+        <div class="node future fragment" data-fragment-index="6">Explanation head<small>variable–lag <b>influence</b>, direct or not</small><span class="futuretag">future work</span></div>
+      </div>
+    </div>
+    <div class="row" style="gap:24px;margin-top:16px;align-items:stretch">
+      <div class="box ours fragment" data-fragment-index="7" style="flex:1 1 0;min-width:0;font-size:0.64em">
+        <b>Equation head = what computes the next step.</b> Symbolic regression returns only the terms that
+        really enter the formula, for example <i>xₜ₊₁ = 0.6·xₜ − 0.3·xₜ₋₂</i>. Lags that do not appear are not used directly.
+      </div>
+      <div class="box future fragment" data-fragment-index="8" style="flex:1 1 0;min-width:0;font-size:0.64em">
+        <span class="futuretag inline">future work</span> <b>Explanation head = what influenced the next step.</b> It scores how much each past step shaped it,
+        even a little and even without being in the formula: <i>xₜ₋₁</i> is absent above, yet it shaped <i>xₜ</i>,
+        which feeds <i>xₜ₊₁</i>. So it influences the next step, and through it, the whole future.
+      </div>
+    </div>
+    <div class="row" style="gap:24px;margin-top:10px">
+      <div class="box fragment" data-fragment-index="9" style="flex:1 1 0;min-width:0;font-size:0.64em">
+        <b>Problem 1: training.</b> Extra pretraining tasks, in the spirit of BERT and BART, give the encoder a richer signal than forecasting alone.
+      </div>
+      <div class="box fragment" data-fragment-index="10" style="flex:1 1 0;min-width:0;font-size:0.64em">
+        <b>Problem 2: explainability</b> <span class="futuretag inline">future work</span> Exact ground-truth explanations make it possible to train and to verify explanations.
+      </div>
+    </div>
+    <div class="src" style="position:static;margin-top:8px"><b>Today: the generator and the equation head</b> (zoom in with the links). Proposed design; see the thesis chapter on the research goal.</div>
+  </div>
+</section>
+
+<!-- 13. Zoom 1: generator -->
+<section id="zoom-gen" data-transition="fade" data-transition-speed="fast">
+  <div class="canvas" style="height:660px">
+    <div class="crumb"><b>Zoom 1 of 2</b> &middot; the generator <span>&nbsp;&nbsp;next: the equation head &nbsp;&middot;&nbsp; the explanation head is future work</span></div>
+    <div class="zoom"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+    <span class="fragment ks-frag" data-fragment-index="3"></span>
+    <span class="fragment ks-frag" data-fragment-index="4"></span>
+    <span class="fragment ks-frag" data-fragment-index="5"></span>
+    <span class="fragment ks-frag" data-fragment-index="6"></span>
+    <span class="fragment ks-frag" data-fragment-index="7"></span>
+  </div>
+</section>
+
+<!-- 14. Zoom 2: equation head -->
+<section id="zoom-head" data-transition="fade" data-transition-speed="fast">
+  <div class="canvas" style="height:660px">
+    <div class="crumb"><b>Zoom 2 of 2</b> &middot; the equation head <span>&nbsp;&nbsp;the explanation head (influence of every past step) is future work</span></div>
+    <div class="zoom"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+    <span class="fragment ks-frag" data-fragment-index="3"></span>
+    <span class="fragment ks-frag" data-fragment-index="4"></span>
+    <span class="fragment ks-frag" data-fragment-index="5"></span>
+    <span class="fragment ks-frag" data-fragment-index="6"></span>
+  </div>
+</section>
+
+<!-- 14b. LMC-Synth: how the multivariate generator of TimePFN works -->
+<section id="lmc">
+  <div class="canvas" style="height:660px">
+    <div class="crumb"><b>Comparison</b> &middot; how LMC-Synth, the public multivariate generator, builds its series</div>
+    <div class="zoom"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+    <span class="fragment ks-frag" data-fragment-index="3"></span>
+    <span class="fragment ks-frag" data-fragment-index="4"></span>
+    <span class="fragment ks-frag" data-fragment-index="5"></span>
+    <span class="fragment ks-frag" data-fragment-index="6"></span>
+    <span class="fragment ks-frag" data-fragment-index="7"></span>
+  </div>
+</section>
+
+<!-- 14c. Planned comparative evaluation -->
+<section id="evalplan">
+  <div class="canvas" style="height:660px">
+    <div class="crumb"><b>Comparison</b> &middot; planned evaluation against LMC-Synth <span>&nbsp;&nbsp;design only: nothing has been trained or measured</span></div>
+    <div class="zoom"></div>
+    <span class="fragment ks-frag" data-fragment-index="1"></span>
+    <span class="fragment ks-frag" data-fragment-index="2"></span>
+    <span class="fragment ks-frag" data-fragment-index="3"></span>
+  </div>
+</section>
+
+<!-- 15. References -->
+<section id="refs">
+  <div class="canvas">
+    <div class="kicker">Sources</div>
+    <h2>References</h2>
+    <ul class="refs">
+      <li>Ansari, A. F. et al. (2024). Chronos: Learning the Language of Time Series. <i>TMLR</i>.</li>
+      <li>Ansari, A. F. et al. (2025). Chronos-2: From Univariate to Universal Forecasting. arXiv:2510.15821.</li>
+      <li>Bahrpeyma, F. et al. (2021). A methodology for validating diversity in synthetic time series generation. <i>MethodsX</i> 8:101459.</li>
+      <li>Shao, X. and Wu, W. B. (2007). Asymptotic spectral theory for nonlinear time series. <i>Annals of Statistics</i> 35(4).</li>
+      <li>D&rsquo;Ascoli, S. et al. (2022). Deep symbolic regression for recurrent sequences. <i>ICML</i>.</li>
+      <li>Hyndman, R. J. and Athanasopoulos, G. (2018). <i>Forecasting: Principles and Practice</i>, 2nd ed. OTexts.</li>
+      <li>Rasmussen, C. E. and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.</li>
+      <li>Devlin, J. et al. (2019). BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. <i>NAACL</i>.</li>
+      <li>Lewis, M. et al. (2020). BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension. <i>ACL</i>.</li>
+      <li>Raffel, C. et al. (2020). Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer. <i>JMLR</i> 21.</li>
+      <li>KernelSynth generator: github.com/amazon-science/chronos-forecasting, <span class="mono">scripts/kernel-synth.py</span> (Apache-2.0).</li>
+      <li>Taga, E. G., Ildiz, M. E. and Oymak, S. (2025). TimePFN: Effective Multivariate Time Series Forecasting with Synthetic Data. <i>AAAI</i>. arXiv:2502.16294.</li>
+      <li>Nagpal, A. et al. (2026). Mix, Don&rsquo;t Pick: Why Synthetic Corpus Composition Matters for Time Series Foundation Model Pretraining. arXiv:2606.09912.</li>
+      <li>LMC-Synth generator: github.com/egetaga/TimePFN, <span class="mono">synthetic_data_generation/LMC_Synth.py</span>.</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+</div>
+
+<script src="vendor/reveal/reveal.js"></script>
+<script src="data/kernelsynth_demo.js"></script>
+<script src="data/multivariate_demo.js"></script>
+<script src="data/ar_coverage_demo.js"></script>
+<script src="data/lmc_demo.js"></script>
+<script src="data/generator_demo.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/extras.js"></script>
+<script src="js/kernelsynth_anim.js"></script>
+<script src="js/generators_detail.js"></script>
+<script src="js/multivariate_anim.js"></script>
+<script src="js/zoom_common.js"></script>
+<script src="js/zoom_generator.js"></script>
+<script src="js/ar_capacity.js"></script>
+<script src="js/lmc_synth.js"></script>
+<script src="js/zoom_head.js"></script>
+<script src="js/stability_detail.js"></script>
+<script src="js/dependency_detail.js"></script>
+<script src="js/zoom_transition.js"></script>
+<script>
+  Reveal.initialize({
+    width: 1280,
+    height: 720,
+    margin: 0.04,
+    center: false,
+    hash: true,
+    slideNumber: "c/t",
+    transition: "fade",
+    transitionSpeed: "default",
+    autoAnimateDuration: 0.9,
+    autoAnimateEasing: "ease",
+    controls: true,
+    progress: true,
+    pdfMaxPagesPerSlide: 1,
+    pdfSeparateFragments: false,
+  });
+</script>
+</body>
+</html>

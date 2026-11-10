@@ -15,7 +15,6 @@ from tsfmxai.representations.expression import (
     MechanismBinding,
     Multiply,
     Parameter,
-    Time,
     format_tree,
     lag_slots,
     operator_count,
@@ -36,13 +35,11 @@ class RandomTreeConfig:
     minimum_lag: int = 1
     maximum_lag: int = 12
     parameter_probability: float = 0.40
-    time_probability: float = 0.15
-    lag_probability: float = 0.45
+    lag_probability: float = 0.60
     add_probability: float = 0.65
     minimum_parameter_magnitude: float = 0.05
     maximum_parameter_magnitude: float = 0.90
     require_lag: bool = True
-    require_time: bool = False
     coefficient_gate_lags: bool = False
 
     def __post_init__(self) -> None:
@@ -54,16 +51,13 @@ class RandomTreeConfig:
             raise ValueError("num_series must be positive.")
         if self.minimum_lag < 1 or self.maximum_lag < self.minimum_lag:
             raise ValueError("The lag interval must contain positive integers.")
-        terminal_total = (
-            self.parameter_probability + self.time_probability + self.lag_probability
-        )
+        terminal_total = self.parameter_probability + self.lag_probability
         if terminal_total <= 0:
             raise ValueError("At least one terminal probability must be positive.")
         if any(
             probability < 0
             for probability in (
                 self.parameter_probability,
-                self.time_probability,
                 self.lag_probability,
             )
         ):
@@ -74,10 +68,6 @@ class RandomTreeConfig:
             raise ValueError("Parameter magnitudes must define a positive interval.")
         if not isinstance(self.coefficient_gate_lags, bool):
             raise ValueError("coefficient_gate_lags must be a boolean.")
-        minimum_leaf_count = self.minimum_operators + 1
-        required_kinds = int(self.require_lag) + int(self.require_time)
-        if required_kinds > minimum_leaf_count:
-            raise ValueError("The minimum tree size cannot contain all required terminals.")
 
 
 @dataclass(frozen=True)
@@ -126,34 +116,20 @@ def _sample_terminal_kinds(
     config: RandomTreeConfig,
 ) -> list[str]:
     probabilities = np.asarray(
-        [config.parameter_probability, config.time_probability, config.lag_probability],
+        [config.parameter_probability, config.lag_probability],
         dtype=float,
     )
     probabilities /= probabilities.sum()
     kinds = list(
         rng.choice(
-            np.asarray(["parameter", "time", "lag"], dtype=object),
+            np.asarray(["parameter", "lag"], dtype=object),
             size=leaf_count,
             p=probabilities,
         )
     )
 
-    reserved_indices: set[int] = set()
-    if config.require_lag:
-        if "lag" in kinds:
-            lag_index = kinds.index("lag")
-        else:
-            lag_index = int(rng.integers(leaf_count))
-            kinds[lag_index] = "lag"
-        reserved_indices.add(lag_index)
-    if config.require_time:
-        if "time" in kinds and kinds.index("time") not in reserved_indices:
-            time_index = kinds.index("time")
-        else:
-            choices = [index for index in range(leaf_count) if index not in reserved_indices]
-            time_index = int(rng.choice(choices))
-            kinds[time_index] = "time"
-        reserved_indices.add(time_index)
+    if config.require_lag and "lag" not in kinds:
+        kinds[int(rng.integers(leaf_count))] = "lag"
     return kinds
 
 
@@ -169,8 +145,6 @@ def _make_terminals(
         if kind == "parameter":
             terminals.append(Parameter(f"temporary_parameter_{parameter_index}"))
             parameter_index += 1
-        elif kind == "time":
-            terminals.append(Time())
         elif kind == "lag":
             variable = int(rng.integers(config.num_series))
             terminals.append(Lag(variable, f"temporary_lag_{lag_index}"))
@@ -250,7 +224,7 @@ def _coefficient_gate_lags(
             gate_index += 1
             gate_values[gate_slot] = _sample_parameter_value(rng, config)
             return Multiply(Parameter(gate_slot), node)
-        if isinstance(node, (Parameter, Time)):
+        if isinstance(node, Parameter):
             return node
         left = add_gates(node.left)
         right = add_gates(node.right)
@@ -277,8 +251,6 @@ def _coefficient_gate_lags(
             lag_index += 1
             relabeled_lag_values[new_slot] = int(binding.lag_values[node.slot])
             return Lag(node.variable, new_slot)
-        if isinstance(node, Time):
-            return node
         left = relabel_and_rebind(node.left)
         right = relabel_and_rebind(node.right)
         if isinstance(node, Add):

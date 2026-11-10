@@ -50,13 +50,6 @@
             </select>
             <p class="muted" id="stability-description"></p>
           </div>
-          <div class="field full" id="shao-wu-mode-field" hidden>
-            <label for="shao-wu-mode">Onde aplicar tanh</label>
-            <select id="shao-wu-mode">
-              <option value="product_lags">Nos fatores — tanh(u) × tanh(v)</option>
-              <option value="product_output">Após o produto — tanh(u × v)</option>
-            </select>
-          </div>
           <div class="field full">
             <label for="tree-seed">Seed do mecanismo</label>
             <input id="tree-seed" type="number" value="20260930" min="0" />
@@ -84,12 +77,10 @@
             <summary>Distribuição dos nós</summary>
             <div class="field-grid nested">
               <div class="field"><label for="p-parameter">P(parâmetro)</label><input id="p-parameter" type="number" value="0.45" min="0" max="1" step="0.05" /></div>
-              <div class="field"><label for="p-time">P(tempo)</label><input id="p-time" type="number" value="0.10" min="0" max="1" step="0.05" /></div>
-              <div class="field"><label for="p-lag">P(lag)</label><input id="p-lag" type="number" value="0.45" min="0" max="1" step="0.05" /></div>
+              <div class="field"><label for="p-lag">P(lag)</label><input id="p-lag" type="number" value="0.55" min="0" max="1" step="0.05" /></div>
               <div class="field"><label for="p-add">P(adição)</label><input id="p-add" type="number" value="0.65" min="0" max="1" step="0.05" /></div>
             </div>
             <label class="check"><input id="require-lag" type="checkbox" checked /><span>Exigir ao menos um lag</span></label>
-            <label class="check"><input id="require-time" type="checkbox" /><span>Exigir o terminal tempo</span></label>
           </details>
 
           <button class="primary" id="generate-tree">Gerar duas equações</button>
@@ -134,7 +125,7 @@
                 <div class="equation-tabs" id="equation-tabs" aria-label="Equação exibida"></div>
               </div>
               <div id="tree-visualization" class="tree-stage"><p class="empty">Gere um sistema para visualizar sua estrutura.</p></div>
-              <div class="legend"><span class="operator-dot"></span>operador <span class="lag-dot"></span>lag <span class="parameter-dot"></span>parâmetro <span class="time-dot"></span>tempo</div>
+              <div class="legend"><span class="operator-dot"></span>operador <span class="lag-dot"></span>lag <span class="parameter-dot"></span>parâmetro</div>
             </article>
             <article class="panel binding-panel">
               <div class="section-title"><span>BINDING</span><h3>Valores de <span id="active-binding-target">x₀(t)</span></h3></div>

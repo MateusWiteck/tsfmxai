@@ -17,14 +17,14 @@ from tsfmxai.generators.contraction import ContractionTreeConfig, ContractiveMec
 from tsfmxai.generators.heaps import HeapsVARConfig, HeapsVARMechanism, initialize_heaps_history, sample_heaps_var_mechanism
 from tsfmxai.generators.random_expression import RandomTreeConfig, derive_sample_seed, sample_random_mechanism
 from tsfmxai.generators.shao_wu import (
-    AmplitudeMomentCertificate, ShaoWuConfig, ShaoWuMechanism, sample_shao_wu_mechanism,
+    ShaoWuConfig, ShaoWuMechanism, sample_shao_wu_mechanism,
 )
 from tsfmxai.generators.initialization import HistorySpec, make_initial_history
 from tsfmxai.generators.stochastic import simulate_innovation_path
 from tsfmxai.generators.trajectory import required_multivariate_history_length
 
 
-GROUPS = ("Original AST", "Jacobian", "Shao-Wu: factors", "Shao-Wu: output", "Heaps")
+GROUPS = ("Original AST", "Jacobian", "Shao-Wu", "Heaps")
 
 
 @dataclass(frozen=True)
@@ -76,7 +76,7 @@ class InitializationStudyConfig:
 
 
 def generator_configs(config):
-    tree = RandomTreeConfig(time_probability=0., parameter_probability=.55,
+    tree = RandomTreeConfig(parameter_probability=.55,
                             lag_probability=.45, add_probability=.8,
                             minimum_lag=config.minimum_lag, maximum_lag=config.maximum_lag,
                             maximum_parameter_magnitude=.8)
@@ -85,10 +85,7 @@ def generator_configs(config):
         "Jacobian": ContractionTreeConfig(
             tree_config=replace(tree, coefficient_gate_lags=True),
             innovation_bound=np.sqrt(3.) * config.innovation_std),
-        "Shao-Wu: factors": ShaoWuConfig(tree_config=tree, lag_transform="product_lags",
-                                         innovation_std=config.innovation_std),
-        "Shao-Wu: output": ShaoWuConfig(tree_config=tree, lag_transform="product_output",
-                                        innovation_std=config.innovation_std),
+        "Shao-Wu": ShaoWuConfig(tree_config=tree, innovation_std=config.innovation_std),
         "Heaps": HeapsVARConfig(innovation_std=config.innovation_std,
                                minimum_order=config.maximum_lag if config.heaps_fixed_order else 1,
                                maximum_order=config.maximum_lag),
@@ -143,15 +140,6 @@ def history_admissible(mechanism, history):
         return False
     return not isinstance(mechanism, ContractiveMechanism) or bool(
         np.max(np.abs(history)) <= mechanism.certificate.domain_radius + 1e-12)
-
-
-def amplitude_bound_for_history(mechanism, history):
-    """Recompute the output-mode bound for this fixed history, without rescaling F."""
-    if not isinstance(mechanism, ShaoWuMechanism) or not isinstance(mechanism.certificate, AmplitudeMomentCertificate):
-        return np.nan
-    cert = mechanism.certificate
-    initial = float(np.max(np.linalg.norm(history, axis=0)))
-    return max(initial, (cert.bounded_term_norm + cert.innovation_l2) / (1 - cert.total_gain))
 
 
 def simulate_from_history(mechanism, history, innovations, config):
@@ -221,7 +209,6 @@ def run_history_case(group, mechanisms, config, spec):
                 rows.append(dict(method=group, case=spec.name, mechanism=i, trajectory=r,
                                  actual_order=order, history_length=history.shape[1],
                                  initial_max_abs=float(np.max(np.abs(history))),
-                                 amplitude_l2_bound=amplitude_bound_for_history(mechanism, history),
                                  initialization_seconds=init_seconds, simulation_seconds=simulation_seconds,
                                  **outcome))
             if i < config.example_mechanisms:
@@ -270,7 +257,6 @@ def run_initialization_cases(group, mechanisms, config, *, study):
                 for outcome in path_diagnostics(path, config):
                     rows.append(dict(method=group, case=str(case), mechanism=i, trajectory=r,
                                      initial_max_abs=float(np.max(np.abs(history))),
-                                     amplitude_l2_bound=amplitude_bound_for_history(mechanism, history),
                                      **outcome))
                 if i < 3 and r == 0:
                     examples.append(dict(mechanism=i, case=str(case), history=history,

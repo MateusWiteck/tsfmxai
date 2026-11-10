@@ -13,7 +13,6 @@ from tsfmxai.representations.expression import (
     MechanismBinding,
     Multiply,
     Parameter,
-    Time,
     Tanh,
     validate_binding,
     walk,
@@ -102,8 +101,6 @@ def evaluate_bound_expression(
 
     if isinstance(expression, Parameter):
         return float(binding.parameter_values[expression.slot])
-    if isinstance(expression, Time):
-        return float(time)
     if isinstance(expression, Tanh):
         return float(np.tanh(evaluate_bound_expression(
             expression.operand, binding, time=time, histories=histories,

@@ -5,7 +5,7 @@ ALGORITHMS = {
         "Original random AST",
         [("Derive local seed from root seed and mechanism index", False),
          ("Sample the number of binary operators", False),
-         ("Sample parameter and lag leaves (time optional)", False),
+         ("Sample parameter and lag leaves", False),
          ("Sample Catalan-weighted binary tree shape", False),
          ("Label ADD/MULTIPLY operators", False),
          ("Name slots and bind coefficients and lags", False),

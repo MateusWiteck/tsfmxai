@@ -17,10 +17,7 @@ from tsfmxai.generators import (
 from tsfmxai.representations import Add, Multiply, Lag, Tanh
 
 METHODS = ("none", "coefficient_gate", "contraction", "shao_wu",
-           "shao_wu_all_tanh", "shao_wu_product_lags", "shao_wu_product_output",
            "heaps", "stationary_var1")
-
-SHAO_METHODS = ("shao_wu", "shao_wu_all_tanh", "shao_wu_product_lags", "shao_wu_product_output")
 
 
 @dataclass(frozen=True)
@@ -51,7 +48,7 @@ def _remap_scalar(expression, target):
 
 
 def sample_studio_system(config: RandomTreeConfig, *, method: str, seed: int,
-                         innovation: float = .05, shao_wu_mode: str = "product_lags") -> StudioSystem:
+                         innovation: float = .05) -> StudioSystem:
     if method not in METHODS:
         raise ValueError("Método de controle de explosão desconhecido.")
     if config.num_series != 2:
@@ -62,8 +59,8 @@ def sample_studio_system(config: RandomTreeConfig, *, method: str, seed: int,
         config = replace(config, coefficient_gate_lags=method == "coefficient_gate")
         equations = tuple(sample_random_mechanisms(config, root_seed=seed, count=2))
         return StudioSystem(method, equations, None, config, innovation, ())
-    if method == "contraction" or method in SHAO_METHODS:
-        config = replace(config, time_probability=0., require_time=False, require_lag=True)
+    if method in ("contraction", "shao_wu"):
+        config = replace(config, require_lag=True)
     if method == "contraction":
         if innovation >= 1:
             raise ValueError("Na contração, o limite da inovação deve ser menor que 1.")
@@ -76,15 +73,9 @@ def sample_studio_system(config: RandomTreeConfig, *, method: str, seed: int,
     else:
         if innovation <= 0:
             raise ValueError("Este método requer desvio de inovação maior que zero.")
-        if method in SHAO_METHODS:
-            if shao_wu_mode not in ("product_lags", "product_output"):
-                raise ValueError("Escolha product_lags ou product_output para a saturação.")
-            lag_transform = {"shao_wu": shao_wu_mode, "shao_wu_all_tanh": "tanh",
-                             "shao_wu_product_lags": "product_lags",
-                             "shao_wu_product_output": "product_output"}[method]
+        if method == "shao_wu":
             retained = sample_shao_wu_mechanism(
-                ShaoWuConfig(tree_config=config, innovation_std=innovation,
-                             lag_transform=lag_transform), seed=seed)
+                ShaoWuConfig(tree_config=config, innovation_std=innovation), seed=seed)
         elif method == "heaps":
             retained = sample_heaps_var_mechanism(
                 HeapsVARConfig(num_series=2, minimum_order=config.minimum_lag,
@@ -117,7 +108,7 @@ def sample_studio_trajectories(system: StudioSystem, *, trajectory_count: int,
         raise ValueError("A inovação mudou; gere um novo sistema para preservar o certificado.")
     if system.method == "heaps":
         return sample_heaps_var_trajectories(system.retained, **kwargs)
-    if system.method in SHAO_METHODS:
+    if system.method == "shao_wu":
         return sample_shao_wu_trajectories(system.retained, **kwargs)
     if system.method == "stationary_var1":
         return sample_stationary_var1_trajectories(system.retained, **kwargs)

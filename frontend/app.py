@@ -32,7 +32,6 @@ from tsfmxai.representations import (  # noqa: E402
     Lag,
     Multiply,
     Parameter,
-    Time,
     Tanh,
     children,
     leaf_count,
@@ -80,8 +79,6 @@ def _node_payload(node: ExpressionNode, binding: Any) -> dict[str, Any]:
             "value": float(binding.parameter_values[node.slot]),
             "children": [],
         }
-    if isinstance(node, Time):
-        return {"type": "TIME", "children": []}
     if isinstance(node, Lag):
         return {
             "type": "LAG",
@@ -182,7 +179,6 @@ def _system_payload(
             "minimum_lag": config.minimum_lag,
             "maximum_lag": config.maximum_lag,
             "require_lag": config.require_lag,
-            "require_time": config.require_time,
         },
         "equations": equations,
         "dependency_lags": dependency_lags,
@@ -288,8 +284,7 @@ class FrontendHandler(SimpleHTTPRequestHandler):
             minimum_lag=_as_int(data, "minimum_lag", 1),
             maximum_lag=_as_int(data, "maximum_lag", 8),
             parameter_probability=_as_float(data, "parameter_probability", 0.45),
-            time_probability=_as_float(data, "time_probability", 0.10),
-            lag_probability=_as_float(data, "lag_probability", 0.45),
+            lag_probability=_as_float(data, "lag_probability", 0.55),
             add_probability=_as_float(data, "add_probability", 0.65),
             minimum_parameter_magnitude=_as_float(
                 data, "minimum_parameter_magnitude", 0.05
@@ -298,17 +293,13 @@ class FrontendHandler(SimpleHTTPRequestHandler):
                 data, "maximum_parameter_magnitude", 0.90
             ),
             require_lag=bool(data.get("require_lag", True)),
-            require_time=bool(data.get("require_time", False)),
         )
         root_seed = _as_int(data, "seed", 20260930)
         system = sample_studio_system(config, method=str(data.get("stability_method", "none")),
-                                     seed=root_seed, innovation=_as_float(data, "innovation_std", .05),
-                                     shao_wu_mode=str(data.get("shao_wu_mode", "product_lags")))
+                                     seed=root_seed, innovation=_as_float(data, "innovation_std", .05))
         mechanism_id = STORE.add(system)
         payload = _system_payload(mechanism_id, system.equations, system.tree_config, root_seed)
         payload["stability_method"] = system.method
-        if system.method.startswith("shao_wu"):
-            payload["shao_wu_mode"] = system.retained.lag_transform
         payload["certificates"] = system.certificates
         payload["innovation"] = system.innovation
         self._write_json(payload)

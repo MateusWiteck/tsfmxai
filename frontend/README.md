@@ -74,8 +74,7 @@ trajectory generator; it does not clip trajectories to simulate stability.
 | None | Original unrestricted, coupled AST sampler. |
 | Coefficient-gated lags | Existing heuristic; no stability certificate. |
 | Jacobian contraction | Two independently certified scalar recurrences on `[-1, 1]`, with bounded uniform innovations. |
-| Shao–Wu: factors | The additional selector chooses `product_lags`: `tanh(u) * tanh(v)`, with standalone linear terms and a checked global GMC sensitivity budget. |
-| Shao–Wu: product output | Select `product_output`: `tanh(u * v)`, with coefficients outside the complete product, standalone linear terms, and a checked uniform second-moment amplitude bound. This record has its own guarantee label. |
+| Shao–Wu: factors | Uses `product_lags`: `tanh(u) * tanh(v)`, with standalone linear terms and a checked global GMC sensitivity budget. |
 | Heaps VAR(p) | Coupled linear stationary VAR; lag bounds select the order and history is drawn from its joint stationary law. |
 | Stationary VAR(1) | Coupled linear VAR with spectral radius below one and stationary Gaussian initialization. |
 

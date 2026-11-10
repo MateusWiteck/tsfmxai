@@ -61,7 +61,6 @@ def test_parallel_jobs_are_reproducible_and_keep_one_tree_per_job() -> None:
         num_series=1,
         maximum_lag=4,
         parameter_probability=0.6,
-        time_probability=0.0,
         lag_probability=0.4,
         add_probability=0.8,
         require_lag=True,
@@ -104,7 +103,6 @@ def test_batch_guarantees_distinct_tree_skeletons() -> None:
         num_series=1,
         maximum_lag=6,
         parameter_probability=0.5,
-        time_probability=0.0,
         lag_probability=0.5,
         add_probability=0.75,
         require_lag=True,
@@ -157,7 +155,6 @@ def test_batch_hash_is_independent_of_worker_count_and_callers_random_seeds() ->
         num_series=1,
         maximum_lag=6,
         parameter_probability=0.5,
-        time_probability=0.0,
         lag_probability=0.5,
         add_probability=0.75,
         require_lag=True,
@@ -209,7 +206,6 @@ def test_generation_does_not_advance_callers_global_random_states() -> None:
     tree_config = RandomTreeConfig(
         maximum_operators=2,
         num_series=1,
-        time_probability=0.0,
         require_lag=True,
     )
     generation_config = ParallelGenerationConfig(

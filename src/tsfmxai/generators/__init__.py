@@ -13,10 +13,10 @@ from tsfmxai.generators.heaps import (
     sample_heaps_var_trajectories, var_companion_matrix,
 )
 from tsfmxai.generators.shao_wu import (
-    ShaoWuCertificate, AmplitudeMomentCertificate, ShaoWuConfig, ShaoWuMechanism,
+    ShaoWuCertificate, ShaoWuConfig, ShaoWuMechanism,
     build_shao_wu_mechanism, global_expression_bounds, initialize_shao_wu_history,
     sample_shao_wu_mechanism, sample_shao_wu_mechanisms, sample_shao_wu_trajectories,
-    saturate_all_lags, saturate_product_lags, saturate_product_outputs, amplitude_growth_bounds,
+    saturate_product_lags,
 )
 from tsfmxai.generators.stochastic import simulate_innovation_path
 
@@ -96,10 +96,9 @@ __all__ = [
     "sample_heaps_var_mechanism", "sample_heaps_var_mechanisms",
     "sample_heaps_var_trajectories", "var_companion_matrix",
     "ShaoWuCertificate", "ShaoWuConfig", "ShaoWuMechanism",
-    "AmplitudeMomentCertificate", "amplitude_growth_bounds",
     "build_shao_wu_mechanism", "global_expression_bounds", "initialize_shao_wu_history",
     "sample_shao_wu_mechanism", "sample_shao_wu_mechanisms", "sample_shao_wu_trajectories",
-    "saturate_all_lags", "saturate_product_lags", "saturate_product_outputs",
+    "saturate_product_lags",
     "simulate_innovation_path",
     "ContractionCertificate",
     "ContractionMonteCarloReport",

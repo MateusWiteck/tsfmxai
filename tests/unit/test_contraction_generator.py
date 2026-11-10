@@ -15,7 +15,7 @@ from tsfmxai.generators import (
     sample_contractive_trajectories,
     validate_contraction_monte_carlo,
 )
-from tsfmxai.representations import Add, Lag, MechanismBinding, Multiply, Parameter, Time
+from tsfmxai.representations import Add, Lag, MechanismBinding, Multiply, Parameter
 
 
 def nonlinear_expression():
@@ -43,13 +43,11 @@ def compact_config() -> ContractionTreeConfig:
             minimum_lag=1,
             maximum_lag=5,
             parameter_probability=0.55,
-            time_probability=0.0,
             lag_probability=0.45,
             add_probability=0.8,
             minimum_parameter_magnitude=0.05,
             maximum_parameter_magnitude=0.8,
             require_lag=True,
-            require_time=False,
             coefficient_gate_lags=True,
         ),
         domain_radius=1.0,
@@ -186,12 +184,12 @@ def test_domain_singularities_and_noise_assumptions_are_checked() -> None:
         ContractionTreeConfig(domain_radius=1.0, innovation_bound=1.0)
     with pytest.raises(ValueError, match="shift gain"):
         ContractionTreeConfig(lag_weight_growth=1.1, target_lipschitz=0.9)
-    with pytest.raises(ValueError, match="time terminal"):
+    with pytest.raises(ValueError, match="lag"):
         ContractionTreeConfig(
-            tree_config=RandomTreeConfig(time_probability=0.1, require_time=False)
+            tree_config=RandomTreeConfig(require_lag=False)
         )
 
-    expression = Add(Time(), Lag(0, "lag"))
-    binding = MechanismBinding(parameter_values={}, lag_values={"lag": 1})
-    with pytest.raises(ValueError, match="Time terminals"):
+    expression = Add(Lag(1, "other"), Lag(0, "lag"))
+    binding = MechanismBinding(parameter_values={}, lag_values={"other": 1, "lag": 1})
+    with pytest.raises(ValueError, match="series"):
         bound_expression_on_box(expression, binding, domain_radius=1.0)

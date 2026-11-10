@@ -23,9 +23,6 @@ def test_studio_methods_generate_reproducible_two_channel_batches(method):
     assert all(c["holds"] for c in system.certificates)
     if method.startswith("shao_wu"):
         assert system.retained.certificate.anchor_l2 > 0
-        if method == "shao_wu_all_tanh":
-            assert any(isinstance(node, Tanh) for equation in system.equations
-                       for node in walk(equation.expression))
         initial_seed, _ = np.random.SeedSequence([47, 0]).spawn(2)
         expected_history = initialize_shao_wu_history(
             system.retained,
@@ -68,17 +65,8 @@ def test_unknown_method_and_changed_certified_noise_are_rejected():
                                   root_seed=7, innovation_std=.1)
 
 
-@pytest.mark.parametrize("mode,guarantee", [
-    ("product_lags", "geometric_moment_contraction"),
-    ("product_output", "uniform_second_moment_bound"),
-])
-def test_single_shao_wu_selector_preserves_the_selected_guarantee(mode, guarantee):
-    class Handler:
-        _write_json = lambda self, payload: setattr(self, "payload", payload)
-    handler = Handler()
-    FrontendHandler._sample_system(handler, {"stability_method": "shao_wu",
-        "shao_wu_mode": mode, "seed": 19, "maximum_operators": 5,
-        "maximum_lag": 3, "innovation_std": .05})
-    assert handler.payload["certificates"][0]["guarantee"] == guarantee
-    assert handler.payload["certificates"][0]["holds"]
-    json.dumps(handler.payload, allow_nan=False)
+def test_shao_wu_has_only_product_lag_guarantee():
+    system = sample_studio_system(RandomTreeConfig(num_series=2, maximum_lag=3),
+                                  method="shao_wu", seed=19)
+    assert system.certificates[0]["guarantee"] == "geometric_moment_contraction"
+    assert system.certificates[0]["holds"]

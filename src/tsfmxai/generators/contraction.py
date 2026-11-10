@@ -21,7 +21,6 @@ from tsfmxai.representations.expression import (
     MechanismBinding,
     Multiply,
     Parameter,
-    Time,
     Tanh,
     format_tree,
     to_bound_formula,
@@ -39,13 +38,11 @@ def _default_tree_config() -> RandomTreeConfig:
         minimum_lag=1,
         maximum_lag=12,
         parameter_probability=0.55,
-        time_probability=0.0,
         lag_probability=0.45,
         add_probability=0.80,
         minimum_parameter_magnitude=0.05,
         maximum_parameter_magnitude=0.80,
         require_lag=True,
-        require_time=False,
         coefficient_gate_lags=True,
     )
 
@@ -65,8 +62,6 @@ class ContractionTreeConfig:
     def __post_init__(self) -> None:
         if self.tree_config.num_series != 1:
             raise ValueError("ContractionTreeConfig currently supports one series.")
-        if self.tree_config.time_probability != 0.0 or self.tree_config.require_time:
-            raise ValueError("A time terminal is incompatible with the invariant state box.")
         if not self.tree_config.require_lag:
             raise ValueError("The contraction generator requires at least one lag.")
         if not np.isfinite(self.domain_radius) or self.domain_radius <= 0.0:
@@ -184,8 +179,6 @@ class ContractionMonteCarloReport:
 def _state_dimension(expression: ExpressionNode, binding: MechanismBinding) -> int:
     validate_binding(expression, binding)
     nodes = list(walk(expression))
-    if any(isinstance(node, Time) for node in nodes):
-        raise ValueError("Time terminals are not supported by the contraction certificate.")
     invalid_sources = sorted(
         {node.variable for node in nodes if isinstance(node, Lag) and node.variable != 0}
     )
@@ -234,8 +227,6 @@ def bound_expression_on_box(
             gradient = np.zeros(dimension, dtype=float)
             gradient[binding.lag_values[node.slot] - 1] = 1.0
             return -domain_radius, domain_radius, gradient
-        if isinstance(node, Time):
-            raise ValueError("Time terminals are not supported by the contraction certificate.")
         if isinstance(node, Tanh):
             low, high, gradient = visit(node.operand)
             return float(np.tanh(low)), float(np.tanh(high)), gradient
@@ -456,8 +447,6 @@ def evaluate_expression_with_gradient(
             gradient = np.zeros(dimension)
             gradient[coordinate] = 1.0
             return float(state[coordinate]), gradient
-        if isinstance(node, Time):
-            raise ValueError("Time terminals are not supported by the contraction certificate.")
         if isinstance(node, Tanh):
             value, gradient = visit(node.operand)
             output = float(np.tanh(value))

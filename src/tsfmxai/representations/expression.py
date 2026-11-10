@@ -22,11 +22,6 @@ class Parameter(Expression):
 
 
 @dataclass(frozen=True)
-class Time(Expression):
-    """Current discrete-time index."""
-
-
-@dataclass(frozen=True)
 class Lag(Expression):
     """Reference to a variable at a lag supplied through a discrete slot."""
 
@@ -63,7 +58,7 @@ class Tanh(Expression):
     operand: Expression
 
 
-ExpressionNode: TypeAlias = Parameter | Time | Lag | Add | Multiply | Tanh
+ExpressionNode: TypeAlias = Parameter | Lag | Add | Multiply | Tanh
 
 
 @dataclass(frozen=True)
@@ -105,9 +100,9 @@ def operator_count(expression: ExpressionNode) -> int:
 
 
 def leaf_count(expression: ExpressionNode) -> int:
-    """Count parameter, time, and lag terminals."""
+    """Count parameter and lag terminals."""
 
-    return sum(isinstance(node, (Parameter, Time, Lag)) for node in walk(expression))
+    return sum(isinstance(node, (Parameter, Lag)) for node in walk(expression))
 
 
 def tree_depth(expression: ExpressionNode) -> int:
@@ -148,8 +143,6 @@ def relabel_slots(expression: ExpressionNode) -> ExpressionNode:
             result = Lag(node.variable, f"L{lag_index}")
             lag_index += 1
             return result
-        if isinstance(node, Time):
-            return node
         if isinstance(node, Tanh):
             return Tanh(visit(node.operand))
         left = visit(node.left)
@@ -166,8 +159,6 @@ def node_label(expression: ExpressionNode) -> str:
 
     if isinstance(expression, Parameter):
         return f"PARAMETER({expression.slot})"
-    if isinstance(expression, Time):
-        return "TIME"
     if isinstance(expression, Lag):
         return f"LAG(x{expression.variable}, {expression.slot})"
     if isinstance(expression, Add):
@@ -200,8 +191,6 @@ def to_skeleton_formula(expression: ExpressionNode) -> str:
 
     if isinstance(expression, Parameter):
         return expression.slot
-    if isinstance(expression, Time):
-        return "t"
     if isinstance(expression, Lag):
         return f"LAG({expression.variable}, {expression.slot})"
     if isinstance(expression, Tanh):
@@ -245,8 +234,6 @@ def to_bound_formula(expression: ExpressionNode, binding: MechanismBinding) -> s
     def visit(node: ExpressionNode) -> str:
         if isinstance(node, Parameter):
             return f"{float(binding.parameter_values[node.slot]):.6g}"
-        if isinstance(node, Time):
-            return "t"
         if isinstance(node, Lag):
             lag = binding.lag_values[node.slot]
             return f"x_{node.variable}(t-{lag})"

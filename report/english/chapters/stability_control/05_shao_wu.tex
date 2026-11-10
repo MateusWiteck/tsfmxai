@@ -1,14 +1,11 @@
 \subsection{Shao--Wu-Inspired Nonlinear Generation}
 \label{sec:implemented-shao-wu}
 
-The generator offers two standard positions for the hyperbolic tangent:
-\texttt{product\_lags} applies it to the lag factors before multiplication,
-whereas \texttt{product\_output} applies it once after the complete product.
-For two historical inputs $z_1,z_2$, these choices give
-$\tanh(z_1)\tanh(z_2)$ and $\tanh(z_1z_2)$, respectively. A term containing
-only a coefficient and one lag remains linear in both modes. The selected
-mode is retained with the mechanism. Each mode carries a verification record
-stating the particular property checked below.
+The generator applies the hyperbolic tangent to lag factors inside
+nonlinear products: $z_1z_2$ becomes $\tanh(z_1)\tanh(z_2)$.
+A term containing only a coefficient and one lag remains linear.
+The final mechanism records a global moment contraction certificate.
+Historical ablations of other placements remain in the experiment archive.
 
 \subsubsection{Desired Property and Shao--Wu's Theorem}
 \label{sec:implemented-shao-wu-theory}
@@ -169,105 +166,6 @@ derivative bounds of $0.3$. Applying the default safety factor gives
 The final total sensitivity bound is $0.57<1$ and the reference moment is
 finite. This is a worked project construction using the cited theorem.
 
-\subsubsection{Product-Output Saturation and Moment Bounds}
-The second standard option evaluates the product first, then applies
-$\tanh$ once. Its construction keeps history-independent multiplicative
-coefficients outside the saturation: both $a(z_1z_2)$ and $(az_1)z_2$
-therefore produce $a\tanh(z_1z_2)$. For three or more factors the entire
-connected product is saturated once. Additive terms keep their original
-roles.
-
-This choice directly bounds the product's output. Its sensitivity has a
-different behaviour:
-\begin{equation}
- \frac{\partial\,\tanh(z_1z_2)}{\partial z_1}
- =z_2\bigl[1-\tanh^2(z_1z_2)\bigr].
- \label{eq:implemented-product-output-derivative}
-\end{equation}
-At $z_1=0$, this derivative equals $z_2$. Distinct lag coordinates can make
-it arbitrarily large. Repeated occurrences of the same coordinate require
-a separate calculation: $\tanh(z^2)$ has a bounded derivative.
-Consequently, the conservative AST derivative test records what it can
-verify; an infinite computed upper bound can represent overestimation.
-
-The standard product-output mode checks a \emph{uniform second-moment
-bound} by a separate project argument. Its growth envelope is
-\begin{equation}
- \|F_{\mathcal T}(\mathbf{s})\|_2
- \leq B_{\mathrm{amp}}+
-      \sum_{d=0}^{L-1} b_d^{\mathrm{amp}}\|\mathbf{s}_d\|_2,
- \qquad q_{\mathrm{amp}}:=\sum_d b_d^{\mathrm{amp}}<1.
- \label{eq:implemented-amplitude-envelope}
-\end{equation}
-Here $B_{\mathrm{amp}}$ covers constants and bounded nonlinear terms.
-The nonnegative $b_d^{\mathrm{amp}}$ cover the magnitude of the remaining
-unsaturated historical terms. They are \emph{growth coefficients}, whereas
-$a_d^{\mathrm{GMC}}$ bound differences between histories.
-
-To compute the envelope, a parameter contributes its absolute value to
-the bounded part; a lag contributes one to its source/lag growth
-coefficient; $\tanh(e)$ contributes a bounded part of one. Addition sums
-these bounds. Multiplication by a bounded factor scales them. A product of
-two unbounded envelopes is flagged for another construction. The mode
-stacks the nonnegative growth coefficients into one target-by-source matrix
-per lag and uses its largest singular value for $b_d^{\mathrm{amp}}$;
-$B_{\mathrm{amp}}$ is the Euclidean norm of the componentwise bounded parts.
-The mode
-scales the complete drift using Eq.~\eqref{eq:implemented-gmc-scaling}
-with the unscaled growth-coefficient sum in place of $\widetilde c$.
-It stores the correspondingly scaled envelope for the executed equation.
-Its root multiplier is stored as \texttt{AMPLITUDE\_SCALE}.
-
-Let $M_0$ bound the $L^2$ norm of every initial lag vector. Minkowski's
-inequality, the triangle inequality for root mean squared magnitudes, gives
-\begin{equation}
- \|\mathbf x_{t+1}\|_{L^2}
- \leq B_{\mathrm{amp}}+
-      \sum_d b_d^{\mathrm{amp}}\|\mathbf x_{t-d}\|_{L^2}
-      +\sigma_\varepsilon\sqrt N.
- \label{eq:implemented-amplitude-recursion}
-\end{equation}
-Define
-\begin{equation}
- M_{\mathrm{amp}}=
- \max\left\{M_0,\,
-       \frac{B_{\mathrm{amp}}+\sigma_\varepsilon\sqrt N}
-            {1-q_{\mathrm{amp}}}\right\}.
- \label{eq:implemented-amplitude-bound}
-\end{equation}
-If the historical vectors have $L^2$ norms at most $M_{\mathrm{amp}}$,
-the next vector has norm at most
-$B_{\mathrm{amp}}+q_{\mathrm{amp}}M_{\mathrm{amp}}
-+\sigma_\varepsilon\sqrt N\leq M_{\mathrm{amp}}$.
-Induction therefore yields
-$\sup_{v\geq1}\mathbb E\|\mathbf x_{\tau+v}\|_2^2
-\leq M_{\mathrm{amp}}^2$.
-The uniform initial box gives the safe choice $M_0=r_0\sqrt N$.
-The implementation stores these quantities in
-\texttt{AmplitudeMoment\-Certificate}, with guarantee
-\path{uniform_second_moment_bound}. This is our derived amplitude
-criterion. Exponential forgetting and a stationary initialization require
-their own additional conditions.
-
-The pure saturated-product example
-$x_{t+1}=\tanh(s_0s_1)+\varepsilon_{t+1}$ is particularly simple:
-independent zero-mean Gaussian innovations give
-$\mathbb E x_{t+1}^2\leq1+\sigma_\varepsilon^2$ at every generated step.
-If two inputs are instead supplied by an already jointly stationary
-external process, applying a fixed pointwise transformation preserves
-their time-shift-invariant joint laws. In a feedback generator, the
-history belongs to the newly defined recurrence, whose own growth or
-contraction conditions must be checked as above.
-
-For a scalar example
-$F(\mathbf{s})=0.2s_0+0.4\tanh(s_0s_1)$, the growth coefficient is $0.2$
-and the bounded part is $0.4$. The default multiplier is $0.95$, giving
-$q_{\mathrm{amp}}=0.19$ and $B_{\mathrm{amp}}=0.38$.
-With $r_0=1$ and $\sigma_\varepsilon=0.05$,
-Eq.~\eqref{eq:implemented-amplitude-bound} gives $M_{\mathrm{amp}}=1$.
-This example controls expected squared magnitude while allowing stochastic
-fluctuations and sensitivity to the history.
-
 \subsubsection{Initialization and Independent Innovations}
 Both standard modes draw their initial $N\times L$ history directly from
 $[-r_0,r_0]$, then generate the requested observations with independent
@@ -316,5 +214,3 @@ expansion of the square yields
  =2\sum_{k=1}^{N}\operatorname{Var}_{\pi_{\mathrm{GMC}}}(x_{k,t}).
  \label{eq:implemented-gmc-independent-distance}
 \end{equation}
-The product-output amplitude record certifies the moment bound derived
-above; distributional convergence is a separate question for that mode.

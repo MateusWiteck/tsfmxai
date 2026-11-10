@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from tsfmxai.evaluation.initialization import (
-    GROUPS, InitializationStudyConfig, amplitude_bound_for_history, history_admissible,
+    GROUPS, InitializationStudyConfig, history_admissible,
     mechanism_parts, paired_inputs, pair_distances, run_forgetting_cases,
     run_initialization_cases, sample_study_mechanisms, simulate_from_history,
     HistorySpec, make_initial_history, run_history_case, run_history_pair, generator_configs,
@@ -88,13 +88,6 @@ def test_jacobian_outside_box_rejected(config):
     assert not history_admissible(m, history)
     with pytest.raises(ValueError, match="outside"):
         simulate_from_history(m, history, np.zeros((1, 24)), config)
-
-
-def test_output_bound_updates_without_changing_equation(config):
-    m = sample_study_mechanisms("Shao-Wu: output", config)[0]
-    _, _, order = mechanism_parts(m)
-    assert amplitude_bound_for_history(m, np.full((1, order), 100.)) >= 100.
-    assert m == sample_study_mechanisms("Shao-Wu: output", config)[0]
 
 
 def test_ar1_known_forgetting_and_initial_prefix_exclusion(config):
