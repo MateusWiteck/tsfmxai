@@ -187,16 +187,16 @@
   const METHODS = [
     { key: null, name: "Plain tree", fam: "Nonlinear tree, nothing added. Gaussian noise; uniform start.",
       think: "No safeguard. It can produce any dynamics, including explosive ones.",
-      guar: "None. Paths that turn non-finite or cross the diagnostic threshold are counted as failures.", expl: "47.7 %", near: "14.8 %", rate: "2 691", ref: true },
+      guar: "None. Paths that turn non-finite or cross the diagnostic threshold are counted as failures.", expl: "47.7 %", near: "14.8 %", rate: "3 066", ref: true },
     { key: "jac", name: "Jacobian", fam: "Nonlinear tree, products allowed. Bounded uniform noise; start inside the box.",
       think: "A funnel with guard rails: states stay in a box and get closer each step.",
-      guar: "Lipschitz bound below 1 on the box (target 0.9).", expl: "0 %", near: "37.5 %", rate: "1 622" },
+      guar: "Lipschitz bound below 1 on the box (target 0.9).", expl: "0 %", near: "37.5 %", rate: "1 558" },
     { key: "sw", name: "Shao–Wu", fam: "Nonlinear tree, tanh on lag products. Gaussian noise; uniform start.",
       think: "An echo that dies out: past influence adds up to less than 1, so it fades.",
-      guar: "Lag sensitivities add up below 1 (target 0.76).", expl: "0 %", near: "25.0 %", rate: "1 395" },
+      guar: "Lag sensitivities add up below 1 (target 0.76).", expl: "0 %", near: "25.0 %", rate: "1 427" },
     { key: "hvar", name: "Heaps VAR", fam: "Linear model only. Gaussian noise; stationary start.",
       think: "A stable filter built to order: random numbers map to coefficients that cannot be unstable.",
-      guar: "All poles inside the unit circle; no rejection needed.", expl: "0 %", near: "44.5 %", rate: "327" },
+      guar: "All poles inside the unit circle; no rejection needed.", expl: "0 %", near: "44.5 %", rate: "349" },
   ];
   const HUB = { x0: 20, w: 272, gap: 24, y: 62, h: 392 };
   const hubRect = (i) => ({ x: HUB.x0 + i * (HUB.w + HUB.gap), y: HUB.y, w: HUB.w, h: HUB.h });

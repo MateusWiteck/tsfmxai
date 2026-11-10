@@ -277,6 +277,8 @@ class FrontendHandler(SimpleHTTPRequestHandler):
             )
 
     def _sample_system(self, data: dict[str, Any]) -> None:
+        if "shao_wu_mode" in data:
+            raise ValueError("shao_wu_mode foi removido; Shao-Wu usa product_lags.")
         config = RandomTreeConfig(
             minimum_operators=_as_int(data, "minimum_operators", 1),
             maximum_operators=_as_int(data, "maximum_operators", 5),

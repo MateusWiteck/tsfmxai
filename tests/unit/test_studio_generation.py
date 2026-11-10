@@ -70,3 +70,12 @@ def test_shao_wu_has_only_product_lag_guarantee():
                                   method="shao_wu", seed=19)
     assert system.certificates[0]["guarantee"] == "geometric_moment_contraction"
     assert system.certificates[0]["holds"]
+
+
+def test_frontend_rejects_removed_shao_wu_selector():
+    class Handler:
+        _write_json = lambda self, payload: setattr(self, "payload", payload)
+
+    with pytest.raises(ValueError, match="shao_wu_mode foi removido"):
+        FrontendHandler._sample_system(Handler(), {"stability_method": "shao_wu",
+                                                   "shao_wu_mode": "product_output"})
