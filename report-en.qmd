@@ -1,0 +1,29 @@
+---
+title: Report
+metadata-files:
+  - website/english.yml
+sidebar: false
+toc: false
+page-layout: full
+format:
+  html:
+    css: website/report.css
+    code-tools: false
+---
+
+[Português](relatorio.qmd)
+
+The report is compiled directly from the project's English LaTeX sources,
+preserving equations, figures, tables and references. The published version follows
+updates pushed to `main`.
+
+```{=html}
+<div class="report-actions" aria-label="Report reading options">
+  <a class="btn btn-primary" href="outputs/report/relatorio.pdf" target="_blank" rel="noopener">Open PDF in a new tab</a>
+  <a class="btn btn-outline-primary" href="outputs/report/relatorio.pdf" download="tsfmxai-report.pdf">Download PDF</a>
+</div>
+<p class="report-help">On small screens, open the PDF for full-screen reading. Use the PDF reader's search to find terms.</p>
+<object class="report-viewer" data="outputs/report/relatorio.pdf#view=FitH" type="application/pdf" aria-label="TSFMXAI research report PDF">
+  <p><a href="outputs/report/relatorio.pdf">Read the full report</a> in your device's PDF reader.</p>
+</object>
+```

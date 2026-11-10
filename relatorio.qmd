@@ -10,6 +10,8 @@ format:
     code-tools: false
 ---
 
+[English](report-en.qmd)
+
 O relatório completo é compilado diretamente dos arquivos LaTeX do projeto,
 preservando a apresentação das fórmulas, figuras, tabelas e referências.
 A versão publicada acompanha as atualizações enviadas para a branch `main`.

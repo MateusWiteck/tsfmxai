@@ -8,6 +8,8 @@ code-fold: false
 code-copy: true
 ---
 
+[Read this documentation in English](documentation.qmd)
+
 Gere sistemas com dependências entre canais, simule trajetórias e receba batches
 com alvos de previsão, skeletons canônicos e parâmetros do ruído. Os exemplos
 abaixo usam a API implementada em `tsfmxai` e podem ser executados em sequência.
@@ -356,3 +358,133 @@ de uma trajetória que falhou. Erros de configuração são reportados diretamen
 
 Os metadados são objetos Python em memória. A função não salva um corpus nem
 gera um manifesto em disco automaticamente.
+
+## Referência completa dos parâmetros
+
+As tabelas abaixo descrevem a implementação atual. “Obrigatório” significa que
+não há valor padrão. Números reais devem ser finitos; `NaN` e infinitos não são
+valores válidos para escalas e probabilidades. Contagens usam inteiros Python,
+não booleanos. Valores padrão da biblioteca não substituem a seleção por coverage.
+
+### `MultiseriesConfig`
+
+| Parâmetro | Valores aceitos | Padrão |
+|---|---|---|
+| `ast_config` | Instância de `CombinatorialTreeConfig` | Obrigatório |
+| `channel_count_probs` | Dicionário não vazio `{int >= 1: probabilidade >= 0}`; soma aproximadamente 1 | Obrigatório |
+| `dependency_probs` | Dicionário com subconjunto de `independent`, `linked_chain`, `previous_chain`, `random`; probabilidades não negativas, soma aproximadamente 1 | Obrigatório |
+| `treatment_probs` | Dicionário com subconjunto de `original`, `shao_wu`; probabilidades não negativas, soma aproximadamente 1 | Obrigatório |
+| `max_external_sources` | Inteiro >= 0; 0 desativa fontes externas | `2` |
+| `self_source_weight` | Real > 0; 1 dá peso igual a cada fonte, > 1 favorece a própria série | `3.0` |
+| `allow_no_lags` | `True` ou `False`; permitir não significa obrigar ausência de lags | `True` |
+| `noise` | Instância de `NoiseConfig` | `NoiseConfig()` |
+| `target_gain` | Real estritamente entre 0 e 1; usado pelo tratamento Shao–Wu | `0.8` |
+| `safety_factor` | Real estritamente entre 0 e 1 | `0.95` |
+
+As somas são verificadas com `numpy.isclose` e normalizadas no sorteio. Pode omitir
+categorias ou atribuir probabilidade zero; chaves desconhecidas são rejeitadas.
+
+### `CombinatorialTreeConfig`
+
+| Parâmetro | Valores aceitos | Padrão |
+|---|---|---|
+| `minimum_operators` | Inteiro >= 0, não maior que `maximum_operators` | `1` |
+| `maximum_operators` | Inteiro >= `minimum_operators` | `6` |
+| `num_series` | Inteiro >= 1; substituído internamente por 1 no sorteio estrutural multissérie | `1` |
+| `minimum_lag` | Inteiro >= 1 | `1` |
+| `maximum_lag` | Inteiro >= `minimum_lag` | `12` |
+| `max_degree` | Inteiro >= 0; precisa ser >= 1 quando lags são obrigatórios | `4` |
+| `require_lag` | Booleano; no gerador multissérie é substituído por `not allow_no_lags` | `True` |
+| `minimum_parameter_magnitude` | Real > 0, não maior que o máximo | `0.05` |
+| `maximum_parameter_magnitude` | Real >= mínimo; não há teto obrigatório de 1 | `0.90` |
+
+Os limites de operadores contam nós binários da AST antes do tratamento.
+Magnitudes são sorteadas no intervalo indicado, com sinal positivo ou negativo.
+`max_degree=0` exige construir a configuração com `require_lag=False` e usar
+`allow_no_lags=True`. Não há um teto numérico fixo para operadores ou grau, mas
+valores grandes podem tornar a contagem combinatorial e a expansão muito caras.
+
+### Ruído e tratamento explícito
+
+| Objeto e parâmetro | Valores aceitos | Padrão |
+|---|---|---|
+| `NoiseConfig.std_range` | Par `(mínimo, máximo)` com `0 <= mínimo <= máximo`; extremos iguais fixam o desvio | `(0.01, 0.1)` |
+| `NoiseConfig.std_sampling` | Apenas `"uniform"` | `"uniform"` |
+| `NoiseConfig.family_policy` | Apenas `"by_treatment"`; os tratamentos atualmente sorteáveis usam gaussiana | `"by_treatment"` |
+| `InnovationSpec.family` | `"gaussian"` ou `"uniform"` | `"gaussian"` |
+| `InnovationSpec.std` | Real >= 0; 0 remove a inovação; para uniforme, `sqrt(3)*std` também precisa ser finito | `0.05` |
+| `TreatmentSpec.method` | `"original"` ou `"shao_wu"` | `"original"` |
+| `TreatmentSpec.target_gain` | Real estritamente entre 0 e 1 | `0.8` |
+| `TreatmentSpec.safety_factor` | Real estritamente entre 0 e 1 | `0.95` |
+
+`std_sampling="uniform"` descreve o sorteio do **desvio**, não a família das
+inovações. Para solicitar inovações uniformes, use `InnovationSpec` no builder.
+Os parâmetros de ganho são validados mesmo em `TreatmentSpec("original")`,
+embora não alterem essa equação.
+
+### `HistorySpec`
+
+| Parâmetro | Valores aceitos | Padrão |
+|---|---|---|
+| `name` | Texto descritivo para identificar a estratégia | Obrigatório |
+| `kind` | `"zero"`, `"constant"`, `"uniform"`, `"cosine"`; `"stationary"` existe para Heaps, mas é rejeitado nesta API multissérie | Obrigatório |
+| `amplitude` | Real >= 0; usado na uniforme e no cosseno | `1.0` |
+| `offset` | Real finito, inclusive negativo | `0.0` |
+| `period` | Para cosseno: inteiro >= 4 | `48` |
+| `fraction` | Para cosseno: exatamente `1.0`, `0.5` ou `0.25` | `1.0` |
+
+O produto `period * fraction` deve ser inteiro e cobrir o maior lag do sistema.
+O cosseno é `offset + amplitude*cos(2*pi*k/period)`. A uniforme usa
+`[offset-amplitude, offset+amplitude]`. `zero` e `constant` preenchem o histórico
+com `offset`; a amplitude não os modifica. Período e fração não são usados fora
+do cosseno. Nada é executado e descartado para produzir esse histórico.
+
+### `TrajectoryConfig`
+
+| Parâmetro | Valores aceitos | Padrão |
+|---|---|---|
+| `generated_steps` | Inteiro >= 1, e >= contexto + horizonte ao gerar batches | Obrigatório |
+| `initialization` | `HistorySpec` compatível com o sistema | Obrigatório |
+| `max_initialization_retries` | Inteiro >= 0; tentativas totais = 1 + esse valor | `3` |
+| `on_retry_exhausted` | `"skip"` ignora a trajetória; `"raise"` lança `RuntimeError` | `"skip"` |
+| `resample_innovations` | `False` repete o ruído nas tentativas; `True` sorteia outro ruído também | `False` |
+
+Não existe parâmetro de magnitude máxima nesta configuração. Falhas de finitude
+são verificadas tanto na simulação como no dtype de saída.
+
+### `TrainingFormat`
+
+| Parâmetro | Valores aceitos | Padrão |
+|---|---|---|
+| `context_length` | Inteiro >= 1 | Obrigatório |
+| `prediction_length` | Inteiro >= 1 | Obrigatório |
+| `stride` | Inteiro >= 1; deslocamento entre janelas, em passos | Obrigatório |
+| `batch_size` | Inteiro >= 1 | `32` |
+| `dtype` | `"float32"` ou `"float64"` | `"float32"` |
+| `layout` | `"batch_time_channel"` ou `"batch_channel_time"` | `"batch_time_channel"` |
+| `noise_target` | `"scale"` ou `"scale_and_family"` | `"scale_and_family"` |
+
+`stride` pode ser menor que a largura da janela (sobreposição) ou maior (lacunas).
+Janelas incompletas são omitidas. O último batch pode ser menor que `batch_size`.
+
+### Argumentos das funções
+
+| Função / argumento | Valores aceitos e padrão |
+|---|---|
+| `sample_multiseries_system(config, *, seed)` | `config`: `MultiseriesConfig`; `seed`: inteiro não negativo obrigatório |
+| `build_multiseries_system(equations=...)` | Sequência não vazia de `SampledMechanism`, uma equação por canal; obrigatório |
+| `allowed_sources` | Dicionário com todas as chaves `0..N-1`; cada valor é uma sequência de índices em `0..N-1`; lista vazia é permitida se a equação não usa lags |
+| `treatments` | Sequência de exatamente N objetos `TreatmentSpec`; obrigatório |
+| `innovations` | Sequência de exatamente N objetos `InnovationSpec`; obrigatório |
+| `max_degree` do builder | Inteiro >= 0 para a canonicalização; padrão `4`; a expressão precisa caber nesse limite |
+| `generate_training_batches(config=...)` | `MultiseriesConfig` ou `None`; padrão `None`; usar com `num_systems` |
+| `systems` | Sequência não vazia de `MultiseriesSystem` ou `None`; padrão `None`; alternativa a `config` |
+| `num_systems` | Inteiro >= 1 no modo sorteado; omitir no modo explícito; padrão `None` |
+| `trajectories_per_system` | Inteiro >= 1; padrão `1` |
+| `trajectory` | `TrajectoryConfig` obrigatório |
+| `training` | `TrainingFormat` obrigatório |
+| `seed` dos batches | Inteiro >= 0; padrão `0` |
+
+No builder, todas as referências da AST devem estar em `allowed_sources`. Os
+valores das probabilidades não são argumentos do builder: ele recebe decisões
+já tomadas. Todos os argumentos do builder e do gerador de batches são nomeados.

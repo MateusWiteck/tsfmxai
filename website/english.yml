@@ -1,0 +1,5 @@
+lang: en
+format:
+  html:
+    code-summary: Show code
+    include-after-body: website/english-navigation.html

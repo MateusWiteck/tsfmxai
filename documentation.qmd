@@ -1,0 +1,327 @@
+---
+title: Documentation
+subtitle: Multiseries generation for forecasting models and equation heads
+metadata-files:
+  - website/english.yml
+sidebar: false
+toc: true
+toc-depth: 2
+code-fold: false
+code-copy: true
+---
+
+[Ler esta documentação em português](documentacao.qmd)
+
+Generate connected systems, simulate trajectories and stream numeric batches with
+forecasting targets, canonical equation skeletons and per-channel noise targets.
+Examples below run in order after installing the repository with
+`python -m pip install -e .`. Website publication never executes these examples.
+
+::: {.callout-note}
+## Current scope
+Per-channel treatments support **original ASTs** and **Shao–Wu factor protection**.
+Heaps and bounded-domain contraction require further per-channel adaptations and
+are explicitly rejected here. Mixed systems do not claim joint stability.
+Example lag/degree settings are illustrative; the coverage experiment must select
+the reference configuration.
+:::
+
+## Functions and complete examples
+
+| Function | Purpose |
+|---|---|
+| `sample_multiseries_system(config, seed=...)` | Sample channels, allowed sources, ASTs, treatments and noise |
+| `build_multiseries_system(...)` | Build from explicit equations and choices without hidden sampling |
+| `generate_training_batches(...)` | Stream padded NumPy batches; expose a fixed `.codec` and live `.stats` |
+
+### Sample a system and generate batches
+
+```python
+from dataclasses import replace
+from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
+from tsfmxai.generators.initialization import HistorySpec
+from tsfmxai.generators.multiseries import (
+    MultiseriesConfig, NoiseConfig, TreatmentSpec, InnovationSpec,
+    sample_multiseries_system, build_multiseries_system,
+)
+from tsfmxai.datasets import TrajectoryConfig, TrainingFormat, generate_training_batches
+
+config = MultiseriesConfig(
+    ast_config=CombinatorialTreeConfig(
+        minimum_operators=0, maximum_operators=3,
+        minimum_lag=1, maximum_lag=8, max_degree=2,
+    ),
+    channel_count_probs={1: 0.25, 2: 0.25, 4: 0.50},
+    dependency_probs={
+        "independent": 0.25, "linked_chain": 0.25,
+        "previous_chain": 0.25, "random": 0.25,
+    },
+    treatment_probs={"original": 0.5, "shao_wu": 0.5},
+    max_external_sources=2, self_source_weight=3.0, allow_no_lags=True,
+    noise=NoiseConfig(std_range=(0.01, 0.10)),
+)
+system = sample_multiseries_system(config, seed=42)
+print(system.allowed_sources, system.effective_sources)
+for channel, equation in enumerate(system.equations):
+    print(channel, equation.formula, system.canonical[channel].skeleton)
+
+trajectory = TrajectoryConfig(
+    generated_steps=128,
+    initialization=HistorySpec("uniform [-1, 1]", "uniform", amplitude=1.0),
+    max_initialization_retries=3, on_retry_exhausted="skip",
+    resample_innovations=False,
+)
+training = TrainingFormat(
+    context_length=32, prediction_length=16, stride=16, batch_size=8,
+    dtype="float32", layout="batch_time_channel", noise_target="scale_and_family",
+)
+stream = generate_training_batches(
+    config=config, num_systems=8, trajectories_per_system=2,
+    trajectory=trajectory, training=training, seed=123,
+)
+for batch in stream:
+    print(batch.context.shape, batch.future.shape)
+print(stream.stats.accepted_trajectories, stream.stats.skipped_trajectories)
+```
+
+### Build explicit equations
+
+```python
+from tsfmxai.generators.random_expression import SampledMechanism
+from tsfmxai.representations import Add, Multiply, Parameter, Lag, MechanismBinding
+
+equation_x = SampledMechanism(
+    Multiply(Parameter("a"), Lag(0, "L")),
+    MechanismBinding({"a": 0.5}, {"L": 1}), seed=0, sample_index=0,
+)
+equation_y = SampledMechanism(
+    Add(Multiply(Parameter("b"), Lag(0, "Lx")),
+        Multiply(Parameter("c"), Lag(1, "Ly"))),
+    MechanismBinding({"b": 0.3, "c": 0.2}, {"Lx": 2, "Ly": 1}),
+    seed=0, sample_index=1,
+)
+explicit_system = build_multiseries_system(
+    equations=[equation_x, equation_y], allowed_sources={0: [0], 1: [0, 1]},
+    treatments=[TreatmentSpec("original"), TreatmentSpec("shao_wu")],
+    innovations=[InnovationSpec("gaussian", std=0.05),
+                 InnovationSpec("uniform", std=0.10)],
+    max_degree=2,
+)
+explicit_stream = generate_training_batches(
+    systems=[explicit_system], trajectories_per_system=3,
+    trajectory=trajectory, training=training, seed=123,
+)
+batch = next(explicit_stream)
+tokens = batch.equation_targets[0, 0][batch.equation_mask[0, 0]]
+decoded = explicit_stream.codec.decode(tokens[1:])  # Skip BOS.
+assert decoded["valid"]
+assert decoded["skeleton"] == explicit_system.canonical[0].skeleton
+print(batch.noise_targets)
+```
+
+### Initialization, curriculum and output variants
+
+```python
+histories = [
+    HistorySpec("zero", "zero"),
+    HistorySpec("constant", "constant", offset=0.5),
+    HistorySpec("uniform", "uniform", amplitude=1.0),
+    HistorySpec("full cosine", "cosine", period=48),
+    HistorySpec("half cosine", "cosine", period=48, fraction=0.5),
+    HistorySpec("quarter cosine", "cosine", period=48, fraction=0.25),
+]
+stage_1 = replace(config, channel_count_probs={1: 1.0})
+stage_2 = replace(config, channel_count_probs={1: 0.5, 2: 0.5})
+stage_3 = replace(config, channel_count_probs={2: 0.3, 4: 0.7})
+alternative = generate_training_batches(
+    config=stage_2, num_systems=4, seed=456,
+    trajectory=replace(trajectory, initialization=histories[4]),
+    training=replace(training, noise_target="scale", dtype="float64",
+                     layout="batch_channel_time"),
+)
+alternative_batch = next(alternative)
+strict = replace(trajectory, on_retry_exhausted="raise")
+resample_both = replace(trajectory, resample_innovations=True)
+no_retries = replace(trajectory, max_initialization_retries=0)
+```
+
+## Parameter reference
+
+“Required” means there is no default. Counts use Python integers, not booleans.
+Numeric scales and probabilities must be finite. Library defaults are not
+coverage-selected scientific defaults.
+
+### `MultiseriesConfig`
+
+| Parameter | Accepted values | Default |
+|---|---|---|
+| `ast_config` | `CombinatorialTreeConfig` instance | Required |
+| `channel_count_probs` | Nonempty mapping `{int >= 1: probability >= 0}`, sum approximately 1 | Required |
+| `dependency_probs` | Mapping using any subset of `independent`, `linked_chain`, `previous_chain`, `random`; nonnegative probabilities summing approximately to 1 | Required |
+| `treatment_probs` | Mapping using any subset of `original`, `shao_wu`; nonnegative probabilities summing approximately to 1 | Required |
+| `max_external_sources` | Integer >= 0; 0 disables external sources | `2` |
+| `self_source_weight` | Finite real > 0; 1 gives equal per-source weights, > 1 favors self | `3.0` |
+| `allow_no_lags` | `True` or `False`; allows constant-plus-noise equations | `True` |
+| `noise` | `NoiseConfig` instance | `NoiseConfig()` |
+| `target_gain` | Real strictly between 0 and 1 | `0.8` |
+| `safety_factor` | Real strictly between 0 and 1 | `0.95` |
+
+Probability sums use `numpy.isclose`; sampling normalizes them. Zero-probability
+entries are allowed; unknown keys are rejected. Counts are sampled, not quota-filled.
+
+### `CombinatorialTreeConfig`
+
+| Parameter | Accepted values | Default |
+|---|---|---|
+| `minimum_operators` | Integer >= 0 and <= maximum | `1` |
+| `maximum_operators` | Integer >= minimum | `6` |
+| `num_series` | Integer >= 1; overridden to 1 for structural sampling in this API | `1` |
+| `minimum_lag` | Integer >= 1 | `1` |
+| `maximum_lag` | Integer >= minimum lag | `12` |
+| `max_degree` | Integer >= 0; >= 1 if lags are required | `4` |
+| `require_lag` | Boolean; overridden by `not allow_no_lags` | `True` |
+| `minimum_parameter_magnitude` | Finite real > 0 and <= maximum | `0.05` |
+| `maximum_parameter_magnitude` | Finite real >= minimum; no mandatory ceiling of 1 | `0.90` |
+
+Operator counts refer to binary AST nodes before treatment. Parameters receive
+random positive/negative signs. For degree zero, construct the AST config with
+`require_lag=False` and set `allow_no_lags=True`. Large operator/degree bounds may
+make combinatorial counting and expansion expensive even without a fixed API cap.
+
+### Noise and explicit treatments
+
+| Object / parameter | Accepted values | Default |
+|---|---|---|
+| `NoiseConfig.std_range` | Pair `(minimum, maximum)` with `0 <= minimum <= maximum`; equal endpoints fix the std | `(0.01, 0.1)` |
+| `NoiseConfig.std_sampling` | Only `"uniform"` | `"uniform"` |
+| `NoiseConfig.family_policy` | Only `"by_treatment"`; currently sampled methods both use Gaussian innovations | `"by_treatment"` |
+| `InnovationSpec.family` | `"gaussian"` or `"uniform"` | `"gaussian"` |
+| `InnovationSpec.std` | Finite real >= 0; zero removes innovations; uniform also requires finite `sqrt(3)*std` | `0.05` |
+| `TreatmentSpec.method` | `"original"` or `"shao_wu"` | `"original"` |
+| `TreatmentSpec.target_gain` | Real strictly between 0 and 1 | `0.8` |
+| `TreatmentSpec.safety_factor` | Real strictly between 0 and 1 | `0.95` |
+
+Uniform **std sampling** is not uniform innovation noise. Explicit uniform
+innovations have support `[-sqrt(3)*std, sqrt(3)*std]`. Std is fixed across time
+and trajectories of that channel. Innovations are independent across channels and
+time. Gain parameters are validated even when the original treatment does not use them.
+
+### `HistorySpec`
+
+| Parameter | Accepted values | Default |
+|---|---|---|
+| `name` | Descriptive string | Required |
+| `kind` | `"zero"`, `"constant"`, `"uniform"`, `"cosine"`; `"stationary"` exists for Heaps but is rejected by this mixed-system API | Required |
+| `amplitude` | Finite real >= 0; used for uniform/cosine histories | `1.0` |
+| `offset` | Any finite real | `0.0` |
+| `period` | For cosine: integer >= 4 | `48` |
+| `fraction` | For cosine: exactly `1.0`, `0.5`, or `0.25` | `1.0` |
+
+`period*fraction` must be an integer and cover the required lag history. Cosine
+uses `offset + amplitude*cos(2*pi*k/period)`; uniform spans
+`[offset-amplitude, offset+amplitude]`. Both zero and constant fill the history
+with `offset`, ignoring amplitude. Period/fraction are unused for other kinds.
+These are the same startup laws as the initialization experiments, without implicit burn-in.
+
+### `TrajectoryConfig`
+
+| Parameter | Accepted values | Default |
+|---|---|---|
+| `generated_steps` | Integer >= 1; must cover context + prediction lengths | Required |
+| `initialization` | Compatible `HistorySpec` | Required |
+| `max_initialization_retries` | Integer >= 0; total attempts = 1 + this value | `3` |
+| `on_retry_exhausted` | `"skip"` drops the trajectory; `"raise"` raises `RuntimeError` | `"skip"` |
+| `resample_innovations` | `False` reuses noise on retries; `True` resamples it too | `False` |
+
+Generated steps exclude startup history. There is no magnitude cutoff. Retries
+do not replace the mechanism; deterministic histories stay identical across retries.
+
+### `TrainingFormat`
+
+| Parameter | Accepted values | Default |
+|---|---|---|
+| `context_length` | Integer >= 1 | Required |
+| `prediction_length` | Integer >= 1 | Required |
+| `stride` | Integer >= 1; shift between window starts | Required |
+| `batch_size` | Integer >= 1 | `32` |
+| `dtype` | `"float32"` or `"float64"` | `"float32"` |
+| `layout` | `"batch_time_channel"` or `"batch_channel_time"` | `"batch_time_channel"` |
+| `noise_target` | `"scale"` or `"scale_and_family"` | `"scale_and_family"` |
+
+Stride may create overlapping windows or gaps. Incomplete windows are omitted;
+the last batch may be smaller. The iterator is single-pass.
+
+### Function arguments
+
+| Function / argument | Accepted values and default |
+|---|---|
+| `sample_multiseries_system(config, *, seed)` | Required `MultiseriesConfig` and nonnegative integer seed |
+| Builder `equations` | Required nonempty sequence of `SampledMechanism`, one per channel |
+| Builder `allowed_sources` | Required mapping with all keys `0..N-1`; source indices must be in that range; an empty list is allowed for an equation without lags |
+| Builder `treatments` | Required sequence of exactly N `TreatmentSpec` objects |
+| Builder `innovations` | Required sequence of exactly N `InnovationSpec` objects |
+| Builder `max_degree` | Integer >= 0; expression must fit the canonical expansion limit; default `4` |
+| Batch generator `config` | `MultiseriesConfig` or `None` (default); requires `num_systems` |
+| `systems` | Nonempty sequence of `MultiseriesSystem` or `None` (default); alternative to `config` |
+| `num_systems` | Integer >= 1 in sampled mode; omit for explicit systems; default `None` |
+| `trajectories_per_system` | Integer >= 1; default `1` |
+| `trajectory` | Required `TrajectoryConfig` |
+| `training` | Required `TrainingFormat` |
+| Batch generator `seed` | Integer >= 0; default `0` |
+
+Builder and batch-generator arguments are keyword-only. Every AST source must
+belong to its allowed set. Supply either `config` + `num_systems` or `systems`.
+
+## Dependencies and treatment semantics
+
+Connections are permissions, not mandatory edges. A random channel order is used
+for chains. `linked_chain` allows the predecessor if the external-source cap is
+positive; `previous_chain` allows a sampled subset of earlier channels; `random`
+allows a sampled subset of other channels, including delayed cycles; `independent`
+allows no external sources. Subset size for previous-chain/random is uniform from
+zero to the applicable cap. Effective sources come from the final canonical support.
+
+Scalar-source AST structures are sampled first; lag occurrences then receive
+allowed sources using the self preference. This is not uniform sampling over all
+labelled multivariate ASTs. `original_equations` preserves input ASTs, `equations`
+stores executed ASTs, and `treatment_scales` records the applied scales.
+
+Shao–Wu reuses product-factor protection and derivative bounds. A conservative
+per-equation scale is `safety_factor * min(1, target_gain/g)`, where `g` sums absolute
+source/lag derivative bounds (use ratio 1 when `g=0`). This is not the existing
+joint spectral-norm certificate; `joint_certificate` remains `None` for mixed systems.
+
+## Batch fields and equation heads
+
+| Field | Meaning |
+|---|---|
+| `context`, `future` | NumPy arrays in the selected layout |
+| `channel_mask` | `[batch, channel]` mask distinguishing real channels from padding |
+| `equation_targets` | `[batch, channel, token]` canonical skeleton tokens |
+| `equation_mask` | Valid-token mask |
+| `noise_targets['std']` | Per-channel innovation std in original units |
+| `noise_targets['family']` | Optional: Gaussian=0, uniform=1, padding=-1 |
+| `metadata` | System, actual startup history, configs, indices and seeds |
+
+Channel padding uses the largest possible count in the configuration (or among
+explicit systems). The codec vocabulary is fixed per stream; token padding length
+may vary per batch. Targets describe final executed mechanisms, not coefficients
+or realized random innovations. Family information remains in metadata in scale-only mode.
+
+Use `torch.from_numpy(batch.context)` when PyTorch is installed. No model-specific
+normalization/tokenization is applied; any adapter must preserve the interpretation
+of equation/noise targets. Keep all windows of one system in the same evaluation
+split when testing generalization to new mechanisms; splits are not automatic.
+
+## Numerical failures and reproduction
+
+Simulation uses float64, followed by checked output conversion. Finite large
+values are accepted without clipping. Nonfinite inputs, execution, output conversion
+and arithmetic overflow are recorded separately. No prefix of a failed trajectory
+is salvaged. Configuration errors propagate instead of triggering numerical retries.
+Inspect `stream.stats.failures` for system/trajectory indices, attempt and seeds.
+
+Startup and innovation streams have separate indexed seeds. Changing batch size
+does not change sampled examples. Recreate the iterator to replay the run.
+Metadata contains in-memory Python objects; the API does not automatically persist
+a corpus or standalone manifest. Failure logs may grow during long runs.

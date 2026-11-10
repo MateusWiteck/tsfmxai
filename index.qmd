@@ -2,6 +2,8 @@
 title: Experimentos TSFMXAI
 ---
 
+[English](index-en.qmd)
+
 Notebooks de pesquisa sobre séries temporais sintéticas, mecanismos conhecidos
 e avaliação de explicações. Use a busca ou a navegação lateral para explorar os
 experimentos organizados por pasta.

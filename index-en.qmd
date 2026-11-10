@@ -1,0 +1,21 @@
+---
+title: TSFMXAI experiments
+metadata-files:
+  - website/english.yml
+sidebar: false
+---
+
+[Português](index.qmd) · [API documentation](documentation.qmd)
+
+Research notebooks on synthetic time series, known generating mechanisms and
+explanation evaluation. Browse the experiment folders below or use site search.
+
+Pages display the code, figures, tables and saved outputs from versioned notebooks
+under `experiments/`. Publishing does not execute experiments. Reproduction records
+remain inside each notebook.
+
+The website navigation and documentation are available in English and Portuguese.
+Research notebooks retain their original language. The report is the original
+English LaTeX manuscript.
+
+{{< include outputs/notebook-tree.html >}}

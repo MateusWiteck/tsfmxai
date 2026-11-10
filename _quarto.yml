@@ -8,6 +8,9 @@ project:
     - index.qmd
     - relatorio.qmd
     - documentacao.qmd
+    - documentation.qmd
+    - index-en.qmd
+    - report-en.qmd
     - /experiments/**/*.ipynb
     - '!**/.ipynb_checkpoints/**'
   resources:
@@ -27,6 +30,12 @@ website:
       - href: documentacao.qmd
         text: Documentação
     right:
+      - text: "Idioma / Language"
+        menu:
+          - text: Português
+            href: index.qmd
+          - text: English
+            href: index-en.qmd
       - icon: github
         href: https://github.com/MateusWiteck/tsfmxai
 execute:

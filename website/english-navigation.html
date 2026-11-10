@@ -1,0 +1,28 @@
+<script>
+// Quarto builds the shared website navbar from project-level metadata.
+// Localize its primary links on English pages without replacing search/theme controls.
+document.addEventListener('DOMContentLoaded', () => {
+  const destinations = {
+    'index.html': ['index-en.html', 'Experiments'],
+    'relatorio.html': ['report-en.html', 'Report'],
+    'documentacao.html': ['documentation.html', 'Documentation']
+  };
+  document.querySelectorAll('#quarto-header .navbar-nav > .nav-item > a.nav-link').forEach(link => {
+    const href = link.getAttribute('href');
+    const label = link.querySelector('.menu-text');
+    if (!href || !label) return;
+    const filename = href.split('/').pop();
+    const destination = destinations[filename];
+    if (destination) {
+      link.setAttribute('href', href.slice(0, -filename.length) + destination[0]);
+      label.textContent = destination[1];
+      const active = new URL(link.getAttribute('href'), document.baseURI).pathname === window.location.pathname;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    } else if (label.textContent.trim() === 'Idioma / Language') {
+      label.textContent = 'Language / Idioma';
+    }
+  });
+});
+</script>
