@@ -25,6 +25,53 @@ from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec  # noqa: E
 from tsfmxai.symbolic_regression.canonical_training import atomic_json, utc_now  # noqa: E402
 
 
+class ProgressLog:
+    """One readable line per state change, and at most one per interval while a state lasts."""
+
+    def __init__(self, epochs, interval=60.0):
+        self.epochs, self.interval, self.last, self.state = epochs, interval, 0.0, None
+        self.epoch_key, self.epoch_start, self.printed_epoch = None, None, None
+
+    def __call__(self, data, state):
+        now = time.time()
+        changed = state != self.state
+        self.state = state
+        line, always = None, changed
+        if state == "generating":
+            done, total = data.get("generated", 0), data.get("total") or 1
+            elapsed = data.get("generation_elapsed_seconds") or 0
+            if done and elapsed:
+                eta = elapsed * (total - done) / done
+                line = (f"generating {done:,}/{total:,} ASTs ({100 * done / total:.1f}%), "
+                        f"ETA {eta / 60:.0f} min")
+        elif state == "training":
+            variant, epoch = data.get("active_variant"), data.get("epoch")
+            seen = data.get("training_rows_seen", 0)
+            if (variant, epoch) != self.epoch_key or seen == 0:
+                self.epoch_key, self.epoch_start = (variant, epoch), now
+            rows = ((data.get("corpus") or {}).get("rows_by_split") or {}).get("train")
+            last = data.get("last_epoch")
+            if last and last.get("epoch") != self.printed_epoch:
+                self.printed_epoch, always = last["epoch"], True
+                line = (f"{variant} epoch {last['epoch']} done in {last['seconds'] / 60:.1f} min: "
+                        f"train loss {last['train_loss']:.4f}, validation loss {last['validation_loss']:.4f}, "
+                        f"skeleton exact {last['validation_skeleton_exact']:.3f}")
+            elif seen and rows and now > self.epoch_start:
+                rate = seen / (now - self.epoch_start)
+                line = (f"{variant} epoch {epoch}/{self.epochs}: {seen:,}/{rows:,} rows "
+                        f"({100 * seen / rows:.1f}%), {rate:,.0f} rows/s, "
+                        f"epoch ETA {(rows - seen) / rate / 60:.0f} min")
+            elif seen == 0:
+                line, always = f"{variant} epoch {epoch}/{self.epochs} started", True
+        elif state == "failed":
+            line, always = f"FAILED: {data.get('error')}", True
+        elif changed:
+            line = state.replace("_", " ")
+        if line and (always or now - self.last >= self.interval):
+            self.last = now
+            print(time.strftime("[%H:%M:%S] ") + line, flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/canonicalization_5m_raw_tanh.json")
@@ -48,11 +95,14 @@ def main():
     if status_data and status_data.get("config_sha256") != config_sha:
         raise ValueError("Run directory already belongs to a different config.")
 
+    progress = ProgressLog(config["epochs"])
+
     def status(state, **fields):
         status_data.update(fields)
         status_data.update({"state": state, "updated_at_utc": utc_now(),
                             "config_sha256": config_sha})
         atomic_json(status_path, status_data)
+        progress(status_data, state)
 
     torch.set_num_threads(config["cpu_threads"])
     torch.use_deterministic_algorithms(True)
