@@ -36,7 +36,7 @@ Na máquina de treino (precisa de GPU para ser viável):
 ```
 git clone <URL-do-repositório> tsfmxai && cd tsfmxai
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e ".[learning,release]"
+pip install -e ".[learning,release,dev]" -c constraints.txt
 python scripts/run_canonical_5m.py --device cuda --release-dir release/canonical_ast
 ```
 
