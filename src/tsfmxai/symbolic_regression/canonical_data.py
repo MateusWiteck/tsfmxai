@@ -24,7 +24,7 @@ class CanonicalCodec:
     BOS/EOS/END_TERM and share the factor IDs with the source.
     """
 
-    def __init__(self, num_series=1, minimum_lag=1, maximum_lag=12, max_degree=4):
+    def __init__(self, num_series=1, minimum_lag=1, maximum_lag=16, max_degree=4):
         self.num_series = num_series
         self.minimum_lag = minimum_lag
         self.maximum_lag = maximum_lag
@@ -171,7 +171,7 @@ def generate_canonical_dataset(config):
         seed = derive_sample_seed(config['data_seed'], index)
         sampled = sampler.sample(seed=seed, sample_index=index)
         mechanism, selected = select_canonical_mechanism(
-            sampled, probability=config.get('protection_probability', 1.0),
+            sampled, probability=config.get('protection_probability', 0.5),
             root_seed=config['data_seed'], sample_index=index)
         example = codec.encode(mechanism)
         example['protection_selected'] = selected

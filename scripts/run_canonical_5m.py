@@ -27,9 +27,11 @@ from tsfmxai.symbolic_regression.canonical_training import atomic_json, utc_now 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/canonicalization_5m_ast_parquet.json")
-    parser.add_argument("--run-dir", default="outputs/canonicalization/ast_5m_20261030")
+    parser.add_argument("--config", default="configs/canonicalization_5m_raw_tanh.json")
+    parser.add_argument("--run-dir", default="experiments/canonicalization/models/outputs/raw_tanh")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    parser.add_argument("--release-dir", default=None,
+                        help="after a completed run, also write the Hugging Face release here")
     args = parser.parse_args()
     config_path = (ROOT / args.config).resolve()
     run_dir = (ROOT / args.run_dir).resolve()
@@ -100,6 +102,10 @@ def main():
     except Exception as exc:
         status("failed", error=f"{type(exc).__name__}: {exc}")
         raise
+    if args.release_dir:  # outside the try: a packaging error must not mark a finished run as failed
+        from tsfmxai.symbolic_regression.canonical_release import package_release
+        package_release(run_dir, ROOT / args.release_dir, repo_root=ROOT)
+        print("RELEASE", args.release_dir, flush=True)
 
 
 if __name__ == "__main__":

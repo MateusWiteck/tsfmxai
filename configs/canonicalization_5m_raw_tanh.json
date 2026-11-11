@@ -1,6 +1,6 @@
 {
-  "experiment": "canonical_ast_5m_raw_tanh_20261101",
-  "ast_count": 5000000,
+  "experiment": "canonical_ast_10m_raw_tanh_20261101",
+  "ast_count": 10000000,
   "shard_size": 20000,
   "generation_workers": 4,
   "generator": {
@@ -8,7 +8,7 @@
     "maximum_operators": 6,
     "num_series": 1,
     "minimum_lag": 1,
-    "maximum_lag": 12,
+    "maximum_lag": 16,
     "max_degree": 4,
     "minimum_parameter_magnitude": 0.05,
     "maximum_parameter_magnitude": 0.9

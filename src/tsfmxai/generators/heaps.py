@@ -118,7 +118,7 @@ def var_companion_matrix(coefficients: np.ndarray) -> np.ndarray:
 class HeapsVARConfig:
     num_series: int = 1
     minimum_order: int = 1
-    maximum_order: int = 12
+    maximum_order: int = 16
     unconstrained_std: float = .45
     innovation_std: float = .05
     mean_minimum: float = 0.

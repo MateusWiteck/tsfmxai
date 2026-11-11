@@ -134,7 +134,7 @@ def _generate_shard(config, run_dir, shard):
         seed = derive_sample_seed(config["data_seed"], index)
         sampled = generator.sample(seed=seed, sample_index=index)
         mechanism, selected = select_canonical_mechanism(
-            sampled, probability=config.get("protection_probability", 1.0),
+            sampled, probability=config.get("protection_probability", 0.5),
             root_seed=config["data_seed"], sample_index=index)
         example = codec.encode(mechanism)
         example["protection_selected"] = selected

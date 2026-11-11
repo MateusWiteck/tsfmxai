@@ -13,9 +13,9 @@ from tsfmxai.symbolic_regression.canonical_training import atomic_json, utc_now
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run-dir', default='outputs/canonicalization/ast_5m_unique_eval_20261030')
-    parser.add_argument('--config', default='configs/canonicalization_5m_ast_parquet_unique_eval.json')
-    parser.add_argument('--output', default='outputs/canonicalization/error_analysis_20261031')
+    parser.add_argument('--run-dir', default='experiments/canonicalization/models/outputs/raw_tanh')
+    parser.add_argument('--config', default='configs/canonicalization_5m_raw_tanh.json')
+    parser.add_argument('--output', default='experiments/canonicalization/models/outputs/raw_tanh_errors')
     args = parser.parse_args()
     run_dir, output = ROOT / args.run_dir, ROOT / args.output
     try:

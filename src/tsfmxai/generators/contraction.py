@@ -36,7 +36,7 @@ def _default_tree_config() -> RandomTreeConfig:
         maximum_operators=6,
         num_series=1,
         minimum_lag=1,
-        maximum_lag=12,
+        maximum_lag=16,
         parameter_probability=0.55,
         lag_probability=0.45,
         add_probability=0.80,

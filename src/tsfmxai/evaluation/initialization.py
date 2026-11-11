@@ -46,7 +46,7 @@ class InitializationStudyConfig:
     forgetting_tolerance: float = 1e-6
     forgetting_tail: int = 24
     minimum_lag: int = 1
-    maximum_lag: int = 12
+    maximum_lag: int = 16
     heaps_fixed_order: bool = False
     example_mechanisms: int = 3
 

@@ -22,7 +22,7 @@ from tsfmxai.datasets import (
 config = MultiseriesConfig(
     ast_config=CombinatorialTreeConfig(
         minimum_operators=0, maximum_operators=3,
-        minimum_lag=1, maximum_lag=8, max_degree=2,
+        minimum_lag=1, maximum_lag=16, max_degree=2,
     ),
     channel_count_probs={1: .25, 2: .25, 4: .5},
     dependency_probs={

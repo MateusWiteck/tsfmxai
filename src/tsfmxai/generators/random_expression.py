@@ -33,7 +33,7 @@ class RandomTreeConfig:
     maximum_operators: int = 6
     num_series: int = 1
     minimum_lag: int = 1
-    maximum_lag: int = 12
+    maximum_lag: int = 16
     parameter_probability: float = 0.40
     lag_probability: float = 0.60
     add_probability: float = 0.65

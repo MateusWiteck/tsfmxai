@@ -26,7 +26,7 @@ class CombinatorialTreeConfig:
     maximum_operators: int = 6
     num_series: int = 1
     minimum_lag: int = 1
-    maximum_lag: int = 12
+    maximum_lag: int = 16
     max_degree: int = 4
     require_lag: bool = True
     minimum_parameter_magnitude: float = 0.05
