@@ -5,6 +5,9 @@ series with known mechanisms and explanation ground truths. The project is
 intended to support both synthetic pretraining priors and reproducible
 benchmarks for forecasting, mechanism recovery, and explainability.
 
+The default maximum lag for new generation and canonicalization training is
+**16**. See [the coverage-based decision](docs/research/generator_defaults.md).
+
 ## Repository map
 
 | Path | Purpose | Git policy |

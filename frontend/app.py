@@ -284,7 +284,7 @@ class FrontendHandler(SimpleHTTPRequestHandler):
             maximum_operators=_as_int(data, "maximum_operators", 5),
             num_series=2,
             minimum_lag=_as_int(data, "minimum_lag", 1),
-            maximum_lag=_as_int(data, "maximum_lag", 8),
+            maximum_lag=_as_int(data, "maximum_lag", 16),
             parameter_probability=_as_float(data, "parameter_probability", 0.45),
             lag_probability=_as_float(data, "lag_probability", 0.55),
             add_probability=_as_float(data, "add_probability", 0.65),

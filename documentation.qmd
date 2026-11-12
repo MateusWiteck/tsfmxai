@@ -49,7 +49,7 @@ from tsfmxai.datasets import TrajectoryConfig, TrainingFormat, generate_training
 config = MultiseriesConfig(
     ast_config=CombinatorialTreeConfig(
         minimum_operators=0, maximum_operators=3,
-        minimum_lag=1, maximum_lag=8, max_degree=2,
+        minimum_lag=1, maximum_lag=16, max_degree=2,
     ),
     channel_count_probs={1: 0.25, 2: 0.25, 4: 0.50},
     dependency_probs={
@@ -177,7 +177,7 @@ entries are allowed; unknown keys are rejected. Counts are sampled, not quota-fi
 | `maximum_operators` | Integer >= minimum | `6` |
 | `num_series` | Integer >= 1; overridden to 1 for structural sampling in this API | `1` |
 | `minimum_lag` | Integer >= 1 | `1` |
-| `maximum_lag` | Integer >= minimum lag | `12` |
+| `maximum_lag` | Integer >= minimum lag | `16` |
 | `max_degree` | Integer >= 0; >= 1 if lags are required | `4` |
 | `require_lag` | Boolean; overridden by `not allow_no_lags` | `True` |
 | `minimum_parameter_magnitude` | Finite real > 0 and <= maximum | `0.05` |

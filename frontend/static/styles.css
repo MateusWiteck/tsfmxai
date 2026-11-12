@@ -241,10 +241,9 @@ button:disabled { cursor: wait; opacity: 0.45; transform: none !important; }
 .node-ADD text, .node-MULTIPLY text { fill: white; }
 .node-LAG circle { fill: var(--lime); }
 .node-PARAMETER circle { fill: #efb590; }
-.node-TIME circle { fill: #b6ccda; }
 .legend { color: var(--muted); font-size: 10px; text-align: center; }
 .legend span { border-radius: 50%; display: inline-block; height: 7px; margin: 0 4px 0 10px; width: 7px; }
-.operator-dot { background: var(--ink); }.lag-dot { background: var(--lime); }.parameter-dot { background: #efb590; }.time-dot { background: #b6ccda; }
+.operator-dot { background: var(--ink); }.lag-dot { background: var(--lime); }.parameter-dot { background: #efb590; }
 
 .muted { color: var(--muted); font-size: 12px; line-height: 1.55; }
 .binding-table { margin-top: 17px; }

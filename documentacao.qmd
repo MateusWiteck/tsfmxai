@@ -60,7 +60,7 @@ config = MultiseriesConfig(
         minimum_operators=0,
         maximum_operators=3,
         minimum_lag=1,
-        maximum_lag=8,
+        maximum_lag=16,
         max_degree=2,
     ),
     channel_count_probs={1: 0.25, 2: 0.25, 4: 0.50},
@@ -392,7 +392,7 @@ categorias ou atribuir probabilidade zero; chaves desconhecidas são rejeitadas.
 | `maximum_operators` | Inteiro >= `minimum_operators` | `6` |
 | `num_series` | Inteiro >= 1; substituído internamente por 1 no sorteio estrutural multissérie | `1` |
 | `minimum_lag` | Inteiro >= 1 | `1` |
-| `maximum_lag` | Inteiro >= `minimum_lag` | `12` |
+| `maximum_lag` | Inteiro >= `minimum_lag` | `16` |
 | `max_degree` | Inteiro >= 0; precisa ser >= 1 quando lags são obrigatórios | `4` |
 | `require_lag` | Booleano; no gerador multissérie é substituído por `not allow_no_lags` | `True` |
 | `minimum_parameter_magnitude` | Real > 0, não maior que o máximo | `0.05` |
