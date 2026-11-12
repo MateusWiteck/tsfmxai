@@ -239,30 +239,55 @@
     ctx.globalAlpha = 1;
   }
 
-  // ---- step 4: what comes out: the correlation between channels ----
-  function correlation(ctx, p) {
-    [["low", 20], ["high", 300]].forEach(([k, x0], i) => {
-      const a = ease(seg(p, i * 0.2, i * 0.2 + 0.4));
-      ctx.globalAlpha = a;
-      box(ctx, x0, 62, 262, 330);
-      text(ctx, `d = ${D.examples[k].d}`, x0 + 18, 94, 19, k === "low" ? col.ours : col.teal, { weight: 700 });
-      CORR[k].forEach((r, ri) => r.forEach((v, cj) => {
-        const cellA = ease(seg(p, 0.1 + i * 0.2 + (ri + cj) * 0.025, 0.35 + i * 0.2 + (ri + cj) * 0.025));
-        ctx.globalAlpha = a * cellA;
-        const X = x0 + 18 + cj * 42, Y = 116 + ri * 42;
-        ctx.fillStyle = heat(Math.abs(v));
-        ctx.fillRect(X, Y, 40, 40);
-        text(ctx, v.toFixed(2), X + 20, Y + 25, 13.5, Math.abs(v) > 0.55 ? "#fff" : col.ink, { align: "center", weight: 600 });
-      }));
-      ctx.globalAlpha = a;
-      text(ctx, "correlation of the channels", x0 + 18, 376, 13.5, col.muted);
-      text(ctx, `mean |corr| = ${D.examples[k].mean_abs_corr.toFixed(2)}`, x0 + 18, 352, 15, col.ink, { weight: 700 });
-      ctx.globalAlpha = 1;
+  // ---- step 4: which channels move together? Two pairs, then the effect of d ----
+  const zs = (a) => { const m = a.reduce((s, v) => s + v, 0) / a.length, sd = Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length) || 1; return a.map((v) => (v - m) / sd); };
+  function pairRow(ctx, p, y, i, j, why, color, t0) {
+    const a = ease(seg(p, t0, t0 + 0.25)), g = ease(seg(p, t0 + 0.1, t0 + 0.5)), w = WEIGHTS.low;
+    ctx.globalAlpha = a;
+    text(ctx, `channels y${SUBS[i]} and y${SUBS[j]}`, 40, y + 20, 17, col.ink, { weight: 700 });
+    [i, j].forEach((c, r) => {
+      text(ctx, `y${SUBS[c]}`, 40, y + 50 + r * 26, 14, COLORS[c % 5], { weight: 700 });
+      let acc = 0;
+      w[c].forEach((v, k) => {
+        ctx.fillStyle = COLORS[k];
+        ctx.fillRect(66 + acc * 130 * g, y + 38 + r * 26, Math.max(0, v * 130 * g - 1.5), 18);
+        if (v > 0.25 && g > 0.9) text(ctx, `l${SUBS[k]}`, 66 + (acc + v / 2) * 130, y + 52 + r * 26, 12.5, "#fff", { align: "center", weight: 700 });
+        acc += v;
+      });
     });
-    ctx.globalAlpha = ease(seg(p, 0.4, 1));
-    box(ctx, 580, 62, 600, 330);
-    text(ctx, "Concentration against channel correlation", 600, 94, 19, col.ink, { weight: 700 });
-    const bx = 640, by = 120, bw = 500, bh = 170, sw = D.sweep, lx = (d) => bx + ((Math.log(d) - Math.log(0.05)) / (Math.log(10) - Math.log(0.05))) * bw, Y = (v) => by + bh - v * bh;
+    text(ctx, "weights used", 66, y + 100, 12.5, col.muted);
+    // the two channels, overlaid (each rescaled to mean 0 and unit spread)
+    const X0 = 230, W0 = 330, H0 = 96, n = D.examples.low.channels[0].length, f = ease(seg(p, t0 + 0.2, t0 + 0.7));
+    ctx.strokeStyle = col.line;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(X0, y + 8, W0, H0);
+    [i, j].forEach((c, r) => {
+      const z = zs(D.examples.low.channels[c]), cnt = Math.max(2, Math.floor(n * f));
+      ctx.strokeStyle = COLORS[c % 5];
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      for (let t = 0; t < cnt; t++) {
+        const X = X0 + (t / (n - 1)) * W0, Y = y + 8 + H0 / 2 - Math.max(-2.6, Math.min(2.6, z[t])) * (H0 / 6);
+        t ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+      }
+      ctx.stroke();
+    });
+    ctx.globalAlpha = a * ease(seg(p, t0 + 0.55, t0 + 0.85));
+    text(ctx, `correlation ${CORR.low[i][j].toFixed(2)}`, X0, y + 128, 19, color, { weight: 700 });
+    text(ctx, why, X0 + 150, y + 128, 14.5, col.ink);
+    ctx.globalAlpha = 1;
+  }
+  function correlation(ctx, p) {
+    box(ctx, 20, 62, 560, 336);
+    text(ctx, "Do two channels move together?  (the d = 0.15 example)", 40, 90, 17.5, col.ink, { weight: 700 });
+    pairRow(ctx, p, 98, 0, 2, "both lean on l₂: they share it", col.teal, 0);
+    pairRow(ctx, p, 248, 0, 1, "no latent in common", col.ours, 0.12);
+    // right: the effect of d
+    const a2 = ease(seg(p, 0.5, 0.7));
+    ctx.globalAlpha = a2;
+    box(ctx, 600, 62, 580, 336);
+    text(ctx, "More even weights: channels share more latents", 620, 90, 17.5, col.ink, { weight: 700 });
+    const bx = 668, by = 118, bw = 476, bh = 190, sw = D.sweep, lx = (d) => bx + ((Math.log(d) - Math.log(0.05)) / (Math.log(10) - Math.log(0.05))) * bw, Y = (v) => by + bh - v * bh;
     ctx.strokeStyle = col.line;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
@@ -271,36 +296,32 @@
     ctx.moveTo(bx, by);
     ctx.lineTo(bx, by + bh);
     ctx.stroke();
-    const q = seg(p, 0.45, 1) * (sw.length - 1), n0 = Math.floor(q), fr = q - n0;
+    const q = seg(p, 0.6, 1) * (sw.length - 1), n0 = Math.floor(q), fr = q - n0;
     const pts = sw.slice(0, n0 + 1).map((s) => [lx(s.d), Y(s.mean_abs_corr)]);
     if (n0 < sw.length - 1) pts.push([lx(sw[n0].d) + (lx(sw[n0 + 1].d) - lx(sw[n0].d)) * fr, Y(sw[n0].mean_abs_corr) + (Y(sw[n0 + 1].mean_abs_corr) - Y(sw[n0].mean_abs_corr)) * fr]);
     ctx.strokeStyle = col.blue;
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.8;
     ctx.beginPath();
-    pts.forEach((pt, i) => (i ? ctx.lineTo(pt[0], pt[1]) : ctx.moveTo(pt[0], pt[1])));
+    pts.forEach((pt, k) => (k ? ctx.lineTo(pt[0], pt[1]) : ctx.moveTo(pt[0], pt[1])));
     ctx.stroke();
-    sw.forEach((s, i) => {
-      text(ctx, String(s.d), lx(s.d), by + bh + 20, 12.5, col.muted, { align: "center" });
-      if (i > q) return;
+    sw.forEach((s, k) => {
+      if (k % 2 === 0 || k === sw.length - 1) text(ctx, String(s.d), lx(s.d), by + bh + 20, 12.5, col.muted, { align: "center" });
+      if (k > q) return;
       ctx.beginPath();
       ctx.arc(lx(s.d), Y(s.mean_abs_corr), 4, 0, 7);
       ctx.fillStyle = col.blue;
       ctx.fill();
     });
-    // a moving marker at the current d
-    const last = pts[pts.length - 1];
-    if (seg(p, 0.45, 1) < 1) {
-      ctx.beginPath();
-      ctx.arc(last[0], last[1], 8, 0, 7);
-      ctx.strokeStyle = col.ours;
-      ctx.lineWidth = 2.4;
-      ctx.stroke();
-    }
     [0, 0.5, 1].forEach((v) => text(ctx, v.toFixed(1), bx - 10, Y(v) + 5, 12.5, col.muted, { align: "right" }));
-    text(ctx, "d (log scale)", bx + bw / 2, by + bh + 40, 13.5, col.muted, { align: "center" });
-    text(ctx, "mean |corr|", bx + 6, by - 8, 13.5, col.muted);
-    ctx.globalAlpha = ease(seg(p, 0.8, 1));
-    wrap(ctx, "About a quarter of the corpus uses as many latents as channels with identity weights: independent channels (paper).", 600, 366, 560, 18, 14, col.muted);
+    text(ctx, "d: how evenly a channel spreads its weight (small = on one latent, large = on all)", bx + bw / 2, by + bh + 42, 13, col.muted, { align: "center" });
+    text(ctx, "average correlation between channels", bx - 40, by - 12, 13, col.muted);
+    ctx.globalAlpha = a2 * ease(seg(p, 0.85, 1));
+    text(ctx, "channels differ", bx + 8, Y(0.23) + 30, 15, col.ours, { weight: 700 });
+    text(ctx, "channels alike", bx + bw - 8, Y(0.92) - 16, 15, col.teal, { align: "right", weight: 700 });
+    ctx.globalAlpha = 1;
+    ctx.globalAlpha = ease(seg(p, 0.85, 1));
+    text(ctx, `Whole 5-channel example: average correlation ${D.examples.low.mean_abs_corr.toFixed(2)} at d = ${D.examples.low.d}, ${D.examples.high.mean_abs_corr.toFixed(2)} at d = ${D.examples.high.d}.`, 20, 432, 16.5, col.ink, { weight: 600 });
+    text(ctx, "d is drawn per dataset, so the corpus holds everything from almost independent to almost identical channels.", 20, 458, 15, col.muted);
     ctx.globalAlpha = 1;
   }
 
@@ -400,7 +421,7 @@
     { narr: "① Latent functions", sub: "KernelSynth draws, as before", dur: 5200 },
     { narr: "② Mixing weights", sub: "a Dirichlet draw per channel", dur: 5600 },
     { narr: "③ A channel is a weighted sum", sub: "same time step, no lags", dur: 7000 },
-    { narr: "④ What comes out: correlated channels", sub: "the concentration sets how correlated", dur: 6000 },
+    { narr: "④ Which channels move together?", sub: "channels that share a latent are correlated", dur: 7000 },
     { narr: "The corpus and the model that learns from it", sub: "TimePFN, as reported in the paper", dur: 4200 },
     { narr: "Does the dependence between channels matter?", sub: "the paper's own ablation", dur: 5200 },
     { narr: "What it can and cannot express", sub: "against this project's generator", dur: 6500 },
@@ -412,147 +433,81 @@
       [overview, latents, mixing, building, correlation, corpus, ablation, capability][step](ctx, p);
     },
   });
-  LSTEPS[4].foot = LFOOT + " Right: pool of 40 raw latent draws, 100 random subsets of 8 latents and 16 channels per d; independent smooth series already show |corr| around 0.2 in one realisation.";
+  LSTEPS[4].foot = LFOOT + " Right: pool of 40 raw latent draws, 100 random subsets of 8 latents and 16 channels per d, averaged (our simulation of the construction). Left: the d = 0.15 example, each channel rescaled to mean 0 and unit spread for the overlay.";
   LSTEPS[5].foot = "Taga, Ildiz and Oymak (2025): corpus size, windows, model and training as reported in the paper; numbers transcribed from the text.";
   LSTEPS[6].foot = "Zero-shot MSE of TimePFN and of TimePFN trained on independent channels only, as reported in the paper (transcribed; check against the paper's table before citing).";
   LSTEPS[7].foot = "Left column: LMC_Synth.py. Right column: src/tsfmxai/generators (AST over Lag(variable, lag), Multiply, Tanh) and the recorded seeds of the experiments. The paper also mentions multiplicative Gaussian noise (σ = 0.1); the script has no noise term.";
 
-  // ================= planned comparative evaluation (design only) =================
-  function chip(ctx, x, y, w, label, color) {
-    Z.rrect(ctx, x, y, w, 28, 14);
-    ctx.fillStyle = color;
-    ctx.fill();
-    text(ctx, label, x + w / 2, y + 20, 14.5, "#fff", { align: "center", weight: 700 });
-  }
-  function planWhat(ctx, p) {
-    chip(ctx, 20, 62, 300, "PLANNED: no model has been trained yet", col.ours);
-    const cols = [
-      ["Generators", ["LMC-Synth (official code)", "This project's generator", "A 50/50 mixture of both"], col.blue],
-      ["Models", ["Chronos-2 architecture", "Moirai-Small", "same size, same budget, same seeds"], col.teal],
-      ["Benchmarks", ["the 9 datasets of TimePFN", "ETT×4, Weather, Solar, ECL,", "Exchange, Traffic; zero-shot"], "#6d5bd0"],
+  // ================= comparison with LMC-Synth on the TimePFN benchmarks (plan: no results yet) =================
+  const DATASETS = ["ETTh1", "ETTh2", "ETTm1", "ETTm2", "Weather", "Solar", "ECL", "Exchange", "Traffic"];
+  function compare(ctx, p) {
+    // top strip: two corpora -> same model -> real benchmarks
+    const boxes = [
+      [20, 62, 300, 38, "Corpus of LMC-Synth", col.blue, col.soft],
+      [20, 108, 300, 38, "Corpus of this project's generator", col.ours, col.osoft],
     ];
-    cols.forEach((c, i) => {
-      const a = ease(seg(p, i * 0.15, i * 0.15 + 0.3)), x = 20 + i * 392;
-      ctx.globalAlpha = a;
-      box(ctx, x, 110, 372, 168, { stroke: c[2], lw: 2.4 });
-      text(ctx, c[0], x + 18, 142, 20, c[2], { weight: 700 });
-      c[1].forEach((s, k) => text(ctx, s, x + 18, 180 + k * 32, 17, col.ink));
-      ctx.globalAlpha = 1;
-      if (i < 2) {
-        ctx.globalAlpha = ease(seg(p, 0.25 + i * 0.15, 0.5 + i * 0.15));
-        text(ctx, i ? "→" : "×", x + 372 + 10, 200, 26, col.muted, { align: "center", weight: 700 });
-        ctx.globalAlpha = 1;
-      }
+    boxes.forEach((b, i) => {
+      ctx.globalAlpha = ease(seg(p, i * 0.1, i * 0.1 + 0.2));
+      box(ctx, b[0], b[1], b[2], b[3], { fill: b[6], stroke: b[5], lw: 2 });
+      text(ctx, b[4], b[0] + b[2] / 2, b[1] + 25, 16.5, b[5], { align: "center", weight: 700 });
     });
-    ctx.globalAlpha = ease(seg(p, 0.5, 1));
-    text(ctx, "What has to exist first", 20, 312, 19, col.ink, { weight: 700 });
-    const runs = Math.round(18 * ease(seg(p, 0.5, 0.9)));
-    box(ctx, 900, 316, 280, 108, { fill: col.osoft, stroke: col.ours, dash: [6, 5] });
-    text(ctx, String(runs), 920, 372, 44, col.ours, { weight: 700 });
-    text(ctx, "training runs", 990, 360, 17, col.ink, { weight: 700 });
-    text(ctx, "3 corpora × 2 models × 3 seeds", 920, 402, 14.5, col.muted);
-    [["Chronos-2 pretraining code is not public", "only fine-tuning code and weights are; here the architecture would be trained with our own pipeline"],
-      ["A corpus-scale multivariate corpus from our generator", "multivariate stability certificates: Shao–Wu and Heaps VAR yes; the Jacobian one is scalar only (repository notes)"],
-      ["Mix, Don't Pick models", "that paper trains Chronos-T5-Mini and Moirai-Small; Chronos-2 is a different architecture"]].forEach((r, i) => {
-      text(ctx, r[0], 20, 346 + i * 44, 16.5, col.ours, { weight: 700 });
-      text(ctx, r[1], 20, 366 + i * 44, 14.5, col.muted);
-    });
+    const m = ease(seg(p, 0.2, 0.4));
+    ctx.globalAlpha = m;
+    arrow(ctx, 322, 81, 400, 104, col.muted, 2.2);
+    arrow(ctx, 322, 127, 400, 104, col.muted, 2.2);
+    box(ctx, 404, 70, 330, 68, { stroke: col.teal, lw: 2.4 });
+    text(ctx, "Same model, same budget, same seeds", 569, 98, 16.5, col.teal, { align: "center", weight: 700 });
+    text(ctx, "trained on synthetic data only", 569, 122, 15, col.ink, { align: "center" });
+    ctx.globalAlpha = ease(seg(p, 0.35, 0.55));
+    arrow(ctx, 736, 104, 790, 104, col.muted, 2.2);
+    box(ctx, 794, 70, 386, 68, { stroke: "#6d5bd0", lw: 2.4 });
+    text(ctx, "Zero-shot on real multivariate data", 987, 98, 16.5, "#6d5bd0", { align: "center", weight: 700 });
+    text(ctx, "the 9 datasets of TimePFN; input 96, horizon 96", 987, 122, 15, col.ink, { align: "center" });
     ctx.globalAlpha = 1;
-  }
-  function planProtocol(ctx, p) {
-    const steps = [
-      ["1  Match the corpora", "same number of windows, same length, same channel counts for every generator"],
-      ["2  Train", "each model on each corpus: same steps, same optimiser, 3 seeds"],
-      ["3  Evaluate zero-shot", "on the real multivariate benchmarks, never trained on"],
-      ["4  Aggregate", "geometric mean of scores normalised by a seasonal-naive baseline"],
-      ["5  Test", "paired bootstrap over tasks, confidence intervals, seeds reported"],
-    ];
-    steps.forEach((s, i) => {
-      const a = ease(seg(p, i * 0.14, i * 0.14 + 0.3)), y = 72 + i * 76;
-      ctx.globalAlpha = a;
-      box(ctx, 20, y, 760, 64, { stroke: col.blue, lw: 2 });
-      text(ctx, s[0], 38, y + 28, 19, col.blue, { weight: 700 });
-      text(ctx, s[1], 38, y + 52, 15.5, col.ink);
-      if (i < 4) arrow(ctx, 400, y + 66, 400, y + 74, col.muted, 2);
-      ctx.globalAlpha = 1;
-    });
-    const tk = seg(p, 0.1, 0.9);
-    if (tk > 0 && tk < 1) {
-      const ty = 72 + 32 + tk * 4 * 76;
-      ctx.beginPath();
-      ctx.arc(796, ty, 8, 0, 7);
-      ctx.fillStyle = col.ours;
-      ctx.fill();
-    }
-    ctx.globalAlpha = ease(seg(p, 0.6, 1));
-    box(ctx, 810, 72, 370, 364, { fill: col.osoft, stroke: col.ours });
-    text(ctx, "Lessons taken from", 830, 106, 18, col.ours, { weight: 700 });
-    text(ctx, "Mix, Don't Pick", 830, 130, 18, col.ours, { weight: 700 });
-    ["Match the budget exactly across corpora.", "Include a mixture: single generators can be brittle.", "Report intervals, not single numbers.", "Univariate there: here the corpora are multivariate."].forEach((s, i) => wrap(ctx, s, 830, 166 + i * 58, 330, 21, 16, col.ink));
-    ctx.globalAlpha = 1;
-  }
-  function planMetrics(ctx, p) {
-    const groups = [
-      ["Point error", ["MSE and MAE on standardised variables (TimePFN, DynLMC)", "MASE, scaled by the seasonal naive"], col.blue],
-      ["Probabilistic", ["CRPS scaled by the seasonal naive (GIFT-Eval)", "scaled quantile loss, WQL (fev-bench, Chronos-2)"], col.teal],
-      ["Dependence between series", ["energy score and variogram score", "CRPS-sum; error of the correlation matrix"], "#6d5bd0"],
-      ["Across benchmarks", ["win rate, skill score, geometric mean", "paired bootstrap, several seeds"], col.ours],
-    ];
-    groups.forEach((g, i) => {
-      const a = ease(seg(p, i * 0.14, i * 0.14 + 0.3)), x = 20 + (i % 2) * 590, y = 66 + Math.floor(i / 2) * 178;
-      ctx.globalAlpha = a;
-      box(ctx, x, y, 570, 164, { stroke: g[2], lw: 2.4 });
-      text(ctx, g[0], x + 20, y + 36, 20, g[2], { weight: 700 });
-      g[1].forEach((s, k) => wrap(ctx, "• " + s, x + 20, y + 76 + k * 44, 530, 21, 16.5, col.ink));
-      ctx.globalAlpha = 1;
-    });
-    ctx.globalAlpha = ease(seg(p, 0.7, 1));
-    text(ctx, "Energy and variogram scores need joint samples of all series; point metrics do not.", 20, 440, 16.5, col.ink, { weight: 600 });
-    text(ctx, "Definitions to be confirmed against each original source before they go into the thesis.", 20, 466, 14.5, col.muted);
-    ctx.globalAlpha = 1;
-  }
-  function planInteraction(ctx, p) {
-    text(ctx, "The test where the two generators should differ: what is learned from each corpus, scored on tasks with a known dependency", 20, 66, 17.5, col.ink, { weight: 700 });
-    const tasks = ["instantaneous, linear", "lagged between series", "product between series", "regime change"];
-    const gx = 330, cw = 210;
-    ["LMC-Synth", "This project"].forEach((g, i) => text(ctx, g, gx + i * cw + cw / 2, 108, 18, i ? col.ours : col.blue, { align: "center", weight: 700 }));
-    const hyp = [["expected good", "expected good"], ["expected weak", "expected good"], ["expected weak", "expected good"], ["expected weak", "expected good"]];
-    tasks.forEach((t, r) => {
-      const a = ease(seg(p, r * 0.12, r * 0.12 + 0.3)), y = 120 + r * 66;
-      ctx.globalAlpha = a;
-      text(ctx, t, 20, y + 38, 17.5, col.ink, { weight: 700 });
-      hyp[r].forEach((h, i) => {
-        const good = h === "expected good";
-        box(ctx, gx + i * cw + 6, y + 6, cw - 12, 52, { r: 10, fill: good ? col.tsoft : col.grey, stroke: good ? col.teal : col.muted, dash: [6, 5], lw: 1.8 });
-        text(ctx, h, gx + i * cw + cw / 2, y + 38, 16, good ? col.teal : col.muted, { align: "center", weight: 700 });
-      });
-      ctx.globalAlpha = 1;
-    });
-    box(ctx, 780, 108, 400, 276, { fill: col.osoft, stroke: col.ours });
-    ctx.globalAlpha = ease(seg(p, 0.5, 1));
-    text(ctx, "Hypothesis, not a result", 800, 142, 19, col.ours, { weight: 700 });
-    [["The first row is a control: the LMC-Synth mixture is built for it."],
-      ["The other rows need dependencies LMC-Synth cannot write: lags and products between series."],
-      ["If this project's generator is not better there, the hypothesis fails."]].forEach((s, i) => wrap(ctx, s[0], 800, 178 + i * 66, 360, 21, 16, col.ink));
-    text(ctx, "Cells are dashed: nothing here has been measured.", 20, 410, 15, col.muted);
-    wrap(ctx, "The tasks have a known generating equation, so an explanation of the forecast can also be scored against the true dependency.", 20, 436, 740, 20, 15.5, col.ink, { weight: 600 });
-    ctx.globalAlpha = 1;
-  }
 
-  const ESTEPS = [
-    { narr: "Comparative evaluation: what is compared", sub: "a plan, not results", dur: 5200,
-      foot: "Design only. Models and benchmarks follow Taga et al. (2025) and Nagpal et al. (2026, Mix, Don't Pick). Chronos-2: github.com/amazon-science/chronos-forecasting (inference and fine-tuning code, no pretraining pipeline)." },
-    { narr: "Protocol", sub: "matched budget, zero-shot, with intervals", dur: 5200,
-      foot: "Protocol modelled on Nagpal et al. (2026): matched corpora and budgets, zero-shot evaluation, paired bootstrap over tasks, several seeds." },
-    { narr: "Metrics", sub: "all established, none new", dur: 5200,
-      foot: "Sources of use: TimePFN and DynLMC (MSE, MAE), GIFT-Eval and Mix, Don't Pick (scaled CRPS and MASE), fev-bench and Chronos-2 (scaled quantile loss, win rate, skill score). Multivariate scores: energy and variogram score, CRPS-sum." },
-    { narr: "The test that matters: dependencies LMC-Synth cannot write", sub: "hypotheses, drawn dashed", dur: 6000,
-      foot: "Hypothesis table: no measurement behind any cell. The tasks need a multivariate sampler of this project's generator with recorded equations." },
-  ];
+    // table of the metrics: empty until measured
+    const x0 = 20, y0 = 168, rowH = 28, cw = [150, 130, 130, 130, 130];
+    const heads = ["Dataset", "LMC-Synth MSE", "LMC-Synth MAE", "Ours MSE", "Ours MAE"];
+    const colors = [col.ink, col.blue, col.blue, col.ours, col.ours];
+    let x = x0;
+    ctx.globalAlpha = ease(seg(p, 0.5, 0.65));
+    heads.forEach((h, i) => {
+      text(ctx, h, x + (i ? cw[i] / 2 : 8), y0 + 20, 15, colors[i], { align: i ? "center" : "left", weight: 700 });
+      x += cw[i];
+    });
+    ctx.beginPath();
+    ctx.moveTo(x0, y0 + 30);
+    ctx.lineTo(x0 + 670, y0 + 30);
+    ctx.strokeStyle = col.muted;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    DATASETS.forEach((d, r) => {
+      const a = ease(seg(p, 0.55 + r * 0.035, 0.7 + r * 0.035)), y = y0 + 34 + r * rowH;
+      ctx.globalAlpha = a;
+      if (r % 2 === 0) { ctx.fillStyle = col.grey; ctx.fillRect(x0, y, 670, rowH); }
+      text(ctx, d, x0 + 8, y + 19, 16, col.ink, { weight: 600 });
+      let cx = x0 + cw[0];
+      for (let i = 1; i < 5; i++) {
+        text(ctx, "–", cx + cw[i] / 2, y + 19, 16, col.muted, { align: "center" });
+        cx += cw[i];
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    // right-hand notes
+    ctx.globalAlpha = ease(seg(p, 0.7, 1));
+    box(ctx, 720, 168, 460, 296, { fill: col.osoft, stroke: col.ours });
+    text(ctx, "What the comparison shows", 740, 200, 19, col.ours, { weight: 700 });
+    [["Both models see only synthetic data in training; the real datasets are never used to fit."],
+      ["The two columns differ in one thing: which generator made the training corpus."],
+      ["MSE and MAE per dataset, lower is better, for both generators side by side."],
+      ["Cells are empty: nothing has been trained or measured yet."]].forEach((s, i) => wrap(ctx, s[0], 740, 236 + i * 56, 420, 21, 16, i === 3 ? col.ours : col.ink, { weight: i === 3 ? 700 : 400 }));
+    ctx.globalAlpha = 1;
+  }
   Z.mount({
-    id: "evalplan", W, H, steps: ESTEPS, foot: "",
-    paint(ctx, step, p) {
-      [planWhat, planProtocol, planMetrics, planInteraction][step](ctx, p);
-    },
+    id: "evalplan", W, H, foot: "Design only; no model has been trained. Benchmarks and metrics follow Taga, Ildiz and Oymak (2025, TimePFN): ETTh1, ETTh2, ETTm1, ETTm2, Weather, Solar, ECL, Exchange, Traffic. Dataset list to be checked against the paper's table.",
+    steps: [{ narr: "Next: compare with LMC-Synth on real multivariate data", sub: "both trained on synthetic data only", dur: 7000 }],
+    paint(ctx, step, p) { compare(ctx, p); },
   });
 })();
