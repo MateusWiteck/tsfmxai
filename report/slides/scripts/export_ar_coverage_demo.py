@@ -5,7 +5,7 @@ Reproduces, with the experiment's own code, the executed notebooks
   experiments/autoregressive_process_coverage/AR/02_timepfn_lmc_ar_var_coverage.ipynb (33 TimePFN latent series)
 by executing the same notebook cells (configuration, generators, AR fit). It follows the corrected
 protocol appended to both notebooks ("Corrections after review"): 16 validation trajectories drawn
-after the test set, an order grid that contains 12 (the generator's lag cap), and the order selected
+after the test set, an order grid that contains 16 (the generator's lag cap), and the order selected
 on validation as the smallest one whose validation NMSE is <= 0.001. A function counts as reproduced
 with at most k lags when its selected order is <= k and its test NMSE is <= 0.001.
 

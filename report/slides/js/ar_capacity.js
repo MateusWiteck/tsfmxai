@@ -107,8 +107,8 @@
     ctx.moveTo(bx, base);
     ctx.lineTo(bx + bw, base);
     ctx.stroke();
-    // our generator allows lags up to 12: the line sits between the grid orders 8 and 16
-    const i16 = orders.findIndex((o) => o[0] === 16), lx = bx + i16 * slot;
+    // our generator allows lags up to 16: the line closes the bar of grid order 16
+    const i16 = orders.findIndex((o) => o[0] === 16), lx = bx + (i16 + 1) * slot;
     ctx.strokeStyle = col.ours;
     ctx.lineWidth = 1.8;
     ctx.setLineDash([5, 4]);
@@ -117,10 +117,10 @@
     ctx.lineTo(lx, base + 6);
     ctx.stroke();
     ctx.setLineDash([]);
-    text(ctx, "generator: up to 12 lags", lx - 8, 142, 13, col.ours, { align: "right", weight: 700 });
+    text(ctx, "generator: up to 16 lags", lx - 8, 142, 13, col.ours, { align: "right", weight: 700 });
     orders.forEach(([o, c], i) => {
       const g = ease(seg(p, delay + (i * 0.5) / n, delay + (i * 0.5) / n + 0.3)), h = (c / d.total) * hmax * g;
-      ctx.fillStyle = o <= 12 ? col.teal : "#a9b2c6";
+      ctx.fillStyle = o <= 16 ? col.teal : "#a9b2c6";
       ctx.fillRect(bx + i * slot + 8, base - h, slot - 16, h);
       ctx.globalAlpha = g;
       text(ctx, String(c), bx + i * slot + slot / 2, base - h - 7, 14, col.ink, { align: "center", weight: 700 });
@@ -134,10 +134,14 @@
     chart(ctx, 20, `KernelSynth: ${KS.total} functions`, "official bank plus 20 seeded compositions; orders on the experiment's grid", KS, p, 0);
     chart(ctx, 610, `TimePFN: ${TP.total} latent series`, "11 mechanisms with 3 latent series each", TP, p, 0.15);
     ctx.globalAlpha = ease(seg(p, 0.7, 1));
-    const at12 = (d) => d.cumulative.find((o) => o[0] === 12)[1];
-    text(ctx, `With 12 lags or fewer, the generator's cap: ${at12(KS)} of ${KS.total} KernelSynth functions and ${at12(TP)} of ${TP.total} TimePFN series reach NMSE ≤ 0.001.`, 20, 424, 18, col.ink, { weight: 700 });
-    text(ctx, `Order selected on validation trajectories (the smallest that passes), then scored on test. Not reproduced at any order: white noise and ${KS.never - 2} composites (KernelSynth), ${TP.never} series (TimePFN).`, 20, 450, 14.5, col.muted);
-    text(ctx, `Original protocol, order picked on the test set: ${KS.best_of_grid} of ${KS.total} and ${TP.best_of_grid} of ${TP.total}. Exploratory: one step ahead, finite suites.`, 20, 472, 14.5, col.muted);
+    const at = (d, k) => d.cumulative.find((o) => o[0] === k)[1];
+    const at16 = at(KS, 16), at256 = KS.cumulative[KS.cumulative.length - 1][1];
+    text(ctx, `Cap of 16 lags: ${at16} of ${KS.total} KernelSynth functions (${Math.round((100 * at16) / KS.total)}%) and ${at(TP, 16)} of ${TP.total} TimePFN series; up to 256 lags adds only ${at256 - at16}.`, 20, 412, 17, col.teal, { weight: 700 });
+    text(ctx, `Why 16 and not 12: ${at(KS, 12)} → ${at16} KernelSynth functions and ${at(TP, 12)} → ${at(TP, 16)} TimePFN series reach NMSE ≤ 0.001.`, 20, 438, 18, col.ink, { weight: 700 });
+    // diagnosis of the 8 KernelSynth functions that no order reproduces (experiment AR/01, ids white_level0.1, white_level1,
+    // composite_11 and _16 hold a WhiteKernel term; composite_08, _15, _19, _20 are products of periodic kernels)
+    text(ctx, `Never reproduced (${KS.never}): 2 pure white noise + 2 composites with a white-noise term, unpredictable by construction; ${KS.never - 4} stacked periodic kernels. TimePFN: ${TP.never} series.`, 20, 460, 14.5, col.ink, { weight: 600 });
+    text(ctx, `Order chosen on validation, scored on test. Original protocol (order picked on test): ${KS.best_of_grid} of ${KS.total} and ${TP.best_of_grid} of ${TP.total}. Exploratory: one step ahead, finite suites.`, 20, 480, 14.5, col.muted);
     ctx.globalAlpha = 1;
   }
 
@@ -175,7 +179,7 @@
       ctx.globalAlpha = 1;
     });
     ctx.globalAlpha = ease(seg(p, 0.6, 1));
-    wrap(ctx, "Terms are combined with + and ×: up to 6 operators, lags 1 to 12. The experiment above tested only the first row.", 40, 388, 520, 22, 16, col.ink);
+    wrap(ctx, "Terms are combined with + and ×: up to 6 operators, lags 1 to 16. The experiment above tested only the first row.", 40, 388, 520, 22, 16, col.ink);
     ctx.globalAlpha = 1;
 
     box(ctx, 600, 60, 580, 380);
