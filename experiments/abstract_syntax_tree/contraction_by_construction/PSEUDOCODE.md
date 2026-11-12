@@ -20,7 +20,7 @@ ALGORITHM CONTRACTION_CERTIFIED_AST(config C, root_seed r, sample_index i)
 <span style="color:#c62828;font-weight:700"> 5. IF C.tree_config.coefficient_gate_lags, FOR every LAG leaf:</span>
 <span style="color:#c62828;font-weight:700">      REPLACE LAG(x0, Lk) BY MULTIPLY(PARAMETER(Pg), LAG(x0, Lk))</span>
 <span style="color:#c62828;font-weight:700">      and sample the signed gate Pg</span>
-<span style="color:#c62828;font-weight:700"> 6. REQUIRE a univariate tree containing no TIME terminal</span>
+<span style="color:#c62828;font-weight:700"> 6. REQUIRE a univariate tree with lagged inputs</span>
 <span style="color:#c62828;font-weight:700"> 7. L ← LARGEST_BOUND_LAG(base_tree)</span>
 <span style="color:#c62828;font-weight:700"> 8. D ← [-C.domain_radius, C.domain_radius]^L</span>
 <span style="color:#c62828;font-weight:700"> 9. value_bound, derivative_bounds ← INTERVAL_PROPAGATION(base_tree, D)</span>
