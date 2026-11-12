@@ -275,12 +275,10 @@
       foot: "Executed notebook: experiments/canonicalization/06_train.ipynb (configs/canonicalization_5m_raw_tanh.json: 10,000,000 sampled ASTs, 1–6 operators, lags 1–16, degree ≤ 4, protection probability 0.5, split by skeleton). Models and corpus: Hugging Face mateuswiteck/tsfmxai-canonicalization-encoder-decoder and -asts." },
   ];
 
-  Z.mount({
-    id: "zoom-head", W, H, steps: STEPS,
+  // The scenes are shown inside the pipeline slide (pipeline_canon.js), each at its own place.
+  window.ZHEAD = {
     foot: "Example from the project's sampler (seed " + D.seed + "); target and symbols from canonicalize_polynomial and CanonicalCodec.",
-    paint(ctx, step, p) {
-      Z.chips(ctx, STAGES, step === 0 ? -1 : step - 1, 8);
-      [scene0, scene1, scene2, scene3, scene4, scene5, scene6][step](ctx, p);
-    },
-  });
+    steps: STEPS,
+    scenes: [scene0, scene1, scene2, scene3, scene4, scene5, scene6],
+  };
 })();

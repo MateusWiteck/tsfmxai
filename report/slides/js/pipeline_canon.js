@@ -1,18 +1,22 @@
-/* Pipeline slide: the whole method, one zoom per step.
+/* Pipeline slide: the whole method in one story, one zoom per step.
  *
- * The pipeline starts without the fixing: a tree sampler, a series generator, an encoder with
- * two heads, and the canonicalizer that writes the label. Then, in this order: zoom into the
- * generation of a tree and of its series (the initial values are discarded); the raw series
- * are not stable; the fixing enters the diagram and we zoom into it; zoom into the
- * canonicalizer (how it iterates, what it costs); back to the pipeline; swap the canonicalizer
- * for the canonicalizer encoder and zoom into that teacher; finally, the same steps repeated
- * for N series. Data: GEN_DATA (generator_demo.js), PIPE_DATA (pipeline_demo.js),
- * CANON_TIMING (canonicalizer_timing.js). Stability shares: experiments/abstract_syntax_tree/
- * 6_stability_methods_tradeoff.ipynb; teacher numbers: experiments/canonicalization/06_train.ipynb.
+ * The pipeline starts without the fixing (tree sampler, series generator, encoder with two
+ * heads, and the canonicalizer that writes the label). Then, in order: the generator (zoom
+ * into the tree and its series, initial values discarded, raw series that are not stable);
+ * the fixing enters the diagram, with its four methods and the protection; the canonicalizer
+ * (how it iterates, what it costs); the swap for a canonicalizer encoder and the model; and,
+ * last, the same steps repeated for N series.
+ *
+ * The scenes of the former generator zoom (ZGEN, zoom_generator.js), of the former
+ * equation-head zoom (ZHEAD, zoom_head.js) and the click-through method views
+ * (GenDetail, stability_detail.js) are shown here, each at its own place.
+ * Data: GEN_DATA, PIPE_DATA, CANON_TIMING. Stability shares: experiments/abstract_syntax_tree/
+ * 6_stability_methods_tradeoff.ipynb; model numbers: experiments/canonicalization/06_train.ipynb.
  */
 (function () {
   const D = window.GEN_DATA, T = window.CANON_TIMING, PIPE = window.PIPE_DATA, Z = window.ZC;
-  if (!D || !T || !PIPE || !Z) return;
+  const ZG = window.ZGEN, ZH = window.ZHEAD, GD = window.GenDetail;
+  if (!D || !T || !PIPE || !Z || !ZG || !ZH || !GD) return;
   const { col, seg, ease, text, wrap, box, arrow, lagName } = Z;
   const W = 1200, H = 500;
 
@@ -383,45 +387,6 @@
     ctx.globalAlpha = 1;
   }
 
-  const fmtInt = (s) => Number(s).toLocaleString("en-US");
-
-  /** Zoom: generating a tree. */
-  function sceneTree(ctx, p) {
-    box(ctx, 20, 60, 440, 390);
-    text(ctx, "How many valid trees?", 40, 96, 22, col.ink, { weight: 700 });
-    text(ctx, fmtInt(D.structures_total), 40, 146, 36, col.blue, { weight: 700 });
-    wrap(ctx, "1–6 operators, lags 1–16, one series, every product of at most 4 lag factors.", 40, 178, 400, 24, 17, col.muted);
-    const total = Number(D.structures_total), sc = D.size_counts;
-    [["6 operators", Number(sc["6"]) / total, col.blue], ["5 operators", Number(sc["5"]) / total, col.ours],
-      ["1–4 operators", (Number(sc["4"]) + Number(sc["3"]) + Number(sc["2"]) + Number(sc["1"])) / total, col.blue]].forEach((r, i) => {
-      const y = 262 + i * 44, a = seg(p, 0.1 + i * 0.12, 0.35 + i * 0.12);
-      text(ctx, r[0], 40, y + 18, 17, col.ink);
-      ctx.fillStyle = r[2];
-      ctx.fillRect(170, y, Math.max(2, 200 * r[1] * a), 24);
-      const pct = r[1] >= 0.1 ? (r[1] * 100).toFixed(1) : r[1] >= 0.001 ? (r[1] * 100).toFixed(2) : (r[1] * 100).toFixed(3);
-      text(ctx, pct + "%", 174 + 200 * r[1] * a, y + 19, 16, col.muted);
-    });
-    wrap(ctx, "Draw one uniformly: almost every tree has 6 operators. This example has 5, so it fits on a slide.", 40, 408, 400, 22, 15.5, col.muted);
-
-    box(ctx, 480, 60, 700, 390);
-    const q = seg(p, 0.15, 0.95), filled = p > 0.7;
-    text(ctx, `this draw: ${D.operators} operators, ${D.operators + 1} leaves`, 500, 96, 21, col.ink, { weight: 700 });
-    const lay = Z.layout(D.raw_tree, { x: 520, y: 150, w: 620, h: 210 });
-    Z.drawTree(ctx, lay, {
-      size: 16,
-      alpha: (nd) => ease(seg(q, nd.depth * 0.12, nd.depth * 0.12 + 0.25)),
-      label: (nd) => (filled || nd.kids.length ? treeLabel(nd) : nd.n.t === "par" ? "p" : "x(t−?)"),
-      style: (nd) => (nd.kids.length ? { stroke: col.ink } : nd.n.t === "par" ? { fill: col.soft, stroke: col.blue, color: col.blue } : { fill: col.tsoft, stroke: col.teal, color: col.teal }),
-    });
-    ctx.globalAlpha = ease(seg(p, 0.65, 0.9));
-    text(ctx, "1 the structure is drawn   2 lags are drawn from 1–16   3 parameters from magnitude 0.05–0.9", 500, 396, 15.5, col.muted);
-    ctx.globalAlpha = 1;
-    ctx.globalAlpha = ease(seg(p, 0.8, 1));
-    box(ctx, 500, 408, 660, 30, { fill: col.osoft, stroke: col.ours });
-    text(ctx, "A tree is a random recurrence: x(t) as a function of its own past.", 516, 429, 16, col.ink, { weight: 600 });
-    ctx.globalAlpha = 1;
-  }
-
   /** Zoom: from the tree to a series, and the initial values that are thrown away. */
   function sceneSim(ctx, p) {
     const r = RAW[0], SHOWN = 22, ys = r.asinh_trajectory.slice(0, SHOWN).map(Math.sinh);  // first steps, linear scale
@@ -639,58 +604,6 @@
     ctx.globalAlpha = 1;
   }
 
-  function scene3(ctx, p) {
-    const A = (a, b) => ease(seg(p, a, b));
-    ctx.globalAlpha = A(0, 0.2);
-    box(ctx, 20, 70, 250, 100, { fill: col.panel });
-    text(ctx, "the tree, in prefix order", 36, 96, 15, col.muted, { weight: 600 });
-    wrap(ctx, Z.pretty(D.raw_tree, 2), 36, 120, 222, 19, 14, col.ink, { family: Z.MATH });
-    ctx.globalAlpha = 1;
-    arrow(ctx, 274, 120, 316, 120, col.muted, 2.4, A(0.15, 0.3));
-    card(ctx, 320, 70, 230, 100, "Encoder", "Transformer, 2 layers", "blue", A(0.2, 0.4));
-    arrow(ctx, 554, 120, 596, 120, col.muted, 2.4, A(0.35, 0.5));
-    card(ctx, 600, 70, 230, 100, "Decoder", "GRU + attention", "ours", A(0.4, 0.55));
-    arrow(ctx, 834, 120, 876, 120, col.muted, 2.4, A(0.5, 0.65));
-    ctx.globalAlpha = A(0.55, 0.75);
-    box(ctx, 880, 70, 300, 100, { fill: col.panel, stroke: col.ours });
-    text(ctx, "the canonical equation", 896, 96, 15, col.muted, { weight: 600 });
-    text(ctx, "symbols, one at a time", 896, 124, 17, col.ink, { weight: 600 });
-    ctx.globalAlpha = 1;
-    stat(ctx, 20, 196, 376, "97.9%", "of 1.9 million unseen test skeletons written exactly", col.teal, A(0.6, 0.78), "SKELETON MODEL");
-    stat(ctx, 412, 196, 376, "7.0M", "training trees, with labels from the iterative canonicalizer", col.blue, A(0.68, 0.86), null);
-    stat(ctx, 804, 196, 376, "≈ 7 min", "to decode 1.9 million trees, in batches of 256 on one GPU", col.blue, A(0.76, 0.94), null);
-    ctx.globalAlpha = A(0.85, 1);
-    box(ctx, 20, 366, 1160, 124, { fill: col.grey });
-    text(ctx, "The canonicalizer encoder replaces the canonicalizer where a learned model is needed", 44, 398, 20, col.ink, { weight: 700 });
-    ["It reads the tree in one pass, batched on the GPU, and learned the rules from seven million examples.",
-      "It is not exact: only 4.2% of equations also get every coefficient right (joint model), so the canonicalizer stays the reference.",
-    ].forEach((s, i) => wrap(ctx, "• " + s, 44, 428 + i * 26, 1110, 22, 16.5, col.muted));
-    ctx.globalAlpha = 1;
-  }
-
-  const NEXT = [
-    { key: "#/zoom-gen", x: 20, title: "Zoom 1 · the generator", sub: "how the corpus is sampled: trees, parameters, protection and the series", tone: "ours" },
-    { key: "#/zoom-head", x: 612, title: "Zoom 2 · the equation head", sub: "the canonical form, its symbols, the model and what was measured", tone: "blue" },
-  ];
-  function scene4(ctx, p) {
-    NEXT.forEach((c, i) => {
-      const a = ease(seg(p, i * 0.25, i * 0.25 + 0.4));
-      ctx.globalAlpha = a;
-      box(ctx, c.x, 90, 568, 190, { fill: c.tone === "ours" ? col.osoft : col.soft, stroke: c.tone === "ours" ? col.ours : col.blue, lw: 2.6 });
-      text(ctx, c.title, c.x + 28, 150, 28, c.tone === "ours" ? col.ours : col.blue, { weight: 700 });
-      wrap(ctx, c.sub, c.x + 28, 190, 510, 26, 19, col.ink);
-      text(ctx, "open ▸", c.x + 28, 255, 17, col.muted, { weight: 700 });
-      ctx.globalAlpha = 1;
-    });
-    ctx.globalAlpha = ease(seg(p, 0.6, 1));
-    box(ctx, 20, 320, 1160, 130, { fill: col.grey });
-    text(ctx, "What comes next", 44, 354, 21, col.ink, { weight: 700 });
-    ["First the generator that samples the corpus (zoom 1), then the equation head and the training of the models (zoom 2).",
-      "Click a card, or press the arrow key to continue in order.",
-    ].forEach((s, i) => text(ctx, "• " + s, 44, 388 + i * 28, 17, col.muted));
-    ctx.globalAlpha = 1;
-  }
-
   // ----------------------------------------------------------------------------- zoom machinery
   const FOCUS = {
     sampler: { x: 20, y: 252, w: 220, h: 190 },
@@ -747,48 +660,99 @@
   const NOFIX = { fix: 0, show: 1 }, NOFIX_BLANK = { fix: 0, show: 0 }, FIXED = { fix: 1, show: 1 };
   const GEN = "Real sampled mechanisms: report/slides/scripts/export_generator_demo.py and export_pipeline_demo.py.";
   const STAB = "Shares: 5,000 raw trees, 384 steps (experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb); example series: export_pipeline_demo.py.";
-  const STEPS = [
-    { narr: "The pipeline", sub: "a tree, its series, and its label", dur: 6500, foot: GEN },
-    { narr: "Zoom · generating a tree", sub: "pick a structure uniformly, then draw lags and parameters", dur: 7500, foot: GEN },
-    { narr: "Zoom · from the tree to a series", sub: "random initial values, the recurrence, and what is thrown away", dur: 6500, foot: GEN },
-    { narr: "Zoom · the raw series are not stable", sub: "a random recurrence explodes or fades", dur: 6500, foot: STAB },
-    { narr: "Introduce the fixing", sub: "the tree is repaired before it is simulated", dur: 5200, foot: GEN },
-    { narr: "Zoom · the fixing", sub: "tanh on the lag factors, a certified scale, one of four methods", dur: 7000, foot: STAB },
-    { narr: "Zoom · the canonicalizer", sub: "iterative: the same rules at every node, leaves to root", dur: 12500,
-      foot: "The polynomial after each node is recomputed here with the rules of canonicalize_polynomial; the last node equals the canonical polynomial exported by export_generator_demo.py." },
-    { narr: "Zoom · what iterating costs", sub: "cheap per tree, but sequential and tied to the tree", dur: 4600,
-      foot: "Cost figures: report/slides/scripts/export_canonicalizer_timing.py (Python " + T.python + ", one core, same sampler as the corpus)." },
-    { narr: "Back to the pipeline", sub: "the label still comes from the iterative canonicalizer", dur: 3800, foot: GEN },
-    { narr: "Swap in a canonicalizer encoder", sub: "a learned model writes the same equation", dur: 4800, foot: GEN },
-    { narr: "Zoom · the teacher", sub: "a canonicalizer encoder, learned from the canonicalizer", dur: 8500,
-      foot: "Teacher accuracy: experiments/canonicalization/06_train.ipynb (test split, free decoding, skeleton model; coefficient result: joint model)." },
-    { narr: "Many series", sub: "repeat the same steps once per series", dur: 6500, foot: GEN },
-    { narr: "The rest of the deck", sub: "the generator, then the equation head", dur: 3600, foot: "" },
+  const TRACE_FOOT = "The polynomial after each node is recomputed here with the rules of canonicalize_polynomial; the last node equals the canonical polynomial exported by export_generator_demo.py.";
+  const COST_FOOT = "Cost figures: report/slides/scripts/export_canonicalizer_timing.py (Python " + T.python + ", one core, same sampler as the corpus).";
+  const MANY_FOOT = GEN;
+
+  /** HTML of the method views (sub, sup, span) drawn on the canvas, in the band above the scene. */
+  function drawFormula(ctx, html) {
+    if (!html) return;
+    const dec = (s) => s.replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+    const re = /<(sub|sup|span)[^>]*>([\s\S]*?)<\/\1>|([^<]+)/g;
+    let x = 24, m;
+    while ((m = re.exec(html))) {
+      let size = 24, dy = 0, color = col.ink, family = Z.MATH, s;
+      if (m[3] !== undefined) s = dec(m[3]);
+      else {
+        s = dec(m[2].replace(/<[^>]*>/g, ""));
+        if (m[1] === "sub") { size = 16; dy = 7; } else if (m[1] === "sup") { size = 16; dy = -9; } else { size = 17; color = col.muted; family = Z.SANS; }
+      }
+      text(ctx, s, x, 40 + dy, size, color, { family });
+      x += Z.measure(ctx, s, size, 400, family);
+    }
+  }
+  /** The click-through view of one method (Jacobian, Shao–Wu, Heaps VAR), one pipeline step per view step. */
+  function methodSteps(key) {
+    const def = GD.get(key);
+    return def.steps.map((st, i) => ({
+      narr: st.narr, sub: st.sub || "", dur: st.dur || 3000, foot: def.foot,
+      run: (ctx, p) => {
+        drawFormula(ctx, st.formula);
+        ctx.save();
+        ctx.translate(0, st.formula ? 70 : 40);
+        def.paint(ctx, i, ease(p));
+        ctx.restore();
+      },
+    }));
+  }
+  const gStep = (i, run, over) => Object.assign({ narr: ZG.steps[i].narr, sub: ZG.steps[i].sub, dur: ZG.steps[i].dur, foot: ZG.steps[i].foot || ZG.foot, run }, over || {});
+  const hStep = (i, run, over) => Object.assign({ narr: ZH.steps[i].narr, sub: ZH.steps[i].sub, dur: ZH.steps[i].dur, foot: ZH.steps[i].foot || ZH.foot, run }, over || {});
+  const GS = ZG.scenes, HS = ZH.scenes;
+
+  const FLOW = [
+    { narr: "The pipeline", sub: "a tree, its series, and its label", dur: 6500, foot: GEN, run: (c, p) => scene0(c, p, NOFIX_BLANK) },
+    // ---- the generator
+    gStep(0, (c, p) => zoomIn(c, p, FOCUS.sampler, NOFIX_BLANK, GS.compare), { narr: "Zoom · the generator", sub: "autoregressive data in Chronos-2 versus ours" }),
+    gStep(2, GS.tree),
+    gStep(3, GS.bind),
+    { narr: "Zoom · from the tree to a series", sub: "random initial values, the recurrence, and what is thrown away", dur: 6500, foot: GEN, run: sceneSim },
+    { narr: "Zoom · the raw series are not stable", sub: "a random recurrence explodes or fades", dur: 6500, foot: STAB,
+      run: (c, p) => hop(c, p, FOCUS.sampler, sceneSim, FOCUS.series, sceneUnstable, NOFIX) },
+    gStep(4, GS.problem),
+    // ---- the fixing
+    { narr: "Introduce the fixing", sub: "the tree is repaired before it is simulated", dur: 5200, foot: GEN,
+      run: (c, p) => (p < 0.45 ? zoomOut(c, p / 0.45, FOCUS.series, NOFIX, GS.problem) : scene0(c, 1, { fix: ease(seg(p, 0.5, 0.95)), show: 1 })) },
+    { narr: "Zoom · the fixing", sub: "tanh on the lag factors, a certified scale, one of four methods", dur: 7000, foot: STAB,
+      run: (c, p) => zoomIn(c, p, FOCUS.fix, FIXED, sceneFix) },
+    gStep(5, GS.hub),
+    ...methodSteps("jac"),
+    ...methodSteps("sw"),
+    ...methodSteps("hvar"),
+    gStep(1, GS.cards, { narr: "Recap · the generator in five stages" }),
+    gStep(6, GS.run),
+    gStep(7, GS.keep),
+    // ---- the canonicalizer
+    hStep(0, (c, p) => hop(c, p, FOCUS.fix, GS.keep, FOCUS.canon, HS[0], FIXED), { narr: "Zoom · the equation head" }),
+    hStep(1, HS[1]),
+    hStep(2, HS[2]),
+    { narr: "Zoom · the canonicalizer", sub: "iterative: the same rules at every node, leaves to root", dur: 12500, foot: TRACE_FOOT, run: scene1 },
+    { narr: "Zoom · what iterating costs", sub: "cheap per tree, but sequential and tied to the tree", dur: 4600, foot: COST_FOOT, run: scene2 },
+    hStep(3, HS[3], { narr: "Protection · RAW and TANH factors" }),
+    { narr: "Back to the pipeline", sub: "the label still comes from the iterative canonicalizer", dur: 3800, foot: GEN,
+      run: (c, p) => zoomOut(c, p, FOCUS.canon, FIXED, (cc) => HS[3](cc, 1)) },
+    { narr: "Swap in a canonicalizer encoder", sub: "a learned model writes the same equation", dur: 4800, foot: GEN,
+      run: (c, p) => scene0(c, 1, { fix: 1, show: 1, morph: ease(seg(p, 0.1, 0.7)) }) },
+    hStep(4, (c, p) => zoomIn(c, p, FOCUS.canon, { fix: 1, show: 1, morph: 1 }, HS[4]), { narr: "Zoom · the canonicalizer encoder", sub: "a sequence the model can write: factors, end of term, coefficient" }),
+    hStep(5, HS[5]),
+    hStep(6, HS[6]),
+    // ---- many series
+    { narr: "Many series", sub: "repeat the same steps once per series", dur: 6500, foot: MANY_FOOT,
+      run: (c, p) => { scene0b(c, p); veil(c, 1 - seg(p, 0, 0.2)); } },
   ];
 
+  // one empty fragment per step after the first: the slide advances through them
+  const host = document.querySelector("#pipeline .canvas");
+  if (host) {
+    for (let i = host.querySelectorAll(".ks-frag").length + 1; i < FLOW.length; i++) {
+      const s = document.createElement("span");
+      s.className = "fragment ks-frag";
+      s.setAttribute("data-fragment-index", String(i));
+      host.appendChild(s);
+    }
+  }
+
   Z.mount({
-    id: "pipeline", W, H, steps: STEPS, foot: "",
-    paint(ctx, step, p) {
-      switch (step) {
-        case 0: return scene0(ctx, p, NOFIX_BLANK);
-        case 1: return zoomIn(ctx, p, FOCUS.sampler, NOFIX_BLANK, sceneTree);
-        case 2: return sceneSim(ctx, p);
-        case 3: return hop(ctx, p, FOCUS.sampler, sceneSim, FOCUS.series, sceneUnstable, NOFIX);
-        case 4: {  // zoom out, then the fixing stage enters the diagram
-          if (p < 0.45) return zoomOut(ctx, p / 0.45, FOCUS.series, NOFIX, sceneUnstable);
-          return scene0(ctx, 1, { fix: ease(seg(p, 0.5, 0.95)), show: 1 });
-        }
-        case 5: return zoomIn(ctx, p, FOCUS.fix, FIXED, sceneFix);
-        case 6: return hop(ctx, p, FOCUS.fix, sceneFix, FOCUS.canon, scene1, FIXED);
-        case 7: return scene2(ctx, p);
-        case 8: return zoomOut(ctx, p, FOCUS.canon, FIXED, (c) => scene2(c, 1));
-        case 9: return scene0(ctx, 1, { fix: 1, show: 1, morph: ease(seg(p, 0.1, 0.7)) });
-        case 10: return zoomIn(ctx, p, FOCUS.canon, { fix: 1, show: 1, morph: 1 }, scene3);
-        case 11: scene0b(ctx, p); return veil(ctx, 1 - seg(p, 0, 0.2));
-        default: return scene4(ctx, p);
-      }
-    },
-    hits: (step) => (step === 12 ? NEXT.map((c) => ({ x: c.x, y: 90, w: 568, h: 190, key: c.key })) : []),
-    onHit: (key) => { location.hash = key; },
+    id: "pipeline", W, H, steps: FLOW, foot: "",
+    paint(ctx, step, p) { FLOW[step].run(ctx, p); },
   });
 })();

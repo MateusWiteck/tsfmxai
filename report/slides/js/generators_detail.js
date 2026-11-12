@@ -806,6 +806,7 @@
       addTab(key);
     },
     open: openGen,
+    get: (key) => GENS[key],  // the definition (steps, paint), for slides that show it inline
   };
   window.addEventListener("load", () => {
     const q = location.search.match(/[?&]gen=(\w+)(?:&gstep=(\d+))?/);

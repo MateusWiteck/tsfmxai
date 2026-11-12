@@ -354,7 +354,7 @@
       <div class="node ours fragment" data-fragment-index="1" style="width:260px;padding:16px 14px">
         Generator with a <b>known mechanism</b>
         <small>equations over lagged series, kept as an abstract syntax tree</small>
-        <a class="zoomlink" href="#/zoom-gen">zoom in &#9656;</a>
+        <a class="zoomlink" href="#/pipeline">zoom in &#9656;</a>
       </div>
       <div class="cmp-arrow fragment" data-fragment-index="2">→</div>
       <div class="node fragment" data-fragment-index="2" style="width:210px;padding:16px 14px">
@@ -368,7 +368,7 @@
       <div class="cmp-arrow fragment" data-fragment-index="4">→</div>
       <div class="col" style="gap:10px;width:290px">
         <div class="node fragment" data-fragment-index="4">Forecast head<small>the future, with uncertainty</small></div>
-        <div class="node ours fragment" data-fragment-index="5">Equation head<small>symbolic regression: the <b>direct</b> dependencies</small><a class="zoomlink" href="#/zoom-head">zoom in &#9656;</a></div>
+        <div class="node ours fragment" data-fragment-index="5">Equation head<small>symbolic regression: the <b>direct</b> dependencies</small><a class="zoomlink" href="#/pipeline">zoom in &#9656;</a></div>
         <div class="node future fragment" data-fragment-index="6">Explanation head<small>variable–lag <b>influence</b>, direct or not</small><span class="futuretag">future work</span></div>
       </div>
     </div>
@@ -398,49 +398,8 @@
 <!-- 12b. Pipeline: how the labels are obtained -->
 <section id="pipeline" data-transition="fade" data-transition-speed="fast">
   <div class="canvas" style="height:660px">
-    <div class="crumb"><b>Pipeline</b> &middot; from a sampled tree to the label <span>&nbsp;&nbsp;next: the generator and the equation head</span></div>
+    <div class="crumb"><b>Pipeline</b> &middot; from a sampled tree to the label <span>&nbsp;&nbsp;the whole method, one zoom per step</span></div>
     <div class="zoom"></div>
-    <span class="fragment ks-frag" data-fragment-index="1"></span>
-    <span class="fragment ks-frag" data-fragment-index="2"></span>
-    <span class="fragment ks-frag" data-fragment-index="3"></span>
-    <span class="fragment ks-frag" data-fragment-index="4"></span>
-    <span class="fragment ks-frag" data-fragment-index="5"></span>
-    <span class="fragment ks-frag" data-fragment-index="6"></span>
-    <span class="fragment ks-frag" data-fragment-index="7"></span>
-    <span class="fragment ks-frag" data-fragment-index="8"></span>
-    <span class="fragment ks-frag" data-fragment-index="9"></span>
-    <span class="fragment ks-frag" data-fragment-index="10"></span>
-    <span class="fragment ks-frag" data-fragment-index="11"></span>
-    <span class="fragment ks-frag" data-fragment-index="12"></span>
-  </div>
-</section>
-
-<!-- 13. Zoom 1: generator -->
-<section id="zoom-gen" data-transition="fade" data-transition-speed="fast">
-  <div class="canvas" style="height:660px">
-    <div class="crumb"><b>Zoom 1 of 2</b> &middot; the generator <span>&nbsp;&nbsp;next: the equation head &nbsp;&middot;&nbsp; the explanation head is future work</span></div>
-    <div class="zoom"></div>
-    <span class="fragment ks-frag" data-fragment-index="1"></span>
-    <span class="fragment ks-frag" data-fragment-index="2"></span>
-    <span class="fragment ks-frag" data-fragment-index="3"></span>
-    <span class="fragment ks-frag" data-fragment-index="4"></span>
-    <span class="fragment ks-frag" data-fragment-index="5"></span>
-    <span class="fragment ks-frag" data-fragment-index="6"></span>
-    <span class="fragment ks-frag" data-fragment-index="7"></span>
-  </div>
-</section>
-
-<!-- 14. Zoom 2: equation head -->
-<section id="zoom-head" data-transition="fade" data-transition-speed="fast">
-  <div class="canvas" style="height:660px">
-    <div class="crumb"><b>Zoom 2 of 2</b> &middot; the equation head <span>&nbsp;&nbsp;the explanation head (influence of every past step) is future work</span></div>
-    <div class="zoom"></div>
-    <span class="fragment ks-frag" data-fragment-index="1"></span>
-    <span class="fragment ks-frag" data-fragment-index="2"></span>
-    <span class="fragment ks-frag" data-fragment-index="3"></span>
-    <span class="fragment ks-frag" data-fragment-index="4"></span>
-    <span class="fragment ks-frag" data-fragment-index="5"></span>
-    <span class="fragment ks-frag" data-fragment-index="6"></span>
   </div>
 </section>
 
@@ -512,9 +471,9 @@
 <script src="js/ar_capacity.js"></script>
 <script src="js/lmc_synth.js"></script>
 <script src="js/zoom_head.js"></script>
-<script src="js/pipeline_canon.js"></script>
 <script src="js/stability_detail.js"></script>
 <script src="js/dependency_detail.js"></script>
+<script src="js/pipeline_canon.js"></script>
 <script src="js/zoom_transition.js"></script>
 <script>
   Reveal.initialize({

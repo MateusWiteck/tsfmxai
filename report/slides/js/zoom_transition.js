@@ -52,7 +52,7 @@
   Reveal.on("slidechanged", (e) => {
     const from = e.previousSlide, to = e.currentSlide;
     if (!from || !to || from === to) return;
-    if (from.id === "proposal" && /^zoom-/.test(to.id)) expand(from, to);
-    else if (to.id === "proposal" && /^zoom-/.test(from.id)) collapse(from, to);
+    if (from.id === "proposal" && /^(zoom-|pipeline)/.test(to.id)) expand(from, to);
+    else if (to.id === "proposal" && /^(zoom-|pipeline)/.test(from.id)) collapse(from, to);
   });
 })();

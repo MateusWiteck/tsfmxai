@@ -394,22 +394,10 @@
     { narr: "⑤ Keep the record", sub: "the equation is the label", dur: 3800 },
   ];
 
-  Z.mount({
-    id: "zoom-gen", W, H, steps: STEPS,
+  // The scenes are shown inside the pipeline slide (pipeline_canon.js), each at its own place.
+  window.ZGEN = {
     foot: "Real example from the project's sampler (seed " + D.seed + ", sample " + D.index + "); formulas and numbers exported by scripts/export_generator_demo.py. The run and record steps use a draw from the Shao–Wu construction (Shao and Wu, 2007, Thm 5.1, as adapted in this project).",
-    hits: (step) => (step === 5 ? METHODS.map((m, i) => Object.assign({ key: m.key }, hubRect(i))).filter((h) => h.key) : []),
-    onHit: (key) => window.GenDetail && window.GenDetail.open(key, 0),
-    paint(ctx, step, p) {
-      if (step === 0) return compare(ctx, p);
-      // chips: 0 Draw, 1 Bind, 2 Stabilize (two steps), 3 Run, 4 Keep
-      Z.chips(ctx, STAGES, [-1, -1, 0, 1, 2, 2, 3, 5][step], 8);
-      if (step === 1) cards(ctx, p);
-      else if (step === 2) step1(ctx, p);
-      else if (step === 3) step2(ctx, p);
-      else if (step === 4) problem(ctx, p);
-      else if (step === 5) hub(ctx, p);
-      else if (step === 6) step5(ctx, p);
-      else step6(ctx, p);
-    },
-  });
+    steps: STEPS,
+    scenes: { compare, cards, tree: step1, bind: step2, problem, hub, run: step5, keep: step6 },
+  };
 })();
