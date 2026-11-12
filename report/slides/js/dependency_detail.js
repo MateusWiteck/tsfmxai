@@ -318,7 +318,7 @@
     text(ctx, `Option B example: y₂ = 0.4·x₂ + 0.9·y₁(t − ${L})`, 610, 222, 15, ILLU, { weight: 700 });
     tree(ctx, add(mul(par(0.4), leaf("x₂(t)")), mul(par(0.9), leaf(`y₁(t−${L})`))), 640, 252, 520, 70, 14, a);
     ctx.globalAlpha = ease(seg(p, 0.7, 1));
-    wrap(ctx, "Same-time terms (lag 0) are outside the lags 1 to 12 that the generator draws: this project writes next values from past values.", 610, 366, 560, 16, 13, col.muted);
+    wrap(ctx, "Same-time terms (lag 0) are outside the lags 1 to 16 that the generator draws: this project writes next values from past values.", 610, 366, 560, 16, 13, col.muted);
     ctx.globalAlpha = 1;
   }
 

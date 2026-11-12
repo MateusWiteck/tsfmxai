@@ -75,10 +75,10 @@
 
   // ---- shared: the four-method comparison (final_methods/00_final_methods_tradeoff.ipynb, 128 mechanisms each, 384 steps) ----
   const TRADE = [
-    { k: "orig", name: "no protection", expl: 47.66, near: 14.84, rate: 3066 },
-    { k: "jac", name: "Jacobian", expl: 0, near: 37.5, rate: 1558 },
-    { k: "sw", name: "Shao–Wu", expl: 0, near: 25, rate: 1427 },
-    { k: "hvar", name: "Heaps VAR", expl: 0, near: 44.53, rate: 349 },
+    { k: "orig", name: "no protection", expl: 49.22, near: 14.06, rate: 3117 },
+    { k: "jac", name: "Jacobian", expl: 0, near: 55.47, rate: 1569 },
+    { k: "sw", name: "Shao–Wu", expl: 0, near: 25, rate: 1290 },
+    { k: "hvar", name: "Heaps VAR", expl: 0, near: 44.53, rate: 345 },
   ];
   function tradeoff(ctx, p, me) {
     const metrics = [
@@ -660,7 +660,7 @@
     ["Family", "linear Gaussian VAR(p), stored as linear ASTs. No products, no tanh", "a different family from the trees: it cannot express nonlinear mechanisms", null],
     ["Starting history", "drawn from the joint stationary normal", "project choice; no initial transient", false],
     ["Certificate", "ρ(B) < 1, V positive definite, Lyapunov residual 1.6 × 10⁻¹⁵", "checked for each mechanism: 128 of 128", null],
-    ["Cost", "slowest sampler: 349 mechanisms per second, against 3 066 without protection", "final-method experiment, one machine", null],
+    ["Cost", "slowest sampler: 345 mechanisms per second, against 3 117 without protection", "final-method experiment, one machine", null],
   ];
 
   // ============================== registrations ==============================

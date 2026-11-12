@@ -99,9 +99,13 @@ def fmt_atom(a):
 
 
 def main() -> None:
-    cfg = CombinatorialTreeConfig(**CONFIG)
+    cfg = CombinatorialTreeConfig(**CONFIG)  # current default: lags 1-16
     sampler = CombinatorialTreeSampler(cfg)
-    sampled = sampler.sample(seed=DEMO_SEED, sample_index=DEMO_INDEX)
+    # The slide narrative is built on one hand-picked tree (lags <= 8) found under the earlier 12-lag range
+    # (DEMO_INDEX/DEMO_SEED index that range). It is still a valid tree of the 16-lag family; counts,
+    # codec and vocabulary below use the 16-lag config.
+    demo_sampler = CombinatorialTreeSampler(CombinatorialTreeConfig(**{**CONFIG, "maximum_lag": 12}))
+    sampled = demo_sampler.sample(seed=DEMO_SEED, sample_index=DEMO_INDEX)
     assert operator_count(sampled.expression) == 5, "demo index drifted; rerun find_demo"
     b = sampled.binding
 

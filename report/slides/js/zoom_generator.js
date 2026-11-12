@@ -85,7 +85,7 @@
     box(ctx, 20, 60, 480, 380);
     text(ctx, "How many valid trees?", 40, 96, 22, col.ink, { weight: 700 });
     text(ctx, num(D.structures_total), 40, 150, 40, col.blue, { weight: 700 });
-    wrap(ctx, "1–6 operators, lags 1–12, one series, every product of at most 4 lag factors.", 40, 184, 440, 24, 18, col.muted);
+    wrap(ctx, "1–6 operators, lags 1–16, one series, every product of at most 4 lag factors.", 40, 184, 440, 24, 18, col.muted);
     const total = Number(D.structures_total);
     const rows = [
       ["6 operators", Number(D.size_counts["6"]) / total],
@@ -134,7 +134,7 @@
     text(ctx, "P  coefficient", 722, 142, 20, col.blue, { weight: 700 });
     wrap(ctx, "magnitude uniform in [0.05, 0.90], random sign", 722, 168, 430, 24, 18, col.ink);
     text(ctx, "L  lag", 722, 224, 20, col.teal, { weight: 700 });
-    wrap(ctx, "integer uniform in {1, …, 12}", 722, 250, 430, 24, 18, col.ink);
+    wrap(ctx, "integer uniform in {1, …, 16}", 722, 250, 430, 24, 18, col.ink);
     const a = ease(seg(p, 0.7, 1));
     ctx.globalAlpha = a;
     text(ctx, "The equation the tree computes (not yet stabilized)", 722, 312, 18, col.muted, { weight: 600 });
@@ -174,10 +174,10 @@
     text(ctx, "illustrative: |x| shown, same small noise in both", 40, 438, 13, col.muted);
     box(ctx, 740, 60, 440, 388);
     text(ctx, "Random equations hide their gain", 760, 96, 22, col.ink, { weight: 700 });
-    wrap(ctx, "Ours have up to 12 lags and products of lags, so there is no single g to read off.", 760, 128, 400, 25, 18, col.ink);
+    wrap(ctx, "Ours have up to 16 lags and products of lags, so there is no single g to read off.", 760, 128, 400, 25, 18, col.ink);
     ctx.globalAlpha = ease(seg(p, 0.5, 0.85));
     text(ctx, "A plain random tree, nothing added:", 760, 222, 17, col.muted);
-    text(ctx, "47.7 %", 760, 280, 54, col.ours, { weight: 700 });
+    text(ctx, "49.2 %", 760, 280, 54, col.ours, { weight: 700 });
     wrap(ctx, "of 128 mechanisms cross |x| > 100 within 384 steps (final-method experiment).", 760, 314, 400, 24, 17, col.ink);
     text(ctx, "Next: four constructions.", 760, 420, 18, col.blue, { weight: 700 });
     ctx.globalAlpha = 1;
@@ -187,16 +187,16 @@
   const METHODS = [
     { key: null, name: "Plain tree", fam: "Nonlinear tree, nothing added. Gaussian noise; uniform start.",
       think: "No safeguard. It can produce any dynamics, including explosive ones.",
-      guar: "None. Paths that turn non-finite or cross the diagnostic threshold are counted as failures.", expl: "47.7 %", near: "14.8 %", rate: "3 066", ref: true },
+      guar: "None. Paths that turn non-finite or cross the diagnostic threshold are counted as failures.", expl: "49.2 %", near: "14.1 %", rate: "3 117", ref: true },
     { key: "jac", name: "Jacobian", fam: "Nonlinear tree, products allowed. Bounded uniform noise; start inside the box.",
       think: "A funnel with guard rails: states stay in a box and get closer each step.",
-      guar: "Lipschitz bound below 1 on the box (target 0.9).", expl: "0 %", near: "37.5 %", rate: "1 558" },
+      guar: "Lipschitz bound below 1 on the box (target 0.9).", expl: "0 %", near: "55.5 %", rate: "1 569" },
     { key: "sw", name: "Shao–Wu", fam: "Nonlinear tree, tanh on lag products. Gaussian noise; uniform start.",
       think: "An echo that dies out: past influence adds up to less than 1, so it fades.",
-      guar: "Lag sensitivities add up below 1 (target 0.76).", expl: "0 %", near: "25.0 %", rate: "1 427" },
+      guar: "Lag sensitivities add up below 1 (target 0.76).", expl: "0 %", near: "25.0 %", rate: "1 290" },
     { key: "hvar", name: "Heaps VAR", fam: "Linear model only. Gaussian noise; stationary start.",
       think: "A stable filter built to order: random numbers map to coefficients that cannot be unstable.",
-      guar: "All poles inside the unit circle; no rejection needed.", expl: "0 %", near: "44.5 %", rate: "349" },
+      guar: "All poles inside the unit circle; no rejection needed.", expl: "0 %", near: "44.5 %", rate: "345" },
   ];
   const HUB = { x0: 20, w: 272, gap: 24, y: 62, h: 392 };
   const hubRect = (i) => ({ x: HUB.x0 + i * (HUB.w + HUB.gap), y: HUB.y, w: HUB.w, h: HUB.h });
@@ -220,7 +220,7 @@
       ctx.globalAlpha = 1;
     });
     ctx.globalAlpha = ease(seg(p, 0.7, 1));
-    text(ctx, "The plain tree is kept as one option: 47.7 % of its sampled paths crossed the threshold. Click a card for details.", 20, 482, 17, col.ink, { weight: 600 });
+    text(ctx, "The plain tree is kept as one option: 49.2 % of its sampled paths crossed the threshold. Click a card for details.", 20, 482, 17, col.ink, { weight: 600 });
     ctx.globalAlpha = 1;
   }
 
@@ -337,8 +337,8 @@
     ["⑤ Output", "A series, mixed with other generators", "the forecasting loss needs only the series"],
   ];
   const LANE_OURS = [
-    ["① Structure", "Random tree: sums of products of lags, degree ≤ 4", `${(Number(D.structures_total) / 1e9).toFixed(0)} billion trees`],
-    ["② Parameters", "Coefficients in [0.05, 0.90], lags 1…12", "every prior is in the config"],
+    ["① Structure", "Random tree: sums of products of lags, degree ≤ 4", `${(Number(D.structures_total) / 1e12).toFixed(1)} trillion trees`],
+    ["② Parameters", "Coefficients in [0.05, 0.90], lags 1…16", "every prior is in the config"],
     ["③ Stability", "One of 4 constructions per series; diverging draws dropped", "3 of the 4 are certified"],
     ["④ Run", `History in [−${D.initial_radius}, ${D.initial_radius}], noise σ = ${D.innovation_std}, iterate`, "same recurrence idea"],
     ["⑤ Output", "A series and the exact equation that made it", "the equation is the label"],

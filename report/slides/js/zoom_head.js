@@ -2,9 +2,8 @@
  *
  * The target and the example come from the project library through
  * scripts/export_generator_demo.py (canonicalize_polynomial, CanonicalCodec).
- * The evidence on the last step is copied from the completed run
- * outputs/canonicalization/ast_5m_unique_eval_20261030/status.json and is
- * labelled with its limits: raw ASTs only, and the AST (not the series) is the input.
+ * The last step is a plan: no model has been trained on the current RAW/TANH corpus yet,
+ * so it shows what will be measured and carries no numbers.
  */
 (function () {
   const D = window.GEN_DATA, Z = window.ZC;
@@ -132,7 +131,7 @@
     ctx.globalAlpha = ease(seg(p, 0.7, 1));
     box(ctx, 20, 330, 1160, 100, { fill: col.grey });
     text(ctx, "x(t−2) and tanh x(t−2) are different symbols.", 44, 366, 21, col.ink, { weight: 700 });
-    text(ctx, `Vocabulary: 12 lags × {RAW, TANH} = 24 factor symbols, plus 5 special symbols = ${D.vocab_size}.`, 44, 396, 19, col.muted);
+    text(ctx, `Vocabulary: ${(D.vocab_size - 5) / 2} lags × {RAW, TANH} = ${D.vocab_size - 5} factor symbols, plus 5 special symbols = ${D.vocab_size}.`, 44, 396, 19, col.muted);
     text(ctx, "Orange rows: terms rewritten by the protection (x(t−3) and x(t−6) are linear, so they stay RAW).", 44, 420, 16, col.muted);
     ctx.globalAlpha = 1;
   }
@@ -213,9 +212,9 @@
     text(ctx, "output, symbol by symbol", 826, 188, 16, col.muted, { weight: 600 });
     tokenStrip(ctx, 826, 200, 340, seg(p, 0.6, 1), 1);
     ctx.globalAlpha = ease(seg(p, 0.9, 1));
-    text(ctx, "Two models were trained: skeleton (symbols only)", 20, 360, 18, col.ink);
+    text(ctx, "Two models will be trained: skeleton (symbols only)", 20, 360, 18, col.ink);
     text(ctx, "and joint (symbols plus a number at every ; symbol).", 20, 384, 18, col.ink);
-    text(ctx, "Trained on 5 million random trees; validation and test skeletons never appear in training.", 20, 416, 17, col.muted);
+    text(ctx, "Planned: 10 million random trees; validation and test skeletons never appear in training.", 20, 416, 17, col.muted);
     ctx.globalAlpha = 1;
   }
 
@@ -234,28 +233,34 @@
     ctx.globalAlpha = 1;
   }
   function scene6(ctx, p) {
-    const A = ease(seg(p, 0, 0.3)), B = ease(seg(p, 0.3, 0.6));
-    model(ctx, 20, 568, "Skeleton model", "writes the symbols only; no coefficients", "skel", A);
-    stat(ctx, 34, 136, 168, "98.3%", "equations with every term right", col.teal, A);
-    stat(ctx, 212, 136, 168, "99.7%", "terms right, counted one by one (F1)", col.teal, A);
-    stat(ctx, 390, 136, 188, "none", "coefficients are not predicted", col.muted, A, true);
-    model(ctx, 612, 568, "Joint model", "writes the symbols and a number at every ; symbol", "joint", B);
-    stat(ctx, 626, 136, 168, "98.2%", "equations with every term right", col.teal, B);
-    stat(ctx, 804, 136, 168, "99.7%", "terms right, counted one by one (F1)", col.teal, B);
-    stat(ctx, 982, 136, 188, "0.034", "mean absolute error of the coefficients", col.ours, B);
-    ctx.globalAlpha = B;
-    text(ctx, "on the terms the model found; sampled coefficients have magnitude 0.05 to 0.90", 626, 308, 14, col.muted);
-    ctx.globalAlpha = 1;
-    ctx.globalAlpha = ease(seg(p, 0.6, 1));
-    box(ctx, 20, 336, 1160, 154, { fill: col.grey });
-    text(ctx, "Read this with care", 44, 366, 21, col.ink, { weight: 700 });
-    const lines = [
-      "Left number: the whole equation must match. Right number: each term counts alone, so 1 wrong term out of 5 still scores 4 of 5.",
-      "Two separate models, same 850,465 test skeletons never seen in training. A coefficient counts if within 1% or 0.01.",
-      "Structure is nearly solved in both. Exact coefficients are the open problem: only 2.1% of equations are fully right.",
-      "The input is the tree itself, not the series: not tested yet. Raw ASTs only (no tanh); RAW/TANH is the next run.",
+    const plan = [
+      ["Equations with every term right", "the whole equation must match", col.teal],
+      ["Terms right, counted one by one (F1)", "each term counts alone", col.teal],
+      ["Mean absolute error of the coefficients", "on the terms the model found", col.ours],
     ];
-    lines.forEach((s, i) => text(ctx, "• " + s, 44, 394 + i * 25, 16.5, col.muted));
+    ctx.globalAlpha = ease(seg(p, 0, 0.3));
+    box(ctx, 20, 60, 1160, 70, { fill: col.osoft, stroke: col.ours, dash: [6, 5], lw: 2.2 });
+    text(ctx, "PLANNED: no model has been trained on the RAW/TANH corpus yet", 44, 104, 22, col.ours, { weight: 700 });
+    ctx.globalAlpha = 1;
+    plan.forEach((m, i) => {
+      const a = ease(seg(p, 0.2 + i * 0.15, 0.5 + i * 0.15)), x = 20 + i * 392;
+      ctx.globalAlpha = a;
+      box(ctx, x, 156, 376, 150, { stroke: m[2], lw: 2.2, dash: [6, 5] });
+      text(ctx, "–", x + 18, 222, 46, col.muted, { weight: 700 });
+      wrap(ctx, m[0], x + 18, 252, 340, 22, 17, col.ink, { weight: 700 });
+      text(ctx, m[1], x + 18, 292, 14.5, col.muted);
+      ctx.globalAlpha = 1;
+    });
+    ctx.globalAlpha = ease(seg(p, 0.6, 1));
+    box(ctx, 20, 330, 1160, 154, { fill: col.grey });
+    text(ctx, "What will be trained and measured", 44, 362, 21, col.ink, { weight: 700 });
+    const lines = [
+      "Two models, as in the diagram: skeleton (symbols only) and joint (symbols plus a number at every ; symbol).",
+      "Corpus: random trees with lags 1 to 16; half of them keep raw products, half use tanh(u)·tanh(v).",
+      "Validation and test skeletons never appear in training. A coefficient counts if within 1% or 0.01.",
+      "The input is the tree itself, not the series: reading the equation from a series is a later step.",
+    ];
+    lines.forEach((s, i) => text(ctx, "• " + s, 44, 392 + i * 25, 16.5, col.muted));
     ctx.globalAlpha = 1;
   }
 
@@ -266,8 +271,8 @@
     { narr: "③ RAW and TANH factors", sub: "protection changes the symbols, not the idea", dur: 4200 },
     { narr: "④ A sequence the model can write", sub: "factors, end of term, coefficient", dur: 5200 },
     { narr: "⑤ The model", sub: "encoder reads, decoder writes", dur: 6500 },
-    { narr: "⑥ What we measured so far", sub: "two models, with limits", dur: 3800,
-      foot: "Source: completed run outputs/canonicalization/ast_5m_unique_eval_20261030 (5,000,000 random ASTs, 1–6 operators, lags 1–12, degree ≤ 4, split by skeleton)." },
+    { narr: "⑥ What will be measured", sub: "a plan: no results yet", dur: 3800,
+      foot: "Design only. Corpus and training configuration: configs/canonicalization_5m_raw_tanh.json (10,000,000 sampled ASTs, 1–6 operators, lags 1–16, degree ≤ 4, protection probability 0.5, split by skeleton)." },
   ];
 
   Z.mount({
