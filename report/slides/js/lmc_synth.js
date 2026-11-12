@@ -502,11 +502,11 @@
     [["Both models see only synthetic data in training; the real datasets are never used to fit."],
       ["The two columns differ in one thing: which generator made the training corpus."],
       ["MSE and MAE per dataset, lower is better, for both generators side by side."],
-      ["Cells are empty: nothing has been trained or measured yet."]].forEach((s, i) => wrap(ctx, s[0], 740, 236 + i * 56, 420, 21, 16, i === 3 ? col.ours : col.ink, { weight: i === 3 ? 700 : 400 }));
+      ["Cells are empty: no forecasting model has been trained or measured yet."]].forEach((s, i) => wrap(ctx, s[0], 740, 236 + i * 56, 420, 21, 16, i === 3 ? col.ours : col.ink, { weight: i === 3 ? 700 : 400 }));
     ctx.globalAlpha = 1;
   }
   Z.mount({
-    id: "evalplan", W, H, foot: "Design only; no model has been trained. Benchmarks and metrics follow Taga, Ildiz and Oymak (2025, TimePFN): ETTh1, ETTh2, ETTm1, ETTm2, Weather, Solar, ECL, Exchange, Traffic. Dataset list to be checked against the paper's table.",
+    id: "evalplan", W, H, foot: "Design only; no forecasting model has been trained on either generator. Benchmarks and metrics follow Taga, Ildiz and Oymak (2025, TimePFN): ETTh1, ETTh2, ETTm1, ETTm2, Weather, Solar, ECL, Exchange, Traffic. Dataset list to be checked against the paper's table.",
     steps: [{ narr: "Next: compare with LMC-Synth on real multivariate data", sub: "both trained on synthetic data only", dur: 7000 }],
     paint(ctx, step, p) { compare(ctx, p); },
   });
