@@ -96,10 +96,23 @@ observations.
 
 \paragraph{Alignment with the current implementation.}
 The corresponding node classes and bindings are defined in
-\path{src/tsfmxai/representations/expression.py}. To restrict the existing
-base sampler to the selected terminals, set \texttt{time\_probability} to
-zero and \texttt{require\_time} to \texttt{False}.
-The current code also retains a \texttt{Time} node for earlier experiments;
-the vocabulary adopted here selects the five elements in
-Table~\ref{tab:generator-vocabulary}. The controlled-family comparison in
-Section~\ref{sec:generator-evaluation-protocol} already uses this restriction.
+\path{src/tsfmxai/representations/expression.py}. The base sampler uses
+parameters, lags, addition, and multiplication. Specialized constructors can
+also introduce $\tanh$, as shown in Table~\ref{tab:generator-vocabulary}.
+
+\paragraph{Size of the encoder input.}
+The Transformer encoder that maps an AST to its canonical form reads the tree
+as a prefix sequence in which every node (a binary operator, a coefficient, a
+lag leaf, or a $\tanh$) is one token, and each position in the sequence has its
+own learned position embedding. The hyperparameter \texttt{max\_nodes} is the
+size of that table: it is the \emph{largest number of nodes an input tree may
+have}, and a longer tree cannot be encoded. A sampled tree with $K$ binary
+operations has $2K+1$ nodes. Product-lag protection may additionally wrap each
+of its at most $K+1$ lag leaves in a $\tanh$, so a protected tree has at most
+$3K+2$ nodes. With the default limit of $K=6$ operations this gives 13 nodes
+for a raw tree and at most 20 for a protected one, hence
+\texttt{max\_nodes}${}=20$ in
+\path{configs/canonicalization_5m_raw_tanh.json}. The bound does not depend on
+the lag range, but the vocabulary size does: the codec has
+$2L+5$ symbols for $L$ lags and one series (37 for $L=16$). The model is
+defined in \path{src/tsfmxai/symbolic_regression/canonical_models.py}.
