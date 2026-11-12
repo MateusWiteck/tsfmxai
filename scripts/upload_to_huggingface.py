@@ -2,7 +2,7 @@
 
 Run it on the machine that holds your Hugging Face token (`huggingface-cli login`):
 
-    python scripts/upload_to_huggingface.py --release release/canonical_ast \
+    python scripts/upload_to_huggingface.py --release experiments/canonicalization/outputs/release/canonical_ast \
         --models-repo USER/tsfmxai-canonical-encoder-decoder \
         --dataset-repo USER/tsfmxai-canonical-asts
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--release", default="release/canonical_ast")
+    parser.add_argument("--release", default="experiments/canonicalization/outputs/release/canonical_ast")
     parser.add_argument("--models-repo", required=True,
                         help="one model repository; each variant goes in its own subfolder")
     parser.add_argument("--dataset-repo", required=True)

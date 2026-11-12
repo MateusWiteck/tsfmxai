@@ -75,7 +75,7 @@ class ProgressLog:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/canonicalization_5m_raw_tanh.json")
-    parser.add_argument("--run-dir", default="experiments/canonicalization/models/outputs/raw_tanh")
+    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/raw_tanh")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--release-dir", default=None,
                         help="after a completed run, also write the Hugging Face release here")

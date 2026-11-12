@@ -26,10 +26,8 @@ dist/
 # Local exploratory work and generated artifacts
 /experiments_local/
 /outputs/
-/experiments/canonicalization/sampler/outputs/
-/experiments/canonicalization/models/outputs/
+/experiments/canonicalization/outputs/
 /experiments/canonicalization/archive/
-/release/
 /site/
 /.quarto/
 
