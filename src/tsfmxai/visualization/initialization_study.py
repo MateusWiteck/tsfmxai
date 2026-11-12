@@ -17,15 +17,17 @@ def initialization_tables(results):
     if frame.empty:
         return pd.DataFrame(), skipped
     keys = ["method", "case", "horizon"]
-    summary = frame.groupby(keys, sort=False).agg(
+    aggregations = dict(
         mechanisms=("mechanism", "nunique"), trajectories=("trajectory", "size"),
         explosions=("exploded", "sum"), near_zero=("near_zero", "sum"),
         persistent_flat=("persistent_flat_tail", "sum"),
         flat_nonzero=("flat_nonzero", "sum"),
         amplitude_decline=("amplitude_decline_near_zero", "sum"),
         max_initial_abs=("initial_max_abs", "max"),
-        max_amplitude_l2_bound=("amplitude_l2_bound", "max"),
-    ).reset_index()
+    )
+    if "amplitude_l2_bound" in frame:  # only recorded for amplitude-moment certificates
+        aggregations["max_amplitude_l2_bound"] = ("amplitude_l2_bound", "max")
+    summary = frame.groupby(keys, sort=False).agg(**aggregations).reset_index()
     for metric in ("explosions", "near_zero", "persistent_flat", "flat_nonzero", "amplitude_decline"):
         summary[metric + "_pct"] = 100 * summary[metric] / summary.trajectories
     if "actual_order" in frame:
