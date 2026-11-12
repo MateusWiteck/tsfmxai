@@ -63,3 +63,5 @@ dist/
 /references/**/*.zip
 
 **/*.quarto_ipynb
+/canonical_run.tar
+/report/english/main.pdf
