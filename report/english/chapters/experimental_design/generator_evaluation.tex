@@ -24,7 +24,7 @@ appear in Section~\ref{sec:ar-coverage-results}.
 The executed notebook
 \path{experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb}
 uses root seed 20261001, 5,000 independent mechanisms per family, and one
-trajectory per mechanism. Each run has one channel, a lag range of 1--12,
+trajectory per mechanism. Each run has one channel, a lag range of 1--16,
 and diagnostic horizons $h\in\{96,192,384\}$. The original trees contain
 1--6 binary operations, addition probability 0.8, parameter/lag leaf
 probabilities 0.55/0.45, and coefficient magnitudes in $[0.05,0.8]$ with
@@ -34,9 +34,8 @@ The evaluator applies the explosion and tail diagnostics defined in
 Section~\ref{sec:generator-diagnostics}. It retains every attempt in the
 denominators and reuses the prefixes of one trajectory for the different
 horizons. The family-specific construction, initialization, and innovation
-laws are described in Section~\ref{sec:generator-stability}; results identify
-the historical all-lag Shao--Wu saturation policy used in this completed
-comparison.
+laws are described in Section~\ref{sec:generator-stability}; the
+Shao--Wu family in this completed comparison uses product-lag saturation.
 
 \subsubsection{Timing and Repeated-Run Protocol}
 Timing includes sampling/certification, initialization, innovation generation,
