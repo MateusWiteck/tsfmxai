@@ -34,9 +34,9 @@ ALGORITHM ORIGINAL_AST_MECHANISM(config C, root_seed r, sample_index i)
  1. s ← DERIVE_SAMPLE_SEED(r, i)
  2. rng ← LOCAL_RANDOM_GENERATOR(s)
  3. n ← RANDOM_INTEGER(C.minimum_operators, C.maximum_operators)
- 4. leaf_kinds ← SAMPLE n + 1 TYPES FROM {PARAMETER, TIME, LAG}
+ 4. leaf_kinds ← SAMPLE n + 1 TYPES FROM {PARAMETER, LAG}
                   using the probabilities in C
- 5. ENFORCE C.require_lag and C.require_time in leaf_kinds
+ 5. ENFORCE C.require_lag in leaf_kinds
  6. terminals ← CREATE_TERMINALS(leaf_kinds)
                   LAG also samples a source-series index
  7. tree ← SAMPLE_FULL_BINARY_TREE(n, terminals)
