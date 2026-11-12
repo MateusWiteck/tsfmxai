@@ -5,13 +5,16 @@ the corpus under ``parquet/``. :func:`package_release` turns that run directory
 into a self-contained release directory::
 
     release/
-      models/<variant>/model.safetensors   weights only
+      models/<variant>/model.safetensors   weights only (encoder and decoder)
+      models/<variant>/encoder.safetensors encoder weights only (CanonicalEncoder)
       models/<variant>/config.json         architecture, codec, generator, metrics
       models/<variant>/training_history.json
       models/<variant>/README.md           model card
+      models/source/                       code that loads the models (release commit)
       dataset/data/{train,validation,test}/part-*.parquet
       dataset/metadata.json                generator parameters, counts, splits
       dataset/README.md                    dataset card (with the viewer config)
+      dataset/source/                      generator code and config (training commit)
       SHA256SUMS
       release_manifest.json
 
@@ -34,6 +37,7 @@ from tsfmxai.symbolic_regression.canonical_data import (
     ATOM_OFFSET, BOS, END_TERM, EOS, PAD, TANH_TOKEN, CanonicalCodec,
 )
 from tsfmxai.symbolic_regression.canonical_large_scale import SCHEMA, SPLITS
+from tsfmxai.symbolic_regression.canonical_models import encoder_state
 
 PROTECTION_RULE = (
     "With probability protection_probability a sampled tree is protected before "
@@ -73,6 +77,74 @@ def _git(*args: str, cwd: Path) -> str | None:
                                        stderr=subprocess.DEVNULL).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
+
+
+LOADING_PATHS = ("src", "pyproject.toml", "constraints.txt")
+GENERATION_PATHS = ("src", "pyproject.toml", "constraints.txt", "scripts/run_canonical_5m.py")
+
+
+def _git_bytes(*args: str, cwd: Path) -> bytes | None:
+    try:
+        return subprocess.check_output(["git", *args], cwd=cwd, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _repository_url(repo_root: Path) -> str | None:
+    url = _git("remote", "get-url", "origin", cwd=repo_root)
+    if url is None:
+        return None
+    if url.startswith("git@github.com:"):
+        url = "https://github.com/" + url.split(":", 1)[1]
+    return url.removesuffix(".git")
+
+
+def _verify_training_commit(repo_root: Path, commit: str, source_sha256: dict) -> int:
+    """Check that the recorded source hashes are those of ``commit``; return how many matched."""
+    for name, expected in (source_sha256 or {}).items():
+        blob = _git_bytes("show", f"{commit}:{name}", cwd=repo_root)
+        if blob is None or sha256(blob).hexdigest() != expected:
+            raise ValueError(f"{name} at commit {commit[:10]} is not the file the run used.")
+    return len(source_sha256 or {})
+
+
+def _export_source(repo_root: Path, commit: str, paths, destination: Path) -> list[Path]:
+    """Write the tracked files under ``paths`` at ``commit``, byte-exact (blobs, no EOL conversion)."""
+    listing = _git_bytes("ls-tree", "-r", "--name-only", "-z", commit, "--", *paths, cwd=repo_root)
+    if listing is None:
+        raise FileNotFoundError(f"git ls-tree failed for commit {commit}.")
+    written = []
+    for name in listing.decode("utf-8").split("\0"):
+        if not name or "__pycache__" in name:
+            continue
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_git_bytes("show", f"{commit}:{name}", cwd=repo_root))
+        written.append(target)
+    return sorted(written)
+
+
+def _provenance_lines(provenance: dict, source_dir: str) -> str:
+    repo, train, release = (provenance.get(k) for k in
+                            ("repository", "training_commit", "release_commit"))
+
+    def link(commit):
+        return f"[`{commit[:10]}`]({repo}/commit/{commit})" if repo else f"`{commit}`"
+
+    rows = []
+    if train:
+        rows.append(f"- Trained and generated with repository commit {link(train)}"
+                    f" ({provenance.get('source_verified_files', 0)} source files verified"
+                    " against the hashes recorded during the run).")
+    if release and release != train:
+        rows.append(f"- Loading code (`CanonicalEncoder`, release tooling) from commit {link(release)}.")
+    if repo:
+        rows.append(f"- Repository: {repo}")
+    rows.append(f"- Config SHA-256: `{provenance.get('config_sha256')}`; "
+                f"python {provenance.get('python')}, torch {provenance.get('torch')}, "
+                f"device {provenance.get('device')}.")
+    rows.append(f"- A byte-exact copy of the code is in `{source_dir}/`.")
+    return "\n".join(rows)
 
 
 def _write_json(path: Path, value) -> None:
@@ -120,6 +192,7 @@ def _model_card(name: str, config_json: dict) -> str:
     metrics = "\n".join(f"| {k} | {v} |" for k, v in ev.items()
                         if isinstance(v, (int, float)) and not isinstance(v, bool))
     return f"""---
+license: cc-by-4.0
 library_name: pytorch
 tags:
 - time-series
@@ -132,8 +205,11 @@ tags:
 Encoder-decoder that reads the prefix form of a random recurrence tree (an AST over
 `x(t-lag)`, coefficients, `+`, `*` and `tanh`) and writes its canonical polynomial
 form term by term. Defined in `src/tsfmxai/symbolic_regression/canonical_models.py`
-(`CanonicalEncoderDecoder`) of the tsfmxai repository, commit
-`{config_json["provenance"]["git_commit"]}`.
+(`CanonicalEncoderDecoder`) of the tsfmxai repository.
+
+## Code and data provenance
+
+{_provenance_lines(config_json["provenance"], "models/source")}
 
 - Variant: `{name}` ({"symbols and one coefficient per END_TERM" if config_json["model_kwargs"]["predict_coefficients"] else "symbols only, no coefficients"}).
 - Encoder: `{config_json["model_kwargs"]["encoder"]}`; maximum input length (`max_nodes`): {config_json["model_kwargs"]["max_nodes"]} tree nodes.
@@ -156,6 +232,21 @@ one row per canonical skeleton, and no skeleton appears in two partitions.
 |---|---|
 {metrics}
 
+## Files
+
+| file | content |
+|---|---|
+| `model.safetensors` | full encoder-decoder weights |
+| `encoder.safetensors` | encoder weights only (`CanonicalEncoder`), for feature extraction |
+| `config.json` | architecture arguments, codec, generator parameters, seeds, metrics |
+
+
+## License and credit
+
+Released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): anyone may use,
+share and adapt it, including commercially, as long as they credit the author. Please cite
+as: Mateus Witeck, "tsfmxai: canonical recurrence-tree encoder-decoder models", {config_json["provenance"].get("repository")}.
+
 ## Loading
 
 ```python
@@ -168,6 +259,21 @@ model = CanonicalEncoderDecoder(**cfg["model_kwargs"])
 model.load_state_dict(load_file("model.safetensors"))
 model.eval()
 ```
+
+### Encoder only
+
+```python
+from tsfmxai.symbolic_regression.canonical_models import CanonicalEncoder
+
+encoder = CanonicalEncoder.from_pretrained(".")   # reads config.json and encoder.safetensors
+memory, mask, root = encoder(batch)
+```
+
+`batch` is the dictionary produced by `collate_canonical`. `memory` has shape
+(batch, nodes, {config_json["model_kwargs"]["dimension"]}) with one vector per tree node, `mask` is
+true on padding, and `root` is the (batch, {config_json["model_kwargs"]["dimension"]}) summary of the whole tree. The encoder accepts trees of at
+most {config_json["model_kwargs"]["max_nodes"]} nodes (`max_nodes`, the size of the position table).
+To fetch only the encoder, download `encoder.safetensors` and `config.json` of the variant.
 
 The input and target ids come from `tsfmxai.symbolic_regression.canonical_data.CanonicalCodec`
 built with the `codec` block of `config.json`.
@@ -190,6 +296,7 @@ configs:
     path: data/validation/*.parquet
   - split: test
     path: data/test/*.parquet
+license: cc-by-4.0
 tags:
 - time-series
 - symbolic-regression
@@ -200,7 +307,26 @@ tags:
 
 Random recurrence trees (ASTs over `x(t-lag)`) paired with their canonical polynomial
 form, generated by `tsfmxai.generators.CombinatorialTreeSampler` and encoded by
-`CanonicalCodec`. Repository commit: `{metadata["provenance"]["git_commit"]}`.
+`CanonicalCodec`.
+
+## Generator code and provenance
+
+{_provenance_lines(metadata["provenance"], "source")}
+
+To regenerate the corpus, check out the training commit and run the training script
+with the configuration stored in `metadata.json` (key `training_config`) or
+`source/training_config.json`:
+
+```
+git clone {metadata["provenance"].get("repository") or "<repository>"} tsfmxai && cd tsfmxai
+git checkout {metadata["provenance"].get("training_commit") or "<training commit>"}
+pip install -e ".[learning]" -c constraints.txt
+python scripts/run_canonical_5m.py --config configs/canonicalization_5m_raw_tanh.json
+```
+
+`source/` holds a byte-exact copy of that code, so the generator stays available even if
+the repository moves. The generator itself is `tsfmxai.generators.CombinatorialTreeSampler`
+configured with `generator.resolved` of `metadata.json`.
 
 ## Generator parameters
 
@@ -216,6 +342,13 @@ form, generated by `tsfmxai.generators.CombinatorialTreeSampler` and encoded by
 
 The complete parameter set, with defaults resolved, is in `metadata.json`.
 
+
+## License and credit
+
+Released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): anyone may use,
+share and adapt it, including commercially, as long as they credit the author. Please cite
+as: Mateus Witeck, "tsfmxai: canonical recurrence-tree corpus", {metadata["provenance"].get("repository")}.
+
 ## Rows
 
 | split | rows |
@@ -228,7 +361,8 @@ The complete parameter set, with defaults resolved, is in `metadata.json`.
 """
 
 
-def package_release(run_dir, output_dir, *, repo_root=None) -> dict:
+def package_release(run_dir, output_dir, *, repo_root=None, training_commit=None,
+                    allow_dirty=False) -> dict:
     """Write the release directory for a completed run and return its manifest."""
     try:
         from safetensors.torch import save_file
@@ -243,13 +377,27 @@ def package_release(run_dir, output_dir, *, repo_root=None) -> dict:
         raise FileNotFoundError(f"{manifest_path} is missing: the run did not complete.")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     config = manifest["provenance"]["config"]
-    git_commit = _git("rev-parse", "HEAD", cwd=repo_root)
+    release_commit = _git("rev-parse", "HEAD", cwd=repo_root)
+    dirty = bool(_git("status", "--porcelain", cwd=repo_root)) if release_commit else False
+    if dirty and not allow_dirty:
+        raise RuntimeError("The working tree has uncommitted changes; commit them first so the "
+                           "recorded release commit shows the packaged code (or pass allow_dirty).")
+    training_commit = (_git("rev-parse", training_commit, cwd=repo_root)
+                       if training_commit else release_commit)
+    recorded = manifest["provenance"]
+    verified = (_verify_training_commit(repo_root, training_commit, recorded.get("source_sha256"))
+                if training_commit else 0)
     provenance = {
-        "git_commit": git_commit,
-        "git_dirty": bool(_git("status", "--porcelain", cwd=repo_root)),
-        "config_sha256": manifest["provenance"].get("config_sha256"),
-        "source_sha256": manifest["provenance"].get("source_sha256"),
-        "python": platform.python_version(), "torch": torch.__version__,
+        "repository": _repository_url(repo_root),
+        "training_commit": training_commit, "release_commit": release_commit,
+        "source_verified_files": verified,
+        "config_sha256": recorded.get("config_sha256"),
+        "source_sha256": recorded.get("source_sha256"),
+        "python": recorded.get("python"), "torch": recorded.get("torch"),
+        "device": recorded.get("device"),
+        "training_elapsed_seconds": recorded.get("elapsed_seconds"),
+        "training_finished_utc": recorded.get("generated_at_utc"),
+        "packaged_with": {"python": platform.python_version(), "torch": torch.__version__},
         "experiment": config.get("experiment"),
     }
     generator = generator_metadata(config)
@@ -264,6 +412,7 @@ def package_release(run_dir, output_dir, *, repo_root=None) -> dict:
         target.mkdir(parents=True, exist_ok=True)
         state = {key: value.contiguous() for key, value in checkpoint["model"].items()}
         save_file(state, str(target / "model.safetensors"), metadata={"format": "pt"})
+        save_file(encoder_state(state), str(target / "encoder.safetensors"), metadata={"format": "pt"})
         result = dict(manifest["results"][name])
         history = result.pop("history", [])
         result.pop("checkpoint", None)  # absolute path of the training machine
@@ -282,16 +431,28 @@ def package_release(run_dir, output_dir, *, repo_root=None) -> dict:
         _write_json(target / "config.json", model_config)
         _write_json(target / "training_history.json", history)
         (target / "README.md").write_text(_model_card(name, model_config), encoding="utf-8")
-        files += [target / n for n in ("model.safetensors", "config.json",
+        files += [target / n for n in ("model.safetensors", "encoder.safetensors", "config.json",
                                        "training_history.json", "README.md")]
 
     dataset = output_dir / "dataset"
-    for split in SPLITS:
-        for source in sorted((run_dir / "parquet" / split).glob("part-*.parquet")):
-            destination = dataset / "data" / split / source.name
-            _link_or_copy(source, destination)
-            files.append(destination)
-    dataset_metadata = {"generator": generator, "codec": codec,
+    if (run_dir / "parquet").exists():
+        for split in SPLITS:
+            for source in sorted((run_dir / "parquet" / split).glob("part-*.parquet")):
+                destination = dataset / "data" / split / source.name
+                _link_or_copy(source, destination)
+                files.append(destination)
+    elif (dataset / "data").exists():
+        # The Parquet corpus was already moved into the release and the run folder holds
+        # only models and logs: repackage the models and keep the dataset files as they are.
+        files += sorted(path for path in (dataset / "data").rglob("part-*.parquet"))
+    else:
+        raise FileNotFoundError(f"{run_dir / 'parquet'} is missing and the release has no dataset.")
+    if training_commit:
+        files += _export_source(repo_root, training_commit, GENERATION_PATHS, dataset / "source")
+        files += _export_source(repo_root, release_commit, LOADING_PATHS, output_dir / "models" / "source")
+    _write_json(dataset / "source" / "training_config.json", config)
+    files.append(dataset / "source" / "training_config.json")
+    dataset_metadata = {"generator": generator, "codec": codec, "training_config": config,
                         "corpus": manifest.get("corpus"), "provenance": provenance,
                         "columns": {field.name: str(field.type) for field in SCHEMA}}
     _write_json(dataset / "metadata.json", dataset_metadata)
@@ -300,8 +461,8 @@ def package_release(run_dir, output_dir, *, repo_root=None) -> dict:
 
     checksums = {str(path.relative_to(output_dir)).replace(os.sep, "/"): _sha256_file(path)
                  for path in files}
-    (output_dir / "SHA256SUMS").write_text(
-        "".join(f"{digest}  {name}\n" for name, digest in sorted(checksums.items())), encoding="utf-8")
+    (output_dir / "SHA256SUMS").write_bytes(  # LF endings so `sha256sum -c` works on Linux
+        "".join(f"{digest}  {name}\n" for name, digest in sorted(checksums.items())).encode("utf-8"))
     release = {"files": {name: {"sha256": digest, "bytes": (output_dir / name).stat().st_size}
                          for name, digest in sorted(checksums.items())},
                "provenance": provenance}

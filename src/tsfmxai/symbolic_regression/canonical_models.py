@@ -28,27 +28,108 @@ def collate_canonical(examples):
     return batch
 
 
+# Parameter groups that belong to the encoder; the names are the same in the full model
+# and in CanonicalEncoder, so one state dict slice loads into either.
+ENCODER_PREFIXES = ('source_embedding', 'numeric_embedding', 'position', 'sequence_encoder',
+                    'tree_gates', 'source_norm')
+
+
+def encoder_state(state_dict):
+    """Return the encoder entries of a CanonicalEncoderDecoder state dict."""
+    return {key: value for key, value in state_dict.items()
+            if key.split('.', 1)[0] in ENCODER_PREFIXES}
+
+
+def _build_encoder(module, vocab_size, encoder, dimension, heads, encoder_layers, dropout, max_nodes):
+    if encoder not in ('transformer', 'tree_lstm'):
+        raise ValueError('Unknown encoder architecture.')
+    module.encoder_kind = encoder
+    module.dimension = dimension
+    module.max_nodes = max_nodes
+    module.source_embedding = nn.Embedding(vocab_size, dimension, padding_idx=PAD)
+    module.numeric_embedding = nn.Linear(1, dimension, bias=False)
+    if encoder == 'transformer':
+        # max_nodes is the size of this table: the longest input tree the encoder accepts.
+        module.position = nn.Embedding(max_nodes, dimension)
+        layer = nn.TransformerEncoderLayer(dimension, heads, dimension * 3, dropout,
+                                           batch_first=True, norm_first=True)
+        module.sequence_encoder = nn.TransformerEncoder(layer, encoder_layers,
+                                                         enable_nested_tensor=False)
+    else:
+        # Ordered N-ary TreeLSTM specialized to two children: i, o, u, f_left, f_right.
+        module.tree_gates = nn.Linear(3 * dimension, 5 * dimension)
+    module.source_norm = nn.LayerNorm(dimension)
+
+
+def _encode_features(module, batch):
+    """Per-node memory, padding mask and the root summary (before the decoder bridge)."""
+    if module.encoder_kind == 'transformer':
+        ids, values = batch['prefix_ids'], batch['prefix_values']
+        mask = ids.eq(PAD)
+        x = module.source_embedding(ids) + module.numeric_embedding(torch.asinh(values).unsqueeze(-1))
+        x = x + module.position(torch.arange(ids.shape[1], device=ids.device))[None]
+        memory = module.source_norm(module.sequence_encoder(x, src_key_padding_mask=mask))
+        root = (memory * (~mask).unsqueeze(-1)).sum(1) / batch['lengths'].unsqueeze(-1)
+    else:
+        ids, values = batch['tree_ids'], batch['tree_values']
+        mask = ids.eq(PAD)
+        x = module.source_embedding(ids) + module.numeric_embedding(torch.asinh(values).unsqueeze(-1))
+        zero = x.new_zeros((x.shape[0], module.dimension))
+        states, cells = [zero], [zero]
+        rows = torch.arange(x.shape[0], device=x.device)
+        for position in range(x.shape[1]):
+            hstack, cstack = torch.stack(states, dim=1), torch.stack(cells, dim=1)
+            left = batch['left_children'][:, position] + 1
+            right = batch['right_children'][:, position] + 1
+            hl, hr = hstack[rows, left], hstack[rows, right]
+            cl, cr = cstack[rows, left], cstack[rows, right]
+            gates = module.tree_gates(torch.cat((x[:, position], hl, hr), dim=-1))
+            i, o, u, fl, fr = gates.chunk(5, dim=-1)
+            c = torch.sigmoid(i) * torch.tanh(u) + torch.sigmoid(fl) * cl + torch.sigmoid(fr) * cr
+            valid = (~mask[:, position]).unsqueeze(-1)
+            h = torch.sigmoid(o) * torch.tanh(c) * valid
+            states.append(h)
+            cells.append(c * valid)
+        memory = module.source_norm(torch.stack(states[1:], dim=1))
+        root = memory[rows, batch['lengths'] - 1]
+    return memory, mask, root
+
+
+class CanonicalEncoder(nn.Module):
+    """The encoder of CanonicalEncoderDecoder alone: AST batch -> (memory, mask, root).
+
+    ``memory`` has shape (batch, nodes, dimension), ``mask`` marks padding, and ``root`` is
+    the (batch, dimension) summary of the whole tree.
+    """
+
+    def __init__(self, vocab_size, encoder='transformer', dimension=96, heads=4,
+                 encoder_layers=2, dropout=0.1, max_nodes=13, **_ignored):
+        super().__init__()
+        _build_encoder(self, vocab_size, encoder, dimension, heads, encoder_layers, dropout, max_nodes)
+
+    def forward(self, batch):
+        return _encode_features(self, batch)
+
+    @classmethod
+    def from_pretrained(cls, directory):
+        """Load ``encoder.safetensors`` and ``config.json`` of a released model folder."""
+        import json
+        from pathlib import Path
+        from safetensors.torch import load_file
+
+        directory = Path(directory)
+        config = json.loads((directory / 'config.json').read_text(encoding='utf-8'))
+        model = cls(**config['model_kwargs'])
+        model.load_state_dict(load_file(str(directory / 'encoder.safetensors')))
+        return model.eval()
+
+
 class CanonicalEncoderDecoder(nn.Module):
     def __init__(self, vocab_size, encoder='transformer', predict_coefficients=False,
                  dimension=96, heads=4, encoder_layers=2, dropout=0.1, max_nodes=13):
         super().__init__()
-        if encoder not in ('transformer', 'tree_lstm'):
-            raise ValueError('Unknown encoder architecture.')
-        self.encoder_kind = encoder
+        _build_encoder(self, vocab_size, encoder, dimension, heads, encoder_layers, dropout, max_nodes)
         self.predict_coefficients = predict_coefficients
-        self.dimension = dimension
-        self.source_embedding = nn.Embedding(vocab_size, dimension, padding_idx=PAD)
-        self.numeric_embedding = nn.Linear(1, dimension, bias=False)
-        if encoder == 'transformer':
-            self.position = nn.Embedding(max_nodes, dimension)
-            layer = nn.TransformerEncoderLayer(dimension, heads, dimension * 3, dropout,
-                                               batch_first=True, norm_first=True)
-            self.sequence_encoder = nn.TransformerEncoder(layer, encoder_layers,
-                                                           enable_nested_tensor=False)
-        else:
-            # Ordered N-ary TreeLSTM specialized to two children: i, o, u, f_left, f_right.
-            self.tree_gates = nn.Linear(3 * dimension, 5 * dimension)
-        self.source_norm = nn.LayerNorm(dimension)
         self.target_embedding = nn.Embedding(vocab_size, dimension, padding_idx=PAD)
         self.decoder = nn.GRU(dimension, dimension, batch_first=True)
         self.initial = nn.Linear(dimension, dimension)
@@ -59,35 +140,7 @@ class CanonicalEncoderDecoder(nn.Module):
         self.coefficients = nn.Linear(dimension, 1) if predict_coefficients else None
 
     def encode(self, batch):
-        if self.encoder_kind == 'transformer':
-            ids, values = batch['prefix_ids'], batch['prefix_values']
-            mask = ids.eq(PAD)
-            x = self.source_embedding(ids) + self.numeric_embedding(torch.asinh(values).unsqueeze(-1))
-            x = x + self.position(torch.arange(ids.shape[1], device=ids.device))[None]
-            memory = self.source_norm(self.sequence_encoder(x, src_key_padding_mask=mask))
-            root = (memory * (~mask).unsqueeze(-1)).sum(1) / batch['lengths'].unsqueeze(-1)
-        else:
-            ids, values = batch['tree_ids'], batch['tree_values']
-            mask = ids.eq(PAD)
-            x = self.source_embedding(ids) + self.numeric_embedding(torch.asinh(values).unsqueeze(-1))
-            zero = x.new_zeros((x.shape[0], self.dimension))
-            states, cells = [zero], [zero]
-            rows = torch.arange(x.shape[0], device=x.device)
-            for position in range(x.shape[1]):
-                hstack, cstack = torch.stack(states, dim=1), torch.stack(cells, dim=1)
-                left = batch['left_children'][:, position] + 1
-                right = batch['right_children'][:, position] + 1
-                hl, hr = hstack[rows, left], hstack[rows, right]
-                cl, cr = cstack[rows, left], cstack[rows, right]
-                gates = self.tree_gates(torch.cat((x[:, position], hl, hr), dim=-1))
-                i, o, u, fl, fr = gates.chunk(5, dim=-1)
-                c = torch.sigmoid(i) * torch.tanh(u) + torch.sigmoid(fl) * cl + torch.sigmoid(fr) * cr
-                valid = (~mask[:, position]).unsqueeze(-1)
-                h = torch.sigmoid(o) * torch.tanh(c) * valid
-                states.append(h)
-                cells.append(c * valid)
-            memory = self.source_norm(torch.stack(states[1:], dim=1))
-            root = memory[rows, batch['lengths'] - 1]
+        memory, mask, root = _encode_features(self, batch)
         return memory, mask, torch.tanh(self.initial(root)).unsqueeze(0)
 
     def _heads(self, states, memory, mask):
