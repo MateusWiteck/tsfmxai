@@ -116,3 +116,47 @@ for a raw tree and at most 20 for a protected one, hence
 the lag range, but the vocabulary size does: the codec has
 $2L+5$ symbols for $L$ lags and one series (37 for $L=16$). The model is
 defined in \path{src/tsfmxai/symbolic_regression/canonical_models.py}.
+
+\paragraph{Trained encoder--decoder.}
+Two encoder--decoders were trained on a corpus of $10^7$ sampled trees
+(1--6 operations, lags 1--16, degree at most 4, protection probability $0.5$).
+Skeletons are split by a hash of the canonical skeleton into 70/10/20 percent
+for training, validation, and test; validation and test keep one row per
+skeleton and no skeleton occurs in two partitions. The stored corpus has
+9{,}856{,}116 rows: 6{,}997{,}384 for training, 952{,}965 for validation, and
+1{,}905{,}767 for test. The \emph{skeleton} model writes only the symbols of the
+canonical form; the \emph{joint} model also writes one coefficient at every
+end-of-term symbol. Both use a two-layer Transformer encoder of width 96, a GRU
+decoder with attention over the tree, ten epochs, and batch size 256, and were
+trained on one GPU in 4.9 hours. Table~\ref{tab:canonical-training} reports free
+decoding on the whole test partition; a coefficient is correct when it lies
+within an absolute and relative tolerance of $0.01$.
+
+\begin{table}[htbp]
+\centering
+\caption{Free decoding on the 1{,}905{,}767 test skeletons, none of which occurs
+in training. ``Joint exact'' requires the skeleton and every coefficient to be
+correct.}
+\label{tab:canonical-training}
+\begin{tabular}{lcc}
+\toprule
+Metric & Skeleton model & Joint model\\
+\midrule
+Skeleton exact & 0.9794 & 0.9732\\
+Valid output & 0.9917 & 0.9869\\
+Term F1 & 0.9956 & 0.9950\\
+Joint exact & --- & 0.0420\\
+Mean absolute coefficient error (matched terms) & --- & 0.0348\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both models reached their best validation result at the last epoch and the
+validation loss was still decreasing, so the ten-epoch budget, not convergence,
+ended training, and the values are lower bounds for this architecture. The
+canonical structure is learned well; the coefficients, which are sums of
+products of several tree parameters, are not recovered precisely. The executed
+record is \path{experiments/canonicalization/06_train.ipynb}, and the trained
+models and the corpus are published on Hugging Face as
+\path{mateuswiteck/tsfmxai-canonicalization-encoder-decoder} and
+\path{mateuswiteck/tsfmxai-canonicalization-asts}.
