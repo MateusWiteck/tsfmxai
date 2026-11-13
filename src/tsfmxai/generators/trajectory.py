@@ -135,7 +135,12 @@ def generate_univariate_trajectory(
     maximum_absolute_value: float | None = 1_000_000.0,
     target_series: int = 0,
 ) -> np.ndarray:
-    """Execute one recurrence, optionally adding Gaussian innovation per generated step."""
+    """Return startup history followed by generated recurrence outputs.
+
+    The returned sequence has length ``required_history_length + generated_steps``.
+    The initial prefix is supplied to seed the recurrence; downstream training
+    windows should start after it if they must contain only equation outputs.
+    """
 
     if generated_steps < 0:
         raise ValueError("generated_steps must be non-negative.")
@@ -191,7 +196,7 @@ def sample_univariate_trajectories(
     maximum_absolute_value: float | None = 1_000_000.0,
     target_series: int = 0,
 ) -> np.ndarray:
-    """Sample independent realizations of one fixed recurrence."""
+    """Sample full paths, including each startup history prefix."""
 
     if trajectory_count < 1:
         raise ValueError("trajectory_count must be positive.")
@@ -268,7 +273,13 @@ def generate_multivariate_trajectory(
     seed: int = 0,
     maximum_absolute_value: float | None = 1_000_000.0,
 ) -> np.ndarray:
-    """Execute one synchronous recurrence system and return ``[series, time]``."""
+    """Return ``[series, time]`` with startup history then recurrence outputs.
+
+    The initial ``history_length`` columns seed the synchronous recurrence. The
+    next ``generated_steps`` columns were computed from the AST equations and
+    innovations. Training windows that require only generated values should
+    exclude that initial prefix.
+    """
 
     if generated_steps < 0:
         raise ValueError("generated_steps must be non-negative.")
@@ -345,7 +356,7 @@ def sample_multivariate_trajectories(
     root_seed: int = 0,
     maximum_absolute_value: float | None = 1_000_000.0,
 ) -> np.ndarray:
-    """Sample realizations of one system as ``[trajectory, series, time]``."""
+    """Sample full paths as ``[trajectory, series, time]``, including startup prefixes."""
 
     if trajectory_count < 1:
         raise ValueError("trajectory_count must be positive.")

@@ -104,6 +104,24 @@ def test_history_api_is_shared_with_initialization_experiments():
                              system, np.zeros((1, 2)), 0)
 
 
+def test_training_windows_exclude_sampled_startup_history():
+    # The lag makes a two-value startup history necessary, but its zero
+    # coefficient means every recurrence output is exactly seven. If the
+    # startup prefix leaked into the batch, the context would contain 999s.
+    system = explicit([equation(
+        Add(Parameter("offset"), Multiply(Parameter("zero"), Lag(0, "L"))),
+        {"offset": 7., "zero": 0.}, {"L": 2})])
+    data = generate_training_batches(
+        systems=[system], seed=19,
+        trajectory=TrajectoryConfig(5, HistorySpec("sentinel", "constant", offset=999.)),
+        training=TrainingFormat(3, 2, 1, batch_size=1, dtype="float64"),
+    )
+    batch = next(data)
+    np.testing.assert_array_equal(batch.metadata[0]["initial_history"], [[999., 999.]])
+    np.testing.assert_array_equal(batch.context, np.full((1, 3, 1), 7.))
+    np.testing.assert_array_equal(batch.future, np.full((1, 2, 1), 7.))
+
+
 def test_protection_targets_match_executed_expression():
     raw = equation(Multiply(Lag(0, "a"), Add(Lag(1, "b"), Parameter("c"))),
                    {"c": 1.}, {"a": 1, "b": 2})

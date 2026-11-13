@@ -30,3 +30,6 @@ __all__ = [
     "generate_mechanism_job",
     "generate_mechanism_jobs",
 ]
+from tsfmxai.datasets.online import (
+    CurriculumStage, OnlineBatchDataset, OnlineBatchPlan, make_dataloader,
+)

@@ -22,6 +22,14 @@ from tsfmxai.representations.expression import Lag, walk
 
 @dataclass(frozen=True)
 class TrajectoryConfig:
+    """Controls recurrence outputs after a separately sampled startup history.
+
+    ``generated_steps`` counts only values computed by the sampled equations.
+    The startup history is used to seed the recurrence and is not returned by
+    ``simulate_innovation_path`` or included in training windows. No additional
+    burn-in is applied by this stream.
+    """
+
     generated_steps: int
     initialization: HistorySpec
     max_initialization_retries: int = 3
@@ -190,6 +198,9 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
                 reason = "nonfinite_inputs"
             else:
                 try:
+                    # This path contains recurrence outputs only. ``history`` is
+                    # an initial condition for evaluating the first output, not
+                    # a prefix that may be exposed as model context.
                     path = simulate_innovation_path(system.expressions, system.bindings,
                                                     history, innovations, stop_threshold=None)
                     with np.errstate(over="ignore", invalid="ignore"):

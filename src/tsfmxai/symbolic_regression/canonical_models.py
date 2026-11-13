@@ -111,16 +111,77 @@ class CanonicalEncoder(nn.Module):
         return _encode_features(self, batch)
 
     @classmethod
-    def from_pretrained(cls, directory):
-        """Load ``encoder.safetensors`` and ``config.json`` of a released model folder."""
+    def from_pretrained(cls, directory, *, revision=None):
+        """Load a local release folder or a Hugging Face model repository ID.
+
+        Repository releases must contain ``config.json`` and
+        ``<variant>/config.json`` plus ``<variant>/encoder.safetensors`` (or
+        the corresponding files under ``models/<variant>/``). A flat release
+        with files at its root is also supported. Pass ``revision`` to pin a
+        Hugging Face commit; local paths ignore it.
+        """
         import json
         from pathlib import Path
         from safetensors.torch import load_file
 
-        directory = Path(directory)
-        config = json.loads((directory / 'config.json').read_text(encoding='utf-8'))
+        variant = None
+        if isinstance(directory, tuple):
+            if len(directory) != 2:
+                raise ValueError("directory tuple must be (repo_or_path, variant)")
+            directory, variant = directory
+        source = directory
+        local_directory = Path(directory) if isinstance(directory, (str, Path)) else None
+        if local_directory is not None and local_directory.exists():
+            candidates = ([local_directory / variant] if variant else [])
+            candidates += ([local_directory / 'models' / variant] if variant else [])
+            candidates += [local_directory]
+            release_dir = next(
+                (candidate for candidate in candidates
+                 if (candidate / 'config.json').exists()
+                 and (candidate / 'encoder.safetensors').exists()),
+                None,
+            )
+            if release_dir is None:
+                raise FileNotFoundError(
+                    f'No config.json and encoder.safetensors found under {local_directory}'
+                )
+            config_path = release_dir / 'config.json'
+            weights_path = release_dir / 'encoder.safetensors'
+        else:
+            from huggingface_hub import hf_hub_download
+
+            repo_id = str(source)
+            prefixes = ([variant, f'models/{variant}'] if variant else []) + ['']
+            config_path = weights_path = None
+            last_error = None
+            for prefix in prefixes:
+                config_name = f'{prefix}/config.json' if prefix else 'config.json'
+                weights_name = (f'{prefix}/encoder.safetensors'
+                                if prefix else 'encoder.safetensors')
+                try:
+                    config_path = Path(hf_hub_download(
+                        repo_id, config_name, revision=revision
+                    ))
+                    weights_path = Path(hf_hub_download(
+                        repo_id, weights_name, revision=revision
+                    ))
+                    break
+                except Exception as error:
+                    config_path = weights_path = None
+                    last_error = error
+            if weights_path is None:
+                detail = f' at revision {revision}' if revision else ''
+                raise FileNotFoundError(
+                    f'No encoder release found in {repo_id}{detail}; '
+                    'pass a valid variant if required.'
+                ) from last_error
+        if not config_path.exists() or not weights_path.exists():
+            raise FileNotFoundError('Encoder release requires config.json and encoder.safetensors')
+        config = json.loads(config_path.read_text(encoding='utf-8'))
         model = cls(**config['model_kwargs'])
-        model.load_state_dict(load_file(str(directory / 'encoder.safetensors')))
+        model.load_state_dict(load_file(str(weights_path), device='cpu'))
+        for parameter in model.parameters():
+            parameter.requires_grad_(False)
         return model.eval()
 
 
