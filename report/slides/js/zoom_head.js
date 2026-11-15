@@ -2,8 +2,8 @@
  *
  * The target and the example come from the project library through
  * scripts/export_generator_demo.py (canonicalize_polynomial, CanonicalCodec).
- * The last step describes the six-series training protocol; results are pending.
- * Configuration: configs/canonicalization_10m_six_series.json.
+ * The last step reports the verified 10M six-series run.
+ * Record: experiments/canonicalization/06_train_10m_six_series.ipynb.
  */
 (function () {
   const D = window.GEN_DATA, Z = window.ZC;
@@ -233,10 +233,20 @@
     ctx.globalAlpha = 1;
   }
   function scene6(ctx, p) {
-    box(ctx, 20, 60, 1160, 240, { fill: col.soft, stroke: col.blue, lw: 2.2 });
-    text(ctx, "Six-series canonicalizer: training protocol", 44, 104, 24, col.blue);
-    text(ctx, "10 million trees; each equation may reference six source series.", 44, 156, 20, col.ink);
-    text(ctx, "197 tokens; skeleton-only and joint variants; results pending.", 44, 208, 20, col.ink);
+    box(ctx, 20, 60, 1160, 65, { fill: col.soft, stroke: col.blue, lw: 2.2 });
+    text(ctx, "10M trees / six source series / 197 tokens / 1,998,712 test skeletons", 44, 101, 22, col.blue);
+    stat(ctx, 20, 145, 376, "94.36%", "Exact skeleton: skeleton-only model", col.teal, 1, false);
+    stat(ctx, 412, 145, 376, "95.41%", "Exact skeleton: joint model", col.teal, 1, false);
+    stat(ctx, 804, 145, 376, "4.45%", "Exact structure + coefficients: joint model", col.ours, 1, false);
+    box(ctx, 20, 315, 1160, 165, { fill: col.grey });
+    const lines = [
+      "Term F1: 98.73% / 98.78%. Valid output: 97.38% / 98.26% (skeleton / joint).",
+      "Both checkpoints selected at epoch 10; total run 5.19 h on RTX 4070. One training seed.",
+      "Coefficient matched MAE: 0.03023; joint exact uses absolute/relative tolerance 0.01.",
+      "Greedy test decoding; these scores do not measure embedding quality for Chronos.",
+      "30M run in progress (user report); no results available yet.",
+    ];
+    lines.forEach((line, i) => text(ctx, line, 44, 345 + i * 28, 17, col.muted));
   }
 
   const STEPS = [
@@ -246,8 +256,8 @@
     { narr: "③ RAW and TANH factors", sub: "protection changes the symbols, not the idea", dur: 4200 },
     { narr: "④ A sequence the model can write", sub: "factors, end of term, coefficient", dur: 5200 },
     { narr: "⑤ The model", sub: "encoder reads, decoder writes", dur: 6500 },
-    { narr: "Six-series training", sub: "10 million trees; results pending", dur: 4600,
-      foot: "Protocol: configs/canonicalization_10m_six_series.json. Results pending." },
+    { narr: "Six-series results: 10M", sub: "Verified remote run; 30M results pending", dur: 6500,
+      foot: "Record: experiments/canonicalization/06_train_10m_six_series.ipynb. Training commit 44a975a; RTX 4070; six-series vocabulary. Test metrics from the received remote manifest; archive checksum, source provenance, Parquet counts and checkpoints verified locally." },
   ];
 
   // The scenes are shown inside the pipeline slide (pipeline_canon.js), each at its own place.

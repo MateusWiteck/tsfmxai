@@ -3,7 +3,8 @@
 ## Próxima execução: 30 milhões
 
 Branch `canonicalization-30m`; configuração
-`configs/canonicalization_30m_six_series.json`. **Preparada, ainda não executada.**
+`configs/canonicalization_30m_six_series.json`. **Em execução remota, conforme
+relato do usuário; resultados ainda não recebidos.**
 O treino parte de pesos aleatórios e mantém todos os parâmetros do protocolo
 de 10 milhões, incluindo seeds, duas variantes, até 10 épocas e early stopping.
 Só mudam a quantidade de árvores amostradas e o identificador do experimento.
@@ -38,15 +39,16 @@ python scripts/package_canonical_release.py \
   --training-commit SHA_DO_TREINO_30M
 ```
 
-## Execução de 10 milhões: registro aguardando artefatos
+## Execução de 10 milhões: registro verificado
 
-O usuário informou a execução remota do protocolo preparado em `44a975a`, na
-branch `canonicalization-10m`. A transferência do corpus, checkpoints e registros
-é o próximo passo. **Resultados, conclusão do treino e commit efetivamente usado
-ainda não foram conferidos localmente.** Após receber os arquivos, conferir
-`status.json`, `manifest.json`, hashes e métricas antes de registrar os resultados
-em um commit. O registro será integrado à branch de 30 milhões antes da análise
-comparativa. Nenhum resultado da nova execução é inferido do relato da anterior.
+Os artefatos foram recebidos e organizados em `outputs/six_series/` nesta pasta.
+O registro completo, executado e versionado está em
+[`06_train_10m_six_series.ipynb`](06_train_10m_six_series.ipynb): configuração,
+seeds, proveniência, resultados, curvas, verificações e comandos de reprodução.
+O SHA-256 da transferência, os hashes de código do commit `44a975a`, as contagens
+dos arquivos Parquet e o carregamento dos checkpoints foram conferidos localmente.
+As métricas são as produzidas pela avaliação remota; não foi repetido o decoding
+de todo o teste. Este registro permanece como referência para a execução de 30M.
 
 Os comandos a seguir preservam o protocolo de 10 milhões e sua transferência.
 
@@ -59,7 +61,8 @@ Mantemos 1–6 operadores, grau máximo 4, proteção RAW/TANH com probabilidade
 seeds explícitas, batch 256, até 10 épocas com patience 3, dimensão 96 e duas
 camadas Transformer. Treinamos `transformer_skeleton` e `transformer_joint`
 do zero. O split por skeleton é 70/10/20; a deduplicação de validação/teste
-pode reduzir a quantidade final de linhas armazenadas. Resultados pendentes.
+pode reduzir a quantidade final de linhas armazenadas. Os resultados da execução
+de 10 milhões estão no notebook de registro indicado acima.
 
 Os notebooks 01–05 documentam o canonicalizador determinístico e os estudos
 do sorteador. O treino atual usa o script abaixo e guarda configuração,
