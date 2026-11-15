@@ -1,5 +1,55 @@
 # Canonicalizador de seis séries
 
+## Próxima execução: 30 milhões
+
+Branch `canonicalization-30m`; configuração
+`configs/canonicalization_30m_six_series.json`. **Preparada, ainda não executada.**
+O treino parte de pesos aleatórios e mantém todos os parâmetros do protocolo
+de 10 milhões, incluindo seeds, duas variantes, até 10 épocas e early stopping.
+Só mudam a quantidade de árvores amostradas e o identificador do experimento.
+Com as mesmas seeds, os IDs iniciais reproduzem o prefixo do corpus menor;
+validação/teste podem crescer. A comparação de qualidade deve identificar
+quais exemplos de avaliação foram compartilhados. Manter o número de épocas
+com mais dados aumenta o orçamento de atualizações; não é orçamento igual.
+
+O script nesta branch usa 30 milhões por padrão. Na máquina remota, **depois
+de concluir e transferir a execução de 10 milhões**, com o ambiente CUDA ativo:
+
+```bash
+git fetch origin
+git switch canonicalization-30m
+git pull --ff-only
+mkdir -p experiments/canonicalization/outputs/six_series_30m
+nohup python -u scripts/run_canonical.py --device cuda \
+  --config configs/canonicalization_30m_six_series.json \
+  --run-dir experiments/canonicalization/outputs/six_series_30m \
+  > experiments/canonicalization/outputs/six_series_30m/run.log 2>&1 < /dev/null &
+tail -f experiments/canonicalization/outputs/six_series_30m/run.log
+```
+
+Para empacotar a execução de 30 milhões posteriormente, informar os caminhos
+explicitamente; os auxiliares de transferência/publicação abaixo se referem
+à execução de 10 milhões que será recebida primeiro:
+
+```bash
+python scripts/package_canonical_release.py \
+  --run-dir experiments/canonicalization/outputs/six_series_30m \
+  --output experiments/canonicalization/outputs/release/six_series_30m \
+  --training-commit SHA_DO_TREINO_30M
+```
+
+## Execução de 10 milhões: registro aguardando artefatos
+
+O usuário informou a execução remota do protocolo preparado em `44a975a`, na
+branch `canonicalization-10m`. A transferência do corpus, checkpoints e registros
+é o próximo passo. **Resultados, conclusão do treino e commit efetivamente usado
+ainda não foram conferidos localmente.** Após receber os arquivos, conferir
+`status.json`, `manifest.json`, hashes e métricas antes de registrar os resultados
+em um commit. O registro será integrado à branch de 30 milhões antes da análise
+comparativa. Nenhum resultado da nova execução é inferido do relato da anterior.
+
+Os comandos a seguir preservam o protocolo de 10 milhões e sua transferência.
+
 Protocolo: `configs/canonicalization_10m_six_series.json`. São **10.000.000 de
 árvores amostradas**, uma equação por exemplo. Cada equação pode referenciar
 qualquer uma das seis séries, com lags de 1 a 16. O codec preserva série e lag;
@@ -27,11 +77,11 @@ python -m pip install -e '.[learning,release,dev]'
 python -c "import torch; assert torch.cuda.is_available(), 'Instale PyTorch com CUDA compatível com o driver'; print(torch.__version__, torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_memory)"
 git rev-parse HEAD
 mkdir -p experiments/canonicalization/outputs/six_series
-nohup python -u scripts/run_canonical.py --device cuda > experiments/canonicalization/outputs/six_series/run.log 2>&1 < /dev/null &
+nohup python -u scripts/run_canonical.py --device cuda --config configs/canonicalization_10m_six_series.json --run-dir experiments/canonicalization/outputs/six_series > experiments/canonicalization/outputs/six_series/run.log 2>&1 < /dev/null &
 tail -f experiments/canonicalization/outputs/six_series/run.log
 ```
 
-A configuração padrão contém 10 milhões de árvores. A geração usa quatro
+A configuração explícita acima contém 10 milhões de árvores. A geração usa quatro
 processos CPU; o treino usa uma GPU. Os logs mostram taxa e ETA. `status.json`
 registra o estado; `manifest.json` é escrito ao concluir. Reexecutar o mesmo
 comando retoma shards, variantes concluídas e a última época salva. Uma época

@@ -321,7 +321,7 @@ with the configuration stored in `metadata.json` (key `training_config`) or
 git clone {metadata["provenance"].get("repository") or "<repository>"} tsfmxai && cd tsfmxai
 git checkout {metadata["provenance"].get("training_commit") or "<training commit>"}
 pip install -e ".[learning]" -c constraints.txt
-python scripts/run_canonical.py --config configs/canonicalization_10m_six_series.json
+python scripts/run_canonical.py --config /path/to/downloaded-dataset/source/training_config.json --run-dir outputs/canonical_regenerated
 ```
 
 `source/` holds a byte-exact copy of that code, so the generator stays available even if

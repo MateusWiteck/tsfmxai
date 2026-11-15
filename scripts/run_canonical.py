@@ -76,8 +76,8 @@ class ProgressLog:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/canonicalization_10m_six_series.json")
-    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/six_series")
+    parser.add_argument("--config", default="configs/canonicalization_30m_six_series.json")
+    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/six_series_30m")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--release-dir", default=None,
                         help="after a completed run, also write the Hugging Face release here")
