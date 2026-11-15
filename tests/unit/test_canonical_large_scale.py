@@ -2,6 +2,7 @@
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec
 from tsfmxai.symbolic_regression.canonical_large_scale import (
@@ -11,26 +12,37 @@ from tsfmxai.symbolic_regression.canonical_large_scale import (
 )
 
 
-def test_large_corpus_count_split_and_roundtrip(tmp_path):
+@pytest.mark.parametrize('num_series', [1, 6])
+def test_large_corpus_count_split_and_roundtrip(tmp_path, num_series):
     config = {
         "ast_count": 240, "shard_size": 60, "generation_workers": 1,
         "data_seed": 17, "split_seed": 19,
         "generator": {"minimum_operators": 1, "maximum_operators": 4,
-                      "num_series": 1, "minimum_lag": 1, "maximum_lag": 3,
+                      "num_series": num_series, "minimum_lag": 1, "maximum_lag": 3,
                       "max_degree": 3},
     }
     states = []
     codec = generate_parquet(config, tmp_path, lambda state, **kwargs: states.append(state))
     assert isinstance(codec, CanonicalCodec)
+    assert codec.num_series == num_series
+    assert len({codec.atom_token(i, 1) for i in range(num_series)}) == num_series
     summary = count_corpus(config, tmp_path, lambda state, **kwargs: states.append(state))
     assert summary["sampled_asts"] == 240
     assert summary["skeleton_overlap"] == 0
     assert sum(summary["rows_by_split"].values()) == 240
+    source_series = set()
+    has_cross_series_equation = False
     for split in ("train", "validation", "test"):
         for example in iter_shard_examples(tmp_path, split):
             assert split_for_skeleton(example["skeleton"], config["split_seed"]) == split
             assert example["target"][0] == 1
             assert example["target"][-1] == 2
+            sources = {codec.token_atom(token)[0] for token in example["target"] if token >= 5}
+            source_series.update(sources)
+            has_cross_series_equation |= len(sources) > 1
+    assert source_series == set(range(num_series))
+    if num_series > 1:
+        assert has_cross_series_equation
     assert "generating" in states and "counting" in states
 
 

@@ -1,12 +1,12 @@
 {
-  "experiment": "canonical_ast_10m_raw_tanh_20261101",
+  "experiment": "canonical_ast_10m_six_series",
   "ast_count": 10000000,
   "shard_size": 20000,
   "generation_workers": 4,
   "generator": {
     "minimum_operators": 1,
     "maximum_operators": 6,
-    "num_series": 1,
+    "num_series": 6,
     "minimum_lag": 1,
     "maximum_lag": 16,
     "max_degree": 4,
@@ -18,7 +18,11 @@
   "training_seed": 20261103,
   "protection_probability": 0.5,
   "unique_eval_skeletons": true,
-  "split": {"train": 0.7, "validation": 0.1, "test": 0.2},
+  "split": {
+    "train": 0.7,
+    "validation": 0.1,
+    "test": 0.2
+  },
   "batch_size": 256,
   "epochs": 10,
   "patience": 3,
@@ -33,9 +37,23 @@
   "coefficient_atol": 0.01,
   "coefficient_rtol": 0.01,
   "cpu_threads": 4,
-  "model": {"dimension": 96, "heads": 4, "encoder_layers": 2, "dropout": 0.1, "max_nodes": 20},
+  "model": {
+    "dimension": 96,
+    "heads": 4,
+    "encoder_layers": 2,
+    "dropout": 0.1,
+    "max_nodes": 20
+  },
   "variants": [
-    {"name": "transformer_skeleton", "encoder": "transformer", "coefficients": false},
-    {"name": "transformer_joint", "encoder": "transformer", "coefficients": true}
+    {
+      "name": "transformer_skeleton",
+      "encoder": "transformer",
+      "coefficients": false
+    },
+    {
+      "name": "transformer_joint",
+      "encoder": "transformer",
+      "coefficients": true
+    }
   ]
 }

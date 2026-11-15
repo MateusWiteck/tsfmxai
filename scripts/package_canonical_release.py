@@ -1,8 +1,8 @@
 """Package a completed canonicalization run for Hugging Face (models + dataset).
 
     python scripts/package_canonical_release.py \
-        --run-dir experiments/canonicalization/outputs/raw_tanh \
-        --output experiments/canonicalization/outputs/release/canonical_ast
+        --run-dir experiments/canonicalization/outputs/six_series \
+        --output experiments/canonicalization/outputs/release/six_series
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from tsfmxai.symbolic_regression.canonical_release import package_release  # noq
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/raw_tanh")
-    parser.add_argument("--output", default="experiments/canonicalization/outputs/release/canonical_ast")
+    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/six_series")
+    parser.add_argument("--output", default="experiments/canonicalization/outputs/release/six_series")
     parser.add_argument("--training-commit", default=None,
                         help="commit whose code produced the run (checked against the hashes in "
                              "manifest.json); default: the current commit")

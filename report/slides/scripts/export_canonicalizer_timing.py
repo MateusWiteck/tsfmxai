@@ -28,7 +28,7 @@ from tsfmxai.generators import CombinatorialTreeConfig, CombinatorialTreeSampler
 from tsfmxai.representations import canonicalize_polynomial  # noqa: E402
 from tsfmxai.symbolic_regression.canonical_data import derive_sample_seed, select_canonical_mechanism  # noqa: E402
 
-CONFIG = json.loads((ROOT / "configs/canonicalization_5m_raw_tanh.json").read_text(encoding="utf-8"))
+CONFIG = json.loads((ROOT / "configs/canonicalization_10m_six_series.json").read_text(encoding="utf-8"))
 CORPUS_TREES = 100_000
 SWEEP_TREES = 3_000
 SWEEP_OPERATORS = (2, 4, 6, 8, 10, 12)

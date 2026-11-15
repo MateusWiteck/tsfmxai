@@ -2,9 +2,8 @@
  *
  * The target and the example come from the project library through
  * scripts/export_generator_demo.py (canonicalize_polynomial, CanonicalCodec).
- * The last step reports the trained models: the 10-million-tree RAW/TANH corpus, two
- * encoder-decoders, and their metrics on the full test split. The numbers come from the
- * executed notebook experiments/canonicalization/06_train.ipynb (status.json of the run).
+ * The last step describes the six-series training protocol; results are pending.
+ * Configuration: configs/canonicalization_10m_six_series.json.
  */
 (function () {
   const D = window.GEN_DATA, Z = window.ZC;
@@ -234,34 +233,10 @@
     ctx.globalAlpha = 1;
   }
   function scene6(ctx, p) {
-    const results = [
-      ["97.9%", "of 1.9 million unseen skeletons written exactly (joint model: 97.3%)", col.teal, "SKELETON MODEL"],
-      ["99.6%", "F1 counting the terms one by one (joint model: 99.5%)", col.teal, "SKELETON MODEL"],
-      ["4.2%", "of equations with every coefficient within 1%; mean error 0.035 on the terms found", col.ours, "JOINT MODEL ONLY"],
-    ];
-    ctx.globalAlpha = ease(seg(p, 0, 0.3));
-    box(ctx, 20, 60, 1160, 70, { fill: col.soft, stroke: col.blue, lw: 2.2 });
-    text(ctx, "Measured on the full test split: 1,905,767 skeletons that never appear in training", 44, 104, 22, col.blue, { weight: 700 });
-    ctx.globalAlpha = 1;
-    results.forEach((m, i) => {
-      const x = 20 + i * 392, al = ease(seg(p, 0.2 + i * 0.15, 0.5 + i * 0.15));
-      stat(ctx, x, 156, 376, m[0], m[1], m[2], al, false);
-      ctx.globalAlpha = al;  // tag: which of the two models the number belongs to
-      box(ctx, x + 376 - 196, 168, 180, 28, { fill: m[2], stroke: m[2], lw: 1 });
-      text(ctx, m[3], x + 376 - 106, 188, 14, col.panel, { align: "center", weight: 700 });
-      ctx.globalAlpha = 1;
-    });
-    ctx.globalAlpha = ease(seg(p, 0.6, 1));
-    box(ctx, 20, 330, 1160, 154, { fill: col.grey });
-    text(ctx, "What the numbers say", 44, 362, 21, col.ink, { weight: 700 });
-    const lines = [
-      "Structure is learned: skeleton model 99.2% valid output; the coefficient head costs 0.6 points of exactness.",
-      "Coefficients are the weak part: the model writes the right terms but not the numbers.",
-      "Free decoding, no target prefix. A coefficient counts if within 1% or 0.01.",
-      "Loss was still falling at epoch 10 (10 epochs, 4.9 h on one GPU): these numbers are a floor.",
-    ];
-    lines.forEach((s, i) => text(ctx, "• " + s, 44, 392 + i * 25, 16.5, col.muted));
-    ctx.globalAlpha = 1;
+    box(ctx, 20, 60, 1160, 240, { fill: col.soft, stroke: col.blue, lw: 2.2 });
+    text(ctx, "Six-series canonicalizer: training protocol", 44, 104, 24, col.blue);
+    text(ctx, "10 million trees; each equation may reference six source series.", 44, 156, 20, col.ink);
+    text(ctx, "197 tokens; skeleton-only and joint variants; results pending.", 44, 208, 20, col.ink);
   }
 
   const STEPS = [
@@ -271,8 +246,8 @@
     { narr: "③ RAW and TANH factors", sub: "protection changes the symbols, not the idea", dur: 4200 },
     { narr: "④ A sequence the model can write", sub: "factors, end of term, coefficient", dur: 5200 },
     { narr: "⑤ The model", sub: "encoder reads, decoder writes", dur: 6500 },
-    { narr: "⑥ What was measured", sub: "10 million trees, 1.9 million unseen test skeletons", dur: 4600,
-      foot: "Executed notebook: experiments/canonicalization/06_train.ipynb (configs/canonicalization_5m_raw_tanh.json: 10,000,000 sampled ASTs, 1–6 operators, lags 1–16, degree ≤ 4, protection probability 0.5, split by skeleton). Models and corpus: Hugging Face mateuswiteck/tsfmxai-canonicalization-encoder-decoder and -asts." },
+    { narr: "Six-series training", sub: "10 million trees; results pending", dur: 4600,
+      foot: "Protocol: configs/canonicalization_10m_six_series.json. Results pending." },
   ];
 
   // The scenes are shown inside the pipeline slide (pipeline_canon.js), each at its own place.

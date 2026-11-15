@@ -80,7 +80,7 @@ def _git(*args: str, cwd: Path) -> str | None:
 
 
 LOADING_PATHS = ("src", "pyproject.toml", "constraints.txt")
-GENERATION_PATHS = ("src", "pyproject.toml", "constraints.txt", "scripts/run_canonical_5m.py")
+GENERATION_PATHS = ("src", "pyproject.toml", "constraints.txt", "scripts/run_canonical.py")
 
 
 def _git_bytes(*args: str, cwd: Path) -> bytes | None:
@@ -321,7 +321,7 @@ with the configuration stored in `metadata.json` (key `training_config`) or
 git clone {metadata["provenance"].get("repository") or "<repository>"} tsfmxai && cd tsfmxai
 git checkout {metadata["provenance"].get("training_commit") or "<training commit>"}
 pip install -e ".[learning]" -c constraints.txt
-python scripts/run_canonical_5m.py --config configs/canonicalization_5m_raw_tanh.json
+python scripts/run_canonical.py --config configs/canonicalization_10m_six_series.json
 ```
 
 `source/` holds a byte-exact copy of that code, so the generator stays available even if

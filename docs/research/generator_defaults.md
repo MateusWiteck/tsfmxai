@@ -25,7 +25,7 @@ the default; it is not a universal guarantee of coverage for arbitrary series.
 The supplied table does not specify the reconstruction-error criterion or
 experiment artifact, so those details are not inferred here.
 
-Current RAW/TANH training uses this default (`canonicalization_5m_raw_tanh.json`).
+Current RAW/TANH training uses this default (`canonicalization_10m_six_series.json`).
 The 12-lag runs and their checkpoints were removed because they are
 incompatible with the 16-lag codec.
 

@@ -1,62 +1,84 @@
-# Canonicalização: organização dos experimentos
+# Canonicalizador de seis séries
 
-Os notebooks seguem a ordem do raciocínio: primeiro valida-se o canonizador e o
-codec, depois escolhe-se o sorteador de ASTs, e só então treina-se o
-encoder–decoder que aproxima a canonização.
+Protocolo: `configs/canonicalization_10m_six_series.json`. São **10.000.000 de
+árvores amostradas**, uma equação por exemplo. Cada equação pode referenciar
+qualquer uma das seis séries, com lags de 1 a 16. O codec preserva série e lag;
+seu vocabulário contém 197 tokens.
 
-## Canonizador e codec
+Mantemos 1–6 operadores, grau máximo 4, proteção RAW/TANH com probabilidade 0,5,
+seeds explícitas, batch 256, até 10 épocas com patience 3, dimensão 96 e duas
+camadas Transformer. Treinamos `transformer_skeleton` e `transformer_joint`
+do zero. O split por skeleton é 70/10/20; a deduplicação de validação/teste
+pode reduzir a quantidade final de linhas armazenadas. Resultados pendentes.
 
-1. `01_reference.ipynb`: validação do canonizador e do codec (roundtrip, erro
-   numérico, rejeições). É a referência de correção dos alvos.
+Os notebooks 01–05 documentam o canonicalizador determinístico e os estudos
+do sorteador. O treino atual usa o script abaixo e guarda configuração,
+proveniência, métricas, histórico e checkpoints numa pasta ignorada pelo Git.
 
-## Análise do sorteador
+## Treinar na máquina remota (Linux, Python 3.11)
 
-Estudos de distribuição das ASTs e cobertura dos skeletons RAW/TANH:
+Na raiz do repositório, na branch `canonicalization-10m`:
 
-2. `02_distribution.ipynb`: comparação das distribuições.
-3. `03_exponential.ipynb`: prior exponencial do tamanho.
-4. `04_random_probabilities.ipynb`: probabilidades de terminais.
-5. `05_combinatorial.ipynb`: sorteio combinatório uniforme.
-
-## Modelos de encoder–decoder
-
-Modelo aprendido que transforma uma AST em sua representação canônica:
-
-6. `06_train.ipynb`: treinamento no vocabulário RAW/TANH (corpus de 10 milhões de ASTs).
-7. `07_refine.ipynb`: refinamento do treinamento.
-8. `08_errors.ipynb`: avaliação dos erros do modelo.
-
-Os modelos buscam aproximar a transformação determinística para uso em
-inferência. O canonicalizador permanece como gerador de alvos e referência de
-correção.
-
-## Artefatos locais
-
-`outputs/` é local e ignorado pelo Git. Contém a execução de treino
-(`raw_tanh/`: `status.json`, `manifest.json`, `run.log` e checkpoints)
-e o pacote para publicação (`release/canonical_ast/`, com o corpus em Parquet e os modelos em safetensors). Configurações, métricas e
-reprodução de cada estudo permanecem nos notebooks.
-
-## Treino em máquina externa e publicação
-
-Na máquina de treino (precisa de GPU para ser viável):
-
-```
-git clone <URL-do-repositório> tsfmxai && cd tsfmxai
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e ".[learning,release,dev]" -c constraints.txt
-python scripts/run_canonical_5m.py --device cuda --release-dir experiments/canonicalization/outputs/release/canonical_ast
+```bash
+git pull --ff-only
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[learning,release,dev]'
+python -c "import torch; assert torch.cuda.is_available(), 'Instale PyTorch com CUDA compatível com o driver'; print(torch.__version__, torch.cuda.get_device_name(0), torch.cuda.get_device_properties(0).total_memory)"
+git rev-parse HEAD
+mkdir -p experiments/canonicalization/outputs/six_series
+nohup python -u scripts/run_canonical.py --device cuda > experiments/canonicalization/outputs/six_series/run.log 2>&1 < /dev/null &
+tail -f experiments/canonicalization/outputs/six_series/run.log
 ```
 
-O script gera o corpus (`parquet/`), remove skeletons duplicados de validação e teste,
-treina as duas variantes e, ao final, grava `experiments/canonicalization/outputs/release/canonical_ast/` já no formato do
-Hugging Face (`models/<variante>/` com `model.safetensors`, `config.json` com os
-parâmetros do gerador, e `dataset/` com Parquet, `metadata.json` e cartões). Rodar de
-novo o mesmo comando retoma shards e variantes já concluídos.
+A configuração padrão contém 10 milhões de árvores. A geração usa quatro
+processos CPU; o treino usa uma GPU. Os logs mostram taxa e ETA. `status.json`
+registra o estado; `manifest.json` é escrito ao concluir. Reexecutar o mesmo
+comando retoma shards, variantes concluídas e a última época salva. Uma época
+interrompida é refeita. Não execute duas instâncias sobre a mesma pasta.
 
-Na máquina com o token do Hugging Face:
+Se já existe um ambiente funcional com PyTorch CUDA, use-o. A checagem CUDA
+deve passar antes de iniciar. As versões efetivamente usadas são registradas
+no manifest; os constraints do Windows não são impostos ao ambiente Linux.
 
+## Conferir e transferir
+
+Após terminar, na máquina remota:
+
+```bash
+python -c "import json; s=json.load(open('experiments/canonicalization/outputs/six_series/status.json')); assert s['state']=='completed', s['state']; print('Treino concluído')"
+tar -czf canonical_six_series.tar.gz -C experiments/canonicalization/outputs six_series
+sha256sum canonical_six_series.tar.gz
 ```
-python scripts/upload_to_huggingface.py --release experiments/canonicalization/outputs/release/canonical_ast \
-    --models-repo USUARIO/NOME-DO-MODELO --dataset-repo USUARIO/NOME-DO-DATASET
+
+Na raiz do repositório local (PowerShell), substitua usuário, host e caminho:
+
+```powershell
+New-Item -ItemType Directory -Force outputs | Out-Null
+scp usuario@host:/caminho/tsfmxai/canonical_six_series.tar.gz outputs/
+Get-FileHash outputs/canonical_six_series.tar.gz -Algorithm SHA256
+New-Item -ItemType Directory -Force experiments/canonicalization/outputs | Out-Null
+tar -xzf outputs/canonical_six_series.tar.gz -C experiments/canonicalization/outputs
 ```
+
+Compare os hashes antes de extrair. O arquivo inclui corpus, checkpoints,
+estado do otimizador, métricas e logs. Parquet já é comprimido; gzip pode
+reduzir pouco seu tamanho. O tamanho final será medido, não presumido.
+Esses artefatos e o arquivo compactado continuam ignorados pelo Git.
+
+## Registrar resultados e publicar depois
+
+Após revisar os resultados, registrar a execução em um notebook executado
+com uma célula de registro completo e fazer o commit desse registro.
+Corpus e pesos são publicados no Hugging Face, não no Git. Para preparar
+o pacote, use o SHA do treino registrado no manifest:
+
+```bash
+python scripts/package_canonical_release.py --training-commit SHA_DO_TREINO
+```
+
+O pacote fica em `experiments/canonicalization/outputs/release/six_series`.
+O script verifica a proveniência e inclui codec, código, pesos e dados.
+Publicar depois de revisar o pacote e escolher os IDs dos repositórios de
+modelos e dataset, usando `scripts/upload_to_huggingface.py`.
+Nenhum upload é feito durante o treino.

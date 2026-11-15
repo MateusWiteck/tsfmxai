@@ -11,7 +11,7 @@
  * equation-head zoom (ZHEAD, zoom_head.js) and the click-through method views
  * (GenDetail, stability_detail.js) are shown here, each at its own place.
  * Data: GEN_DATA, PIPE_DATA, CANON_TIMING. Stability shares: experiments/abstract_syntax_tree/
- * 6_stability_methods_tradeoff.ipynb; model numbers: experiments/canonicalization/06_train.ipynb.
+ * 6_stability_methods_tradeoff.ipynb; training protocol: configs/canonicalization_10m_six_series.json.
  */
 (function () {
   const D = window.GEN_DATA, T = window.CANON_TIMING, PIPE = window.PIPE_DATA, Z = window.ZC;

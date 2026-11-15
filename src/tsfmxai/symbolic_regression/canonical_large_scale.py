@@ -314,6 +314,8 @@ def train_parquet_variant(config, run_dir, codec, variant, status, device="cpu")
                 if isinstance(value, torch.Tensor):
                     state[key] = value.to(device)
         torch.set_rng_state(checkpoint["rng"])
+        if device != "cpu" and checkpoint.get("cuda_rng") is not None:
+            torch.cuda.set_rng_state_all(checkpoint["cuda_rng"])
         history, best_loss = checkpoint["history"], checkpoint["best_loss"]
         bad_epochs, start_epoch = checkpoint["bad_epochs"], checkpoint["epoch"] + 1
     validation = _small_validation(run_dir, config["validation_examples_per_epoch"])
@@ -361,7 +363,9 @@ def train_parquet_variant(config, run_dir, codec, variant, status, device="cpu")
             bad_epochs += 1
         tmp = last.with_suffix(".tmp")
         torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
-                    "rng": torch.get_rng_state(), "history": history, "epoch": epoch,
+                    "rng": torch.get_rng_state(),
+                    "cuda_rng": torch.cuda.get_rng_state_all() if device != "cpu" else None,
+                    "history": history, "epoch": epoch,
                     "best_loss": best_loss, "bad_epochs": bad_epochs}, tmp)
         tmp.replace(last)
         status("training", active_variant=name, epoch=epoch, last_epoch=row,

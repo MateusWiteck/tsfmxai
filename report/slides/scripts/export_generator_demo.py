@@ -44,7 +44,7 @@ from tsfmxai.representations.expression import (  # noqa: E402
 )
 from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec  # noqa: E402
 
-CONFIG = json.loads((ROOT / "configs" / "canonicalization_5m_raw_tanh.json").read_text())["generator"]
+CONFIG = json.loads((ROOT / "configs" / "canonicalization_10m_six_series.json").read_text())["generator"]
 DEMO_INDEX, DEMO_SEED = 1383, 2383  # found by the search in find_demo()
 TRAJ_STEPS = 120
 

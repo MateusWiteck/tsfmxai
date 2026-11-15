@@ -16,7 +16,7 @@ safetensors = pytest.importorskip("safetensors.torch")
 
 def _finished_run(tmp_path):
     run = tmp_path / "run"
-    generator = {"minimum_operators": 1, "maximum_operators": 3, "num_series": 1,
+    generator = {"minimum_operators": 1, "maximum_operators": 3, "num_series": 6,
                  "minimum_lag": 1, "maximum_lag": 4, "max_degree": 3}
     config = {"experiment": "tiny", "ast_count": 120, "shard_size": 60, "generation_workers": 1,
               "data_seed": 3, "split_seed": 4, "protection_probability": 0.5,
@@ -28,7 +28,7 @@ def _finished_run(tmp_path):
                             "coefficients": False}]}
     generate_parquet(config, run, lambda *a, **k: None)
     corpus = count_corpus(config, run, lambda *a, **k: None)
-    codec = CanonicalCodec(1, 1, 4, 3)
+    codec = CanonicalCodec(6, 1, 4, 3)
     model = CanonicalEncoderDecoder(codec.vocab_size, "transformer", False, **config["model"])
     checkpoint = run / "checkpoints" / "transformer_skeleton"
     checkpoint.mkdir(parents=True)
@@ -52,7 +52,8 @@ def test_release_layout_metadata_and_roundtrip(tmp_path):
     assert cfg["generator"]["resolved"]["require_lag"] is True  # defaults are resolved
     assert cfg["generator"]["protection_probability"] == 0.5
     assert (cfg["generator"]["data_seed"], cfg["generator"]["split_seed"]) == (3, 4)
-    assert cfg["codec"]["vocab_size"] == CanonicalCodec(1, 1, 4, 3).vocab_size
+    assert cfg["codec"]["num_series"] == 6
+    assert cfg["codec"]["vocab_size"] == CanonicalCodec(6, 1, 4, 3).vocab_size
     assert cfg["model_kwargs"]["max_nodes"] == 11 and cfg["best_epoch"] == 2
     assert "checkpoint" not in cfg["evaluation"]  # no training-machine path leaks
 

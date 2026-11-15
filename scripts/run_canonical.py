@@ -1,4 +1,4 @@
-"""Generate a five-million-AST Parquet corpus, count supports, then train models."""
+"""Generate the configured multiseries AST Parquet corpus, count supports, then train models."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import platform
+import subprocess
+from importlib.metadata import version
 import sys
 import time
 
@@ -74,8 +76,8 @@ class ProgressLog:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/canonicalization_5m_raw_tanh.json")
-    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/raw_tanh")
+    parser.add_argument("--config", default="configs/canonicalization_10m_six_series.json")
+    parser.add_argument("--run-dir", default="experiments/canonicalization/outputs/six_series")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--release-dir", default=None,
                         help="after a completed run, also write the Hugging Face release here")
@@ -108,7 +110,7 @@ def main():
     torch.use_deterministic_algorithms(True)
     started = time.perf_counter()
     status("preparing_data", started_at_utc=status_data.get("started_at_utc", utc_now()),
-           command=f"{sys.executable} scripts/run_canonical_5m.py --config {args.config} --run-dir {args.run_dir}")
+           command=f"{sys.executable} scripts/run_canonical.py --config {args.config} --run-dir {args.run_dir} --device {args.device}")
     try:
         if config.get("source_run_dir"):
             make_unique_evaluation_corpus(ROOT / config["source_run_dir"], run_dir, status)
@@ -134,12 +136,21 @@ def main():
             status("variant_completed", results=results)
             print("MODEL", name, json.dumps({k: result[k] for k in
                 ("count", "skeleton_exact", "term_f1", "joint_exact", "best_epoch")}), flush=True)
-        source = ["src/tsfmxai/symbolic_regression/canonical_large_scale.py",
+        source = ["scripts/run_canonical.py", args.config,
+                  "src/tsfmxai/symbolic_regression/canonical_data.py",
+                  "src/tsfmxai/symbolic_regression/canonical_training.py",
+                  "src/tsfmxai/symbolic_regression/canonical_large_scale.py",
                   "src/tsfmxai/symbolic_regression/canonical_models.py",
                   "src/tsfmxai/generators/combinatorial_expression.py",
                   "src/tsfmxai/generators/shao_wu.py",
                   "src/tsfmxai/representations/canonical_polynomial.py"]
         provenance = {"config": config, "config_sha256": config_sha,
+                      "training_commit": subprocess.check_output(
+                          ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+                      "packages": {name: version(name) for name in
+                                   ("numpy", "pyarrow", "safetensors", "torch")},
+                      "gpu_name": torch.cuda.get_device_name(0) if args.device == "cuda" else None,
+                      "cuda_version": torch.version.cuda,
                       "source_sha256": {f: sha256((ROOT / f).read_bytes()).hexdigest() for f in source},
                       "python": platform.python_version(), "torch": torch.__version__,
                       "device": device, "cpu_threads": config["cpu_threads"],
