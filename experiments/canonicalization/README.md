@@ -1,43 +1,17 @@
 # Canonicalizador de seis séries
 
-## Próxima execução: 30 milhões
+## Execução de 30 milhões: registro verificado
 
-Branch `canonicalization-30m`; configuração
-`configs/canonicalization_30m_six_series.json`. **Em execução remota, conforme
-relato do usuário; resultados ainda não recebidos.**
-O treino parte de pesos aleatórios e mantém todos os parâmetros do protocolo
-de 10 milhões, incluindo seeds, duas variantes, até 10 épocas e early stopping.
-Só mudam a quantidade de árvores amostradas e o identificador do experimento.
-Com as mesmas seeds, os IDs iniciais reproduzem o prefixo do corpus menor;
-validação/teste podem crescer. A comparação de qualidade deve identificar
-quais exemplos de avaliação foram compartilhados. Manter o número de épocas
-com mais dados aumenta o orçamento de atualizações; não é orçamento igual.
+O registro completo da execução recebida está em
+[`07_train_30m_six_series.ipynb`](07_train_30m_six_series.ipynb): configuração,
+seeds, proveniência, métricas, comparação com 10M, curvas e verificações locais.
+Corpus e checkpoints ficam em `outputs/six_series_30m/`, ignorados pelo Git.
+O notebook distingue os resultados remotos das verificações repetidas localmente.
 
-O script nesta branch usa 30 milhões por padrão. Na máquina remota, **depois
-de concluir e transferir a execução de 10 milhões**, com o ambiente CUDA ativo:
-
-```bash
-git fetch origin
-git switch canonicalization-30m
-git pull --ff-only
-mkdir -p experiments/canonicalization/outputs/six_series_30m
-nohup python -u scripts/run_canonical.py --device cuda \
-  --config configs/canonicalization_30m_six_series.json \
-  --run-dir experiments/canonicalization/outputs/six_series_30m \
-  > experiments/canonicalization/outputs/six_series_30m/run.log 2>&1 < /dev/null &
-tail -f experiments/canonicalization/outputs/six_series_30m/run.log
-```
-
-Para empacotar a execução de 30 milhões posteriormente, informar os caminhos
-explicitamente; os auxiliares de transferência/publicação abaixo se referem
-à execução de 10 milhões que será recebida primeiro:
-
-```bash
-python scripts/package_canonical_release.py \
-  --run-dir experiments/canonicalization/outputs/six_series_30m \
-  --output experiments/canonicalization/outputs/release/six_series_30m \
-  --training-commit SHA_DO_TREINO_30M
-```
+Para publicar uma release preparada, `scripts/upload_to_huggingface.py --replace`
+substitui o snapshot atual de cada repositório em um commit, removendo arquivos
+obsoletos e preservando o histórico. `--dry-run` mostra o plano sem publicar.
+Use os IDs existentes de modelo/dataset; não coloque tokens em arquivos do Git.
 
 ## Execução de 10 milhões: registro verificado
 

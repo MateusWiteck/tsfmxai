@@ -450,6 +450,30 @@
   </div>
 </section>
 
+<!-- Canonicalizer 30M: verified remote experiment -->
+<section id="canonicalizer-30m">
+  <div class="canvas">
+    <div class="kicker">Canonicalization · completed experiment</div>
+    <h2>30 million trees, six source series</h2>
+    <p>One equation per input · lags 1–16 · 96-dimensional encoder</p>
+    <table style="font-size:0.72em;width:100%;margin:24px 0">
+      <thead><tr><th>Model / metric</th><th>10M</th><th>30M</th></tr></thead>
+      <tbody>
+        <tr><td>Skeleton-only: exact skeleton</td><td>94.36%</td><td><b>97.88%</b></td></tr>
+        <tr><td>Joint: exact skeleton</td><td>95.41%</td><td>97.29%</td></tr>
+        <tr><td>Joint: skeleton + coefficients exact</td><td>4.45%</td><td>7.63%</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.68em">Both variants: best checkpoint at epoch 10; stopped at the epoch limit.<br>
+      5,998,787 test equations · 15.39 h total run · RTX 4070.</p>
+    <div class="box ours" style="font-size:0.65em;margin-top:18px">
+      Forecasting teacher: <b>skeleton-only</b>, without coefficient prediction.<br>
+      Different test-set sizes and more training updates: this is not an equal-compute comparison.
+    </div>
+    <p style="font-size:0.48em;margin-top:18px">Verified record: experiments/canonicalization/07_train_30m_six_series.ipynb · training commit 10dc844</p>
+  </div>
+</section>
+
 </div>
 </div>
 

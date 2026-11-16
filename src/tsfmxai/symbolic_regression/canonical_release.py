@@ -434,6 +434,20 @@ def package_release(run_dir, output_dir, *, repo_root=None, training_commit=None
         files += [target / n for n in ("model.safetensors", "encoder.safetensors", "config.json",
                                        "training_history.json", "README.md")]
 
+    variants = "\n".join(f"- [{v['name']}]({v['name']}/README.md)" for v in config["variants"])
+    root_card = output_dir / "models" / "README.md"
+    root_card.write_text(
+        "---\nlicense: cc-by-4.0\nlibrary_name: pytorch\n---\n\n"
+        f"# Canonical recurrence-tree models: {config['ast_count']:,} sampled trees\n\n"
+        f"{config['generator']['num_series']} source series; one equation per input.\n\n"
+        "## Variants\n\n" + variants + "\n\n"
+        "Use `transformer_skeleton` for skeleton-only targets (no coefficient prediction). "
+        "Its `encoder.safetensors` contains the encoder; `model.safetensors` also contains the decoder.\n\n"
+        "```python\nfrom tsfmxai.symbolic_regression.canonical_models import CanonicalEncoder\n"
+        "encoder = CanonicalEncoder.from_pretrained((repo_id, 'transformer_skeleton'), revision=commit_sha)\n"
+        "```\n\n## Provenance\n\n" + _provenance_lines(provenance, "source") + "\n",
+        encoding="utf-8")
+    files.append(root_card)
     dataset = output_dir / "dataset"
     if (run_dir / "parquet").exists():
         for split in SPLITS:

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def main():
@@ -22,10 +24,29 @@ def main():
                         help="one model repository; each variant goes in its own subfolder")
     parser.add_argument("--dataset-repo", required=True)
     parser.add_argument("--public", action="store_true")
+    parser.add_argument("--replace", action="store_true", help="Replace existing main snapshots, deleting stale files in the same commit")
+    parser.add_argument("--dry-run", action="store_true", help="Validate and show replacement plan without publishing")
     args = parser.parse_args()
     from huggingface_hub import HfApi
 
     api, release = HfApi(), Path(args.release)
+    from tsfmxai.symbolic_regression.canonical_publish import (
+        validate_release, replacement_plan, publish_replacement,
+    )
+    manifest = validate_release(release)
+    if args.replace or args.dry_run:
+        plans = [replacement_plan(api, repo, kind, release / part) for repo, kind, part in (
+            (args.models_repo, "model", "models"), (args.dataset_repo, "dataset", "dataset"))]
+        for plan in plans:
+            print(plan["repo_id"], "parent:", plan["parent_commit"],
+                  "files:", len(plan["files"]), "remove:", plan["delete"], flush=True)
+        if args.dry_run:
+            return
+        for plan in plans:
+            result = publish_replacement(api, plan,
+                "Replace with " + manifest["provenance"]["experiment"])
+            print("published", result.commit_url, flush=True)
+        return
     api.create_repo(args.models_repo, repo_type="model", private=not args.public, exist_ok=True)
     api.create_repo(args.dataset_repo, repo_type="dataset", private=not args.public, exist_ok=True)
     api.upload_folder(repo_id=args.models_repo, repo_type="model", folder_path=release / "models",
