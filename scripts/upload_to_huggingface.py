@@ -29,10 +29,11 @@ def main():
     args = parser.parse_args()
     from huggingface_hub import HfApi
 
-    api, release = HfApi(), Path(args.release)
     from tsfmxai.symbolic_regression.canonical_publish import (
-        validate_release, replacement_plan, publish_replacement,
+        validate_release, replacement_plan, publish_replacement, configure_rate_limit_retries,
     )
+    configure_rate_limit_retries()
+    api, release = HfApi(), Path(args.release)
     manifest = validate_release(release)
     if args.replace or args.dry_run:
         plans = [replacement_plan(api, repo, kind, release / part) for repo, kind, part in (

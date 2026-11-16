@@ -39,3 +39,28 @@ def test_upload_validation_rejects_corruption_and_extra_files(tmp_path):
     (tmp_path / "dataset/stale.parquet").write_bytes(b"old")
     with pytest.raises(ValueError, match="manifest"):
         validate_release(tmp_path)
+
+
+def test_rate_limited_verification_is_retried_without_sleeping_in_test(monkeypatch):
+    import requests
+    import huggingface_hub
+    import time
+    from tsfmxai.symbolic_regression.canonical_publish import configure_rate_limit_retries
+    factories, sleeps, calls = [], [], []
+    responses = [requests.Response(), requests.Response()]
+    responses[0].status_code = 429
+    responses[0].headers["Retry-After"] = "2"
+    responses[0]._content = b""
+    responses[0]._content_consumed = True
+    responses[1].status_code = 200
+    def request(self, *args, **kwargs):
+        calls.append((args, kwargs))
+        return responses[len(calls)-1]
+    monkeypatch.setattr(requests.Session, "request", request)
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    monkeypatch.setattr(huggingface_hub, "configure_http_backend", lambda backend_factory: factories.append(backend_factory))
+    configure_rate_limit_retries()
+    response = factories[0]().request("POST", "https://huggingface.co/example/verify", data=b"verification")
+    assert response.status_code == 200
+    assert sleeps == [2.]
+    assert calls[0] == calls[1]

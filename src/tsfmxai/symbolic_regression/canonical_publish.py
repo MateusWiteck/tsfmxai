@@ -4,6 +4,31 @@ import hashlib
 import json
 
 
+def configure_rate_limit_retries():
+    """Older Hub SDKs do not retry a rate-limited LFS verification POST."""
+    import requests
+    import time
+    from huggingface_hub import configure_http_backend
+
+    class RateLimitSession(requests.Session):
+        def request(self, *args, **kwargs):
+            for attempt in range(60):
+                response = super().request(*args, **kwargs)
+                if response.status_code != 429 or attempt == 59:
+                    return response
+                try:
+                    delay = max(1., float(response.headers.get("Retry-After", "30")))
+                except ValueError:
+                    delay = 30.
+                response.close()
+                while delay > 0:
+                    interval = min(30., delay)
+                    time.sleep(interval)
+                    delay -= interval
+
+    configure_http_backend(backend_factory=RateLimitSession)
+
+
 def validate_release(directory):
     root = Path(directory).resolve()
     manifest = json.loads((root / "release_manifest.json").read_text(encoding="utf-8"))
