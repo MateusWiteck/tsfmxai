@@ -1,0 +1,210 @@
+{
+  "started_utc": "2026-11-16T23:21:06.497574+00:00",
+  "status": "complete",
+  "workers_order": [
+    10,
+    12,
+    14
+  ],
+  "seed": 2021,
+  "data": {
+    "dirichlet_min": 0.1,
+    "dirichlet_max": 2.0,
+    "weibull_shape": 2.0,
+    "weibull_scale": 2.0,
+    "channels": 6,
+    "length": 1024,
+    "context": 96,
+    "horizon": 96,
+    "batch_size": 16,
+    "independent_bank": 20000,
+    "correlated_bank": 15000,
+    "max_kernels": 5,
+    "lmc_stride": 8,
+    "noise_std": 0.1,
+    "seed": 2021
+  },
+  "upstream_sha256": {
+    "LMC_Synth.py": "32b05f9c4aaf4780da32bd05315529396fcdc8b0ab2fb0bd14927542935ed9d9",
+    "kernel-synth.py": "5f0cf9abf9caf3e2139c883b6597c5b0e0442c1afff157dc67cd231e76c5cd15"
+  },
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "torch_version": "2.6.0+cu124",
+  "shared_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/lmc-full-20261116-190347/workers-2/cache",
+  "comparison": "Same Chronos-2 random initialization, 16 examples/update, 16/example microbatch, and identical window IDs. Independent uses one warm cache; each LMC arm has an isolated cold cache.",
+  "timing_limit": "No validation/checkpoint time; nvidia-smi utilization is sampled every second. Exposed next_batch wait is not an exact GPU idle metric. Cold LMC sample may not represent the full stage after cache reuse.",
+  "results": [
+    {
+      "independent_warm": {
+        "family": "independent",
+        "workers": 10,
+        "steps": 500,
+        "start_update": 10000,
+        "warmup_steps": 10,
+        "wall_seconds": 49.851401732012164,
+        "seconds_per_update": 0.09970280346402433,
+        "next_batch_seconds_mean": 4.384173091966659e-05,
+        "next_batch_seconds_median": 4.259651177562773e-05,
+        "train_seconds_mean": 0.0996493108504219,
+        "exposed_input_wait_fraction": 0.00043976672203133784,
+        "gpu": {
+          "samples": 50,
+          "utilization_mean_percent": 99.0,
+          "utilization_max_percent": 99.0,
+          "memory_mean_mib": 3385.0,
+          "memory_max_mib": 3385.0
+        },
+        "pytorch_peak_allocated_mib": 2865.7529296875,
+        "trajectory_count_after": 19998,
+        "dataset_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/lmc-full-20261116-190347/workers-2/cache/b70b6ecbdc6bbdd46fdf/0/independent",
+        "invocation_seconds": 66.24275010300335
+      },
+      "lmc_cold": {
+        "family": "lmc",
+        "workers": 10,
+        "steps": 20,
+        "start_update": 0,
+        "warmup_steps": 0,
+        "wall_seconds": 45.9295133780106,
+        "seconds_per_update": 2.2964756689005297,
+        "next_batch_seconds_mean": 2.1800500330427894,
+        "next_batch_seconds_median": 0.00019720601267181337,
+        "train_seconds_mean": 0.11625117085059174,
+        "exposed_input_wait_fraction": 0.9493745983090164,
+        "gpu": {
+          "samples": 46,
+          "utilization_mean_percent": 3.4565217391304346,
+          "utilization_max_percent": 76.0,
+          "memory_mean_mib": 2291.0,
+          "memory_max_mib": 3393.0
+        },
+        "pytorch_peak_allocated_mib": 2867.4248046875,
+        "trajectory_count_after": 316,
+        "dataset_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/benchmark-workers-10-12-14-20261116/workers-10/cold-cache/b70b6ecbdc6bbdd46fdf/0/lmc",
+        "invocation_seconds": 60.60413917998085
+      },
+      "projection": {
+        "remaining_independent_updates": 334496,
+        "remaining_lmc_updates": 98437,
+        "warm_compute_floor_hours": 11.990176058914011,
+        "naive_cold_lmc_scenario_hours": 72.05787899085104,
+        "method": "Floor assumes warm-cache LMC matches independent rate; cold scenario naively extends initial LMC batch cost and is deliberately an upper scenario, not a calibrated ETA."
+      }
+    },
+    {
+      "independent_warm": {
+        "family": "independent",
+        "workers": 12,
+        "steps": 500,
+        "start_update": 10000,
+        "warmup_steps": 10,
+        "wall_seconds": 49.564708809019066,
+        "seconds_per_update": 0.09912941761803813,
+        "next_batch_seconds_mean": 5.808627442456782e-05,
+        "next_batch_seconds_median": 4.811148392036557e-05,
+        "train_seconds_mean": 0.09906032211054117,
+        "exposed_input_wait_fraction": 0.0005860291278988933,
+        "gpu": {
+          "samples": 50,
+          "utilization_mean_percent": 98.96,
+          "utilization_max_percent": 99.0,
+          "memory_mean_mib": 3397.0,
+          "memory_max_mib": 3397.0
+        },
+        "pytorch_peak_allocated_mib": 2863.7373046875,
+        "trajectory_count_after": 19998,
+        "dataset_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/lmc-full-20261116-190347/workers-2/cache/b70b6ecbdc6bbdd46fdf/0/independent",
+        "invocation_seconds": 68.92865053896094
+      },
+      "lmc_cold": {
+        "family": "lmc",
+        "workers": 12,
+        "steps": 20,
+        "start_update": 0,
+        "warmup_steps": 0,
+        "wall_seconds": 46.317819718969986,
+        "seconds_per_update": 2.3158909859484993,
+        "next_batch_seconds_mean": 2.2020594333531336,
+        "next_batch_seconds_median": 0.00025379398721270263,
+        "train_seconds_mean": 0.11351988014648669,
+        "exposed_input_wait_fraction": 0.9509756027423998,
+        "gpu": {
+          "samples": 47,
+          "utilization_mean_percent": 4.127659574468085,
+          "utilization_max_percent": 99.0,
+          "memory_mean_mib": 2238.9574468085107,
+          "memory_max_mib": 3369.0
+        },
+        "pytorch_peak_allocated_mib": 2867.0185546875,
+        "trajectory_count_after": 316,
+        "dataset_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/benchmark-workers-10-12-14-20261116/workers-12/cold-cache/b70b6ecbdc6bbdd46fdf/0/lmc",
+        "invocation_seconds": 64.4748577469727
+      },
+      "projection": {
+        "remaining_independent_updates": 334496,
+        "remaining_lmc_updates": 98437,
+        "warm_compute_floor_hours": 11.92122115489725,
+        "naive_cold_lmc_scenario_hours": 72.53548740538214,
+        "method": "Floor assumes warm-cache LMC matches independent rate; cold scenario naively extends initial LMC batch cost and is deliberately an upper scenario, not a calibrated ETA."
+      }
+    },
+    {
+      "independent_warm": {
+        "family": "independent",
+        "workers": 14,
+        "steps": 500,
+        "start_update": 10000,
+        "warmup_steps": 10,
+        "wall_seconds": 49.557681191014126,
+        "seconds_per_update": 0.09911536238202825,
+        "next_batch_seconds_mean": 4.6986096422187983e-05,
+        "next_batch_seconds_median": 4.3879030272364616e-05,
+        "train_seconds_mean": 0.09905801842396614,
+        "exposed_input_wait_fraction": 0.00047410417515819593,
+        "gpu": {
+          "samples": 50,
+          "utilization_mean_percent": 99.0,
+          "utilization_max_percent": 99.0,
+          "memory_mean_mib": 3345.0,
+          "memory_max_mib": 3345.0
+        },
+        "pytorch_peak_allocated_mib": 2869.5029296875,
+        "trajectory_count_after": 19998,
+        "dataset_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/lmc-full-20261116-190347/workers-2/cache/b70b6ecbdc6bbdd46fdf/0/independent",
+        "invocation_seconds": 71.925316132023
+      },
+      "lmc_cold": {
+        "family": "lmc",
+        "workers": 14,
+        "steps": 20,
+        "start_update": 0,
+        "warmup_steps": 0,
+        "wall_seconds": 47.79464791301871,
+        "seconds_per_update": 2.3897323956509355,
+        "next_batch_seconds_mean": 2.27635920245084,
+        "next_batch_seconds_median": 0.00016108001000247896,
+        "train_seconds_mean": 0.11288992795161903,
+        "exposed_input_wait_fraction": 0.95275087619992,
+        "gpu": {
+          "samples": 48,
+          "utilization_mean_percent": 3.4583333333333335,
+          "utilization_max_percent": 89.0,
+          "memory_mean_mib": 2006.0,
+          "memory_max_mib": 3365.0
+        },
+        "pytorch_peak_allocated_mib": 2873.7373046875,
+        "trajectory_count_after": 316,
+        "dataset_cache": "/home/vm02/mateus_witeck/tsfmxai/outputs/chronos2_lmc/benchmark-workers-10-12-14-20261116/workers-14/cold-cache/b70b6ecbdc6bbdd46fdf/0/lmc",
+        "invocation_seconds": 68.39336345897755
+      },
+      "projection": {
+        "remaining_independent_updates": 334496,
+        "remaining_lmc_updates": 98437,
+        "warm_compute_floor_hours": 11.9195308839274,
+        "naive_cold_lmc_scenario_hours": 74.55327224611946,
+        "method": "Floor assumes warm-cache LMC matches independent rate; cold scenario naively extends initial LMC batch cost and is deliberately an upper scenario, not a calibrated ETA."
+      }
+    }
+  ],
+  "finished_utc": "2026-11-16T23:27:55.575521+00:00"
+}
