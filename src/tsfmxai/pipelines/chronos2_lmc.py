@@ -216,7 +216,7 @@ def train(model, data, settings, upstream, cache, output, *, resume=False):
                        next_batch_seconds=ready - before, train_seconds=end - ready,
                        examples=data.batch_size)
             history.append(row)
-            if (step + 1) % (100 if total > 100 else 1) == 0 or step + 1 == total:
+            if step == start or (step + 1) % (100 if total > 100 else 1) == 0 or step + 1 == total:
                 observed = step + 1 - start
                 rate = (time.perf_counter() - stage_started) / observed
                 stage_rates[family] = rate
