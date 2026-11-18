@@ -1,0 +1,68 @@
+\subsection{Corrected terminal sampling and generation cost}
+\label{sec:multivariate-generation-results}
+The corrected sampler assigns terminal types during tree construction. Its
+default lag probability starts at 25\% for self-only channels and approaches
+75\% as the effective source count grows. Table~\ref{tab:terminal-sampling}
+reports paired before/after runs with seeds 314159, 271828 and 161803 under
+the diagnostic mixture in Section~\ref{sec:multivariate-generation}. Each run
+contains 500 accepted systems and 4,000 windows. Entries are mean $\pm$
+sample standard deviation across the three seeds ($n=3$, denominator $n-1$).
+They include variability in sampled mechanisms and runtime. The execution order
+is fixed and process load can affect timing.
+\begin{table}[htbp]\centering
+\caption{Uniform combinatorial sampling and corrected terminal sampling, over three seeds.}
+\label{tab:terminal-sampling}
+\small
+\begin{tabular}{lrrrr}\hline
+& \multicolumn{2}{c}{Time (s)} & \multicolumn{2}{c}{System replacements} \\
+Topology & Before & Corrected & Before & Corrected \\\hline
+Independent & $66.7 \pm 1.8$ & $20.5 \pm 0.3$ & $685.7 \pm 42.0$ & $25.0 \pm 9.5$ \\
+Random & $46.9 \pm 0.9$ & $22.7 \pm 0.7$ & $384.7 \pm 17.0$ & $51.3 \pm 5.9$ \\
+Predecessor chain & $47.1 \pm 0.9$ & $22.6 \pm 0.8$ & $376.0 \pm 29.3$ & $46.7 \pm 4.7$ \\
+\hline\end{tabular}\end{table}
+The treated-only eight-worker stage delivered batches of 32 windows in
+53.0--57.9 ms on average after 20 warmup batches.
+Each topology was measured over 100 batches. This stage uses zero originals,
+50\% Shao--Wu, one sixth Jacobian and one third Heaps. The original-channel
+terminal rule has no active channels in this stage. Throughput includes
+prefetch and serialization. Hardware load and single-seed timing limit comparisons.
+
+
+A new paired univariate evaluation used 1,000 candidates per policy and 256
+generated steps, with at most four initial histories. Corrected sampling
+accepted 963 candidates, including 247 lag-free equations and 293 distinct
+canonical supports. Uniform sampling accepted 637 candidates, with 637 supports
+and zero lag-free equations. These support counts describe differently sized
+accepted samples. They are descriptive structural coverage measurements.
+
+Table~\ref{tab:paired-terminal-sampling} restricts the comparison to accepted
+original equations with lag memory, yielding 716 corrected-sampling pairs for
+Shao--Wu and 637 uniform-sampling pairs. Each method receives the same history
+and bounded innovations as its original. Trajectories are standardized separately.
+The ACF error averages absolute differences over lags 1, 2, 4, 8 and 16.
+\begin{table}[htbp]\centering
+\caption{Median paired similarity among accepted originals with lag memory.}
+\label{tab:paired-terminal-sampling}
+\begin{tabular}{llrr}\hline
+Sampling & Method & Correlation & ACF error \\\hline
+Uniform & Shao--Wu & 0.9065 & 0.0484 \\
+Corrected & Shao--Wu & 0.9974 & 0.0187 \\
+Uniform & Jacobian & 0.8891 & 0.0493 \\
+Corrected & Jacobian & 0.7680 & 0.1215 \\
+Uniform & Heaps & 0.2158 & 0.3159 \\
+Corrected & Heaps & 0.2216 & 0.3370 \\\hline
+\end{tabular}\end{table}
+
+Corrected sampling produces accepted original trajectories whose median paired
+similarity to Shao--Wu is high even after excluding lag-free equations. Individual
+pairs can differ substantially. Shared innovations may increase correlation.
+Heaps constructs a different scalar AR and therefore measures a different
+mechanism comparison. The bounded-noise control differs from default Gaussian
+innovations for Shao--Wu and Heaps. This study covers finite-horizon univariate
+trajectories. Distributional coverage of the multivariate treated-only mixture
+requires a separate evaluation. The complete timing record and executed paired
+notebook are stored in the experiment directory
+\begin{quote}\ttfamily
+experiments/multivariate\_generation/\\
+05\_terminal\_sampling\_repeated/
+\end{quote}
