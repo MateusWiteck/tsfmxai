@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tsfmxai.pipelines.prior_baselines import PriorProtocol, _cycle, prepare_corpus, run
+from tsfmxai.pipelines.prior_baselines import (PriorProtocol, RepeatedBatches,
+                                               _cycle, prepare_corpus, run)
 
 
 CONFIG = Path(__file__).resolve().parents[2] / "configs/experiments/prior_baseline_example.json"
@@ -48,3 +49,52 @@ def test_tiny_controlled_run_has_two_stage_checkpoints(tmp_path):
     assert (tmp_path / "train/model_final").is_dir()
     rows = [json.loads(line) for line in (tmp_path / "train/validation.jsonl").read_text().splitlines()]
     assert {row["stage"] for row in rows} == {"independent", "correlated"}
+
+
+def test_repeated_bank_preserves_window_order():
+    class Bank:
+        spec = object()
+
+        def __len__(self):
+            return 3
+
+        def __getitem__(self, index):
+            return index
+
+    repeated = RepeatedBatches(Bank(), 2, 8)
+    assert [repeated[i] for i in range(len(repeated))] == [2, 0, 1, 2, 0, 1]
+
+
+def test_tiny_time_run_stops_by_clock_and_reuses_validation(tmp_path):
+    protocol = PriorProtocol(**{**small_protocol(tmp_path).__dict__,
+                                "max_updates_per_stage": 100,
+                                "time_hours": 0.0002})
+    result = run(protocol, "own", "time", None, tmp_path / "time", device="cpu", tiny=True)
+    assert result["stop_reason"] == "budget_elapsed"
+    assert (tmp_path / "time/validation_corpus/independent/complete").exists()
+    assert result["environment"]["packages"]["torch"]
+
+
+def test_time_run_fails_on_safety_cap(tmp_path):
+    protocol = PriorProtocol(**{**small_protocol(tmp_path).__dict__,
+                                "max_updates_per_stage": 1,
+                                "time_hours": 1})
+    with pytest.raises(RuntimeError, match="Safety update limit"):
+        run(protocol, "own", "time", None, tmp_path / "cap", device="cpu", tiny=True)
+
+
+def test_resume_discards_uncheckpointed_telemetry(tmp_path):
+    protocol = small_protocol(tmp_path)
+    corpus = tmp_path / "corpus"
+    prepare_corpus(protocol, "own", None, corpus)
+    output = tmp_path / "train"
+    run(protocol, "own", "controlled", None, output, corpus=corpus, device="cpu", tiny=True)
+    with (output / "telemetry.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"update": 3, "elapsed_seconds": 100,
+                                 "batch_wait_seconds": 2}) + "\n")
+    result = run(protocol, "own", "controlled", None, output, corpus=corpus,
+                 resume=True, device="cpu", tiny=True)
+    assert result["updates"] == 2
+    assert result["elapsed_seconds"] >= 100
+    assert all(json.loads(line)["update"] <= 2 for line in
+               (output / "telemetry.jsonl").read_text().splitlines())

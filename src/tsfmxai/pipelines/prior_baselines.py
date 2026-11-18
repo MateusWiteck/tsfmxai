@@ -13,14 +13,18 @@ import math
 import os
 from pathlib import Path
 import random
+import shutil
+import subprocess
 import time
+from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 
 from tsfmxai.datasets.lmc_synth import LMCSpec, TimePFNBatches, batch_loader, verify_timepfn
-from tsfmxai.datasets.online import CurriculumStage, OnlineBatchPlan, OnlineBatchDataset, make_dataloader
+from tsfmxai.datasets.online import CurriculumStage, OnlineBatchPlan, OnlineBatchDataset
 from tsfmxai.datasets.multiseries import TrainingFormat, TrajectoryConfig
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
 from tsfmxai.generators.initialization import HistorySpec
@@ -73,8 +77,8 @@ class PriorProtocol:
             raise ValueError("Require at least two updates and a positive time budget")
         if self.batch_size % self.microbatch:
             raise ValueError("microbatch must divide effective batch")
-        if self.own_generated_steps < self.context + self.horizon:
-            raise ValueError("Own trajectory is shorter than context plus horizon")
+        if not self.context + self.horizon <= self.own_generated_steps < self.context + 2 * self.horizon:
+            raise ValueError("Own trajectory must yield exactly one window at stride=horizon")
         if self.own_dependency == "independent":
             raise ValueError("The correlated stage must allow cross-series dependencies")
 
@@ -130,6 +134,20 @@ class SavedBatches(Dataset):
             return {key: torch.from_numpy(sample[key].copy()) for key in ("context", "future")}
 
 
+class RepeatedBatches(Dataset):
+    """Repeat the finite LMC window order without regenerating its raw bank."""
+
+    def __init__(self, source, start, stop):
+        self.source, self.start, self.stop = source, start, stop
+        self.spec = source.spec
+
+    def __len__(self):
+        return self.stop - self.start
+
+    def __getitem__(self, index):
+        return self.source[(self.start + index) % len(self.source)]
+
+
 def _batch_tensors(batch):
     return {key: torch.as_tensor(batch[key], dtype=torch.float32) for key in ("context", "future")}
 
@@ -162,10 +180,20 @@ def prepare_corpus(protocol, arm, upstream, root):
     root = Path(root)
     if root.exists() and any(root.iterdir()):
         raise FileExistsError(f"Corpus directory must be empty: {root}")
+    # np.savez is uncompressed: two float32 arrays of [16,96,6] per update.
+    estimated_bytes = protocol.controlled_updates * protocol.batch_size * (
+        protocol.context + protocol.horizon) * protocol.channels * 4
+    if arm == "lmc":
+        estimated_bytes += (protocol.independent_bank + protocol.correlated_bank *
+                            protocol.channels) * 1024 * 4
+    root.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(root.parent).free < estimated_bytes * 1.2:
+        raise OSError(f"Need at least {estimated_bytes * 1.2 / 1e9:.1f} GB free for the controlled corpus")
     root.mkdir(parents=True, exist_ok=True)
     counts = protocol.stage_updates()
     started = time.perf_counter()
     manifest = {"arm": arm, "counts": counts, "seed": protocol.seed,
+                "estimated_batch_bytes": estimated_bytes,
                 "protocol": asdict(protocol)}
     if arm == "lmc":
         manifest["upstream_sha256"] = verify_timepfn(upstream)
@@ -198,6 +226,67 @@ def _cycle(progress, peak):
     return lr, beta1
 
 
+def _environment(device):
+    packages = {}
+    for package in ("torch", "chronos-forecasting", "numpy", "gluonts", "tsfmxai"):
+        try:
+            packages[package] = version(package)
+        except PackageNotFoundError:
+            packages[package] = None
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"],
+                                         text=True, stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        commit = None
+    gpu = torch.cuda.get_device_name(device) if device.startswith("cuda") else None
+    source_root = Path(__file__).resolve().parents[2]
+    code_hashes = {}
+    for name in ("tsfmxai/pipelines/prior_baselines.py",
+                 "tsfmxai/pipelines/chronos2_lmc.py",
+                 "tsfmxai/datasets/lmc_synth.py", "tsfmxai/datasets/online.py",
+                 "tsfmxai/datasets/multiseries.py",
+                 "tsfmxai/generators/multiseries.py"):
+        code_hashes[name] = hashlib.sha256((source_root / name).read_bytes()).hexdigest()
+    return {"repository_commit": commit, "packages": packages,
+            "torch_cuda": torch.version.cuda, "gpu": gpu,
+            "code_sha256": code_hashes}
+
+
+def _gpu_sample(device):
+    if not device.startswith("cuda"):
+        return {}
+    sample = {"cuda_allocated_peak_bytes": torch.cuda.max_memory_allocated(device),
+              "cuda_reserved_peak_bytes": torch.cuda.max_memory_reserved(device)}
+    try:
+        output = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used",
+             "--format=csv,noheader,nounits", "--id=0"], text=True,
+            stderr=subprocess.DEVNULL, timeout=3)
+        utilization, memory = output.strip().split(",", 1)
+        sample.update(gpu_utilization_percent=float(utilization),
+                      gpu_memory_used_mib=float(memory))
+    except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
+    return sample
+
+
+def _reconcile_log(path, completed):
+    """Keep only telemetry backed by the restored model checkpoint."""
+    if not path.exists():
+        return 0.0, 0
+    retained, discarded = [], []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+        (retained if row["update"] <= completed else discarded).append(row)
+    if discarded:
+        temporary = path.with_suffix(".reconciled")
+        temporary.write_text("".join(json.dumps(row) + "\n" for row in retained), encoding="utf-8")
+        os.replace(temporary, path)
+    latest = max((row["elapsed_seconds"] for row in discarded), default=0.0)
+    wasted_wait = sum(row.get("batch_wait_seconds", 0.0) for row in discarded)
+    return latest, len(discarded), wasted_wait
+
+
 def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
         device="cuda", tiny=False):
     """Run one arm. A checkpoint contains the complete optimizer/clock state."""
@@ -222,6 +311,7 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     output.mkdir(parents=True, exist_ok=True)
     signature = {"arm": arm, "study": study, "protocol": asdict(protocol),
                  "upstream": provenance, "tiny": tiny}
+    environment = _environment(device)
     if study == "controlled":
         manifest = json.loads((Path(corpus) / "manifest.json").read_text(encoding="utf-8"))
         if manifest["arm"] != arm or manifest["protocol"] != asdict(protocol):
@@ -244,10 +334,29 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         if saved["signature"] != signature:
             raise ValueError("Resume signature does not match")
+        if saved.get("environment") != environment:
+            raise ValueError("Resume environment does not match")
         model.load_state_dict(saved["model"])
         optimizer.load_state_dict(saved["optimizer"])
         completed, active_before = saved["updates"], saved["active_seconds"]
         stage, stage_update = saved["stage"], saved["stage_update"]
+        clock_path = output / "latest_clock.json"
+        if clock_path.exists():
+            clock = json.loads(clock_path.read_text(encoding="utf-8"))
+            if (clock["updates"], clock["stage"], clock["stage_update"]) == (
+                    completed, stage, stage_update):
+                active_before = max(active_before, clock["active_seconds"])
+        # Updates after the atomic checkpoint consumed active time but their
+        # model state is unavailable. Charge that measured work and replay it.
+        latest, discarded, wasted_wait = _reconcile_log(output / "telemetry.jsonl", completed)
+        _reconcile_log(output / "validation.jsonl", completed)
+        active_before = max(active_before, latest)
+        if discarded:
+            with (output / "resume_events.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({"replayed_updates": discarded,
+                                         "replayed_batch_wait_seconds": wasted_wait,
+                                         "charged_elapsed_seconds": active_before,
+                                         "utc": datetime.now(timezone.utc).isoformat()}) + "\n")
         torch.set_rng_state(saved["torch_rng"])
         if device.startswith("cuda"):
             torch.cuda.set_rng_state_all(saved["cuda_rng"])
@@ -255,9 +364,6 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     elapsed = lambda: active_before + time.perf_counter() - began
     if study == "controlled":
         counts = protocol.stage_updates()
-    elif arm == "lmc":
-        spec = lmc_spec(protocol)
-        counts = (spec.updates("independent"), spec.updates("lmc"))
     else:
         counts = (protocol.max_updates_per_stage,) * 2
     limit = protocol.time_hours * 3600
@@ -267,9 +373,20 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     interrupted = False
 
     def validate(name):
-        validation = _dataset(protocol, arm, name, upstream, output / "validation_cache",
+        folder = output / "validation_corpus" / name
+        if not (folder / "complete").exists():
+            folder.mkdir(parents=True, exist_ok=True)
+            source = _dataset(protocol, arm, name, upstream, output / "validation_cache",
                               protocol.validation_batches, split=1)
-        loader = _loader(protocol, arm, validation, device)
+            for index in range(protocol.validation_batches):
+                item = _batch_tensors(source[index])
+                temporary = folder / f"{index:08d}.tmp"
+                with temporary.open("wb") as stream:
+                    np.savez(stream, **{key: tensor.numpy() for key, tensor in item.items()})
+                os.replace(temporary, folder / f"{index:08d}.npz")
+            (folder / "complete").write_text("fixed validation batches\n", encoding="utf-8")
+        loader = DataLoader(SavedBatches(folder, protocol.validation_batches), batch_size=None,
+                            num_workers=0, pin_memory=device.startswith("cuda"))
         metrics = evaluate(model, loader, device, protocol.microbatch)
         with (output / "validation.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"stage": name, "update": completed,
@@ -278,6 +395,7 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     def save():
         _sync(device)
         payload = {"signature": signature, "model": model.state_dict(),
+                   "environment": environment,
                    "optimizer": optimizer.state_dict(), "updates": completed,
                    "stage": stage, "stage_update": stage_update,
                    "active_seconds": elapsed(), "torch_rng": torch.get_rng_state(),
@@ -285,6 +403,11 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
         temporary = output / "latest.tmp"
         torch.save(payload, temporary)
         os.replace(temporary, checkpoint)
+        clock_temporary = output / "latest_clock.tmp"
+        clock_temporary.write_text(json.dumps({"updates": completed, "stage": stage,
+                                               "stage_update": stage_update,
+                                               "active_seconds": elapsed()}), encoding="utf-8")
+        os.replace(clock_temporary, output / "latest_clock.json")
 
     model.train()
     try:
@@ -298,7 +421,13 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                 loader = DataLoader(dataset, batch_size=None, num_workers=protocol.workers,
                                     pin_memory=device.startswith("cuda"))
             else:
-                dataset = _dataset(protocol, arm, name, upstream, output / "cache", count, start=stage_update)
+                if arm == "lmc":
+                    bank_updates = lmc_spec(protocol).updates("independent" if stage == 0 else "lmc")
+                    source = _dataset(protocol, arm, name, upstream, output / "cache", bank_updates)
+                    dataset = RepeatedBatches(source, stage_update, count)
+                else:
+                    dataset = _dataset(protocol, arm, name, upstream, output / "cache", count,
+                                       start=stage_update)
                 loader = _loader(protocol, arm, dataset, device)
             iterator = iter(loader)
             for index in range(stage_update, count):
@@ -336,7 +465,9 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                 stage_update = index + 1
                 row = {"stage": name, "update": completed, "stage_update": stage_update,
                        "elapsed_seconds": elapsed(), "batch_wait_seconds": ready-waiting,
-                       "lr": lr, "loss": loss}
+                       "lr": lr, "loss": loss, "windows_seen": completed * protocol.batch_size}
+                if study == "time" and arm == "lmc":
+                    row["window_reuses_stage"] = max(0, stage_update - bank_updates) * protocol.batch_size
                 row["estimated_remaining_hours"] = (
                     max(0., limit - row["elapsed_seconds"]) / 3600 if study == "time"
                     else max(0., protocol.controlled_updates - completed) *
@@ -344,11 +475,14 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                 with (output / "telemetry.jsonl").open("a", encoding="utf-8") as stream:
                     stream.write(json.dumps(row) + "\n")
                 if completed == 1 or completed % 100 == 0:
+                    row.update(_gpu_sample(device))
                     print(json.dumps({"progress": row}), flush=True)
                 if completed % protocol.checkpoint_interval == 0:
                     validate(name)
                     save()
             del iterator, loader
+            if study == "time" and elapsed() < stage_limit and stage_update >= count:
+                raise RuntimeError("Safety update limit reached before time boundary; restart both arms with a larger frozen limit")
             if stage == 0:
                 # Retain the measured boundary, including its weight state.
                 validate(name)
@@ -363,12 +497,34 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     save()
     if not interrupted:
         model.save_pretrained(output / "model_final")
+    stage_counts = {name: 0 for name in stage_names}
     if completed:
+        wait_seconds = 0.0
         with (output / "telemetry.jsonl").open(encoding="utf-8") as stream:
-            wait_seconds = sum(json.loads(line)["batch_wait_seconds"] for line in stream)
+            for line in stream:
+                row = json.loads(line)
+                wait_seconds += row["batch_wait_seconds"]
+                stage_counts[row["stage"]] += 1
+    cache_counts = {}
+    if arm == "lmc":
+        root = output / "cache" if study == "time" else Path(corpus) / "raw_cache"
+        for name in stage_names:
+            family = "independent" if name == "independent" else "lmc"
+            cache_counts[name] = sum(1 for path in root.rglob("*.npy") if path.parent.name == family)
     summary = {"arm": arm, "study": study, "updates": completed,
                "elapsed_seconds": elapsed(), "batch_wait_seconds": wait_seconds,
+               "stage_updates": stage_counts,
+               "batch_wait_fraction": wait_seconds / elapsed() if elapsed() else None,
+               "updates_per_active_hour": completed * 3600 / elapsed() if elapsed() else None,
                "stop_reason": reason, "signature": signature,
+               "environment": environment,
+               "windows_seen": completed * protocol.batch_size,
+               "raw_cached_trajectories": cache_counts if arm == "lmc" else None,
+               "repeated_lmc_windows": (sum(max(0, stage_counts[name] - lmc_spec(protocol).updates(
+                   "independent" if name == "independent" else "lmc")) * protocol.batch_size
+                   for name in stage_names) if arm == "lmc" and study == "time" else None),
+               "own_accepted_trajectories": completed * protocol.batch_size if arm == "own" else None,
+               "gpu": _gpu_sample(device),
                "parameters": sum(p.numel() for p in model.parameters())}
     (output / "result.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
