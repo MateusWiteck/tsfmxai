@@ -5,7 +5,7 @@
  * into the tree and its series, initial values discarded, raw series that are not stable);
  * the fixing enters the diagram, with its four methods and the protection; the canonicalizer
  * (how it iterates, what it costs); the swap for a canonicalizer encoder and the model; and,
- * last, the same steps repeated for N series.
+ * last, the multiseries generator: one system of coupled equations (ZMULTI, zoom_multiseries.js).
  *
  * The scenes of the former generator zoom (ZGEN, zoom_generator.js), of the former
  * equation-head zoom (ZHEAD, zoom_head.js) and the click-through method views
@@ -15,8 +15,8 @@
  */
 (function () {
   const D = window.GEN_DATA, T = window.CANON_TIMING, PIPE = window.PIPE_DATA, Z = window.ZC;
-  const ZG = window.ZGEN, ZH = window.ZHEAD, GD = window.GenDetail, NF = window.NAIVE_FIX;
-  if (!D || !T || !PIPE || !Z || !ZG || !ZH || !GD || !NF) return;
+  const ZG = window.ZGEN, ZH = window.ZHEAD, GD = window.GenDetail, NF = window.NAIVE_FIX, MS = window.ZMULTI;
+  if (!D || !T || !PIPE || !Z || !ZG || !ZH || !GD || !NF || !MS) return;
   const { col, seg, ease, text, wrap, box, arrow, lagName } = Z;
   const W = 1200, H = 500;
 
@@ -110,8 +110,6 @@
   }
 
   // ------------------------------------------------------------------- visual building blocks
-  const LANE_COLORS = [col.blue, col.teal, col.ours];
-
   /** Small tree icon: dots and lines, no labels. tanh nodes get an orange ring. */
   function miniTree(ctx, tree, x, y, w, h, a, scale) {
     const lay = Z.layout(tree, { x, y, w, h });
@@ -474,55 +472,6 @@
     ctx.globalAlpha = 1;
   }
 
-  function scene0b(ctx, p) {
-    const A = (a, b) => ease(seg(p, a, b));
-    const lanes = [
-      { raw: D.raw_tree, fixed: D.protected_tree, ys: D.trajectory, hist: D.history_len },
-      { raw: PIPE.lanes[0].raw_tree, fixed: PIPE.lanes[0].protected_tree, ys: PIPE.lanes[0].trajectory, hist: PIPE.lanes[0].history_len },
-      { raw: PIPE.lanes[1].raw_tree, fixed: PIPE.lanes[1].protected_tree, ys: PIPE.lanes[1].trajectory, hist: PIPE.lanes[1].history_len },
-    ];
-    const y0 = 62, laneH = 96, gap = 8;
-    ["TREE SAMPLER", "FIXED TREE", "SERIES GENERATOR"].forEach((s, i) => {
-      ctx.globalAlpha = A(0, 0.15);
-      text(ctx, s, [130, 385, 700][i], 56, 13.5, col.muted, { align: "center", weight: 700 });
-      ctx.globalAlpha = 1;
-    });
-    lanes.forEach((ln, i) => {
-      const y = y0 + 8 + i * (laneH + gap), color = LANE_COLORS[i], a = A(0.1 + i * 0.22, 0.4 + i * 0.22);
-      cardFrame(ctx, 20, y, 220, laneH, "plain", a);
-      miniTree(ctx, ln.raw, 40, y + 22, 180, laneH - 44, a, 0.9);
-      arrow(ctx, 244, y + laneH / 2, 266, y + laneH / 2, col.muted, 2.2, a);
-      cardFrame(ctx, 270, y, 230, laneH, "plain", a);
-      miniTree(ctx, ln.fixed, 290, y + 22, 140, laneH - 44, a, 0.9);
-      spanner(ctx, 466, y + laneH / 2 + 2, 44, col.teal, a);
-      arrow(ctx, 504, y + laneH / 2, 536, y + laneH / 2, col.muted, 2.2, a);
-      cardFrame(ctx, 540, y, 340, laneH, "plain", a);
-      series(ctx, 556, y + 12, 308, laneH - 24, ln.ys, color, a, { discard: ln.hist, upto: A(0.2 + i * 0.22, 0.6 + i * 0.22), lw: 2.4 });
-      arrow(ctx, 884, y + laneH / 2, 916, 128 + i * 50, color, 2.2, a);
-      ctx.globalAlpha = a;
-      text(ctx, "x" + "₁₂₃"[i], 40 + 188, y + 22, 18, color, { weight: 700, align: "right" });
-      ctx.globalAlpha = 1;
-    });
-    ctx.globalAlpha = A(0.7, 0.9);
-    text(ctx, "⋮", 130, y0 + 8 + 3 * (laneH + gap) + 12, 26, col.muted, { align: "center", weight: 700 });
-    text(ctx, "⋮", 385, y0 + 8 + 3 * (laneH + gap) + 12, 26, col.muted, { align: "center", weight: 700 });
-    text(ctx, "⋮", 700, y0 + 8 + 3 * (laneH + gap) + 12, 26, col.muted, { align: "center", weight: 700 });
-    ctx.globalAlpha = 1;
-
-    ctx.globalAlpha = A(0.55, 0.8);
-    box(ctx, 920, 62, 260, 292, { fill: col.panel, stroke: col.blue, lw: 2.4 });
-    text(ctx, "MULTIVARIATE SERIES", 936, 88, 13.5, col.blue, { weight: 700 });
-    lanes.forEach((ln, i) => series(ctx, 936, 108 + i * 50, 228, 40, ln.ys.slice(ln.hist), LANE_COLORS[i], 1, { lw: 2.2 }));
-    text(ctx, "x₁ … x_N", 1050, 290, 22, col.ink, { align: "center", weight: 700 });
-    text(ctx, "N series, side by side", 1050, 318, 15, col.muted, { align: "center" });
-    ctx.globalAlpha = 1;
-    ctx.globalAlpha = A(0.85, 1);
-    box(ctx, 20, 424, 1160, 66, { fill: col.grey });
-    text(ctx, "To get N series, repeat the same steps N times: one tree per series, each fixed and simulated on its own.", 40, 452, 17, col.ink, { weight: 600 });
-    text(ctx, "Every series drops its initial values and has its own canonical equation, which is its label.", 40, 478, 15.5, col.muted);
-    ctx.globalAlpha = 1;
-  }
-
   function scene1(ctx, p) {
     const n = STEPS_TRACE.length;
     const cur = Math.min(n - 1, Math.floor(ease(seg(p, 0.05, 0.95)) * n));
@@ -715,7 +664,6 @@
   const STAB = "Shares: 5,000 raw trees, 384 steps (experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb); example series: export_pipeline_demo.py.";
   const TRACE_FOOT = "The polynomial after each node is recomputed here with the rules of canonicalize_polynomial; the last node equals the canonical polynomial exported by export_generator_demo.py.";
   const COST_FOOT = "Cost figures: report/slides/scripts/export_canonicalizer_timing.py (Python " + T.python + ", one core, same sampler as the corpus).";
-  const MANY_FOOT = GEN;
 
   /** HTML of the method views (sub, sup, span) drawn on the canvas, in the band above the scene. */
   function drawFormula(ctx, html) {
@@ -790,9 +738,8 @@
     hStep(4, (c, p) => zoomIn(c, p, FOCUS.canon, { fix: 1, show: 1, morph: 1 }, HS[4]), { narr: "Zoom · the canonicalizer encoder", sub: "a sequence the model can write: factors, end of term, coefficient" }),
     hStep(5, HS[5]),
     hStep(6, HS[6]),
-    // ---- many series
-    { narr: "Many series", sub: "repeat the same steps once per series", dur: 6500, foot: MANY_FOOT,
-      run: (c, p) => { scene0b(c, p); veil(c, 1 - seg(p, 0, 0.2)); } },
+    // ---- many series: the multiseries generator (zoom_multiseries.js)
+    ...MS.steps.map((st, i) => (i ? st : Object.assign({}, st, { run: (c, p) => { st.run(c, p); veil(c, 1 - seg(p, 0, 0.2)); } }))),
   ];
 
   // one empty fragment per step after the first: the slide advances through them
