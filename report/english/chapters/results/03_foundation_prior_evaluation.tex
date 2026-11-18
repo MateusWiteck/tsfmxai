@@ -1,0 +1,149 @@
+﻿\subsection{Forecasting from synthetic priors: real-data evaluation}
+\label{sec:foundation-prior-results}
+
+Tables~\ref{tab:air-mae}--\ref{tab:energy-wape} separate the two error
+measures by dataset and channel. The measured entries come from the executed
+local evaluation notebook
+for 2019: 255 eligible daily-grid windows at Ibirapuera and 357 in Bahia,
+each with 96 context and 96 forecast hours. A dash denotes a model that has
+not yet been trained and evaluated; it is not a zero error. The principal
+generator comparisons will use LMC-Synth and this project's generator with
+the same Chronos-2 backbone. The DLinear architecture is from
+\citet{zeng2023transformers}, but its scores below were obtained in this
+project with supervised fitting on 2014--2017 (air) or 2012--2017 (energy),
+validation in 2018, and testing in 2019. It is not a published score for
+either dataset. The DLinear training protocol was revised exploratorily after
+preliminary 2019 inspection; these results should not be described as a
+prespecified, independent benchmark. Both historical LMC checkpoints are
+exploratory: ES was selected by synthetic-validation early stopping, and
+``final'' was saved after the original fixed-update budget. The prospective
+protocol uses its final budget checkpoint as the primary result. Neither
+historical row represents that future matched-budget arm. Seasonal
+naive and our generator have no measured entries yet. The dashes mark missing
+executions, not zero errors.
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{3pt}
+\caption{Ibirapuera 2019: MAE by channel, in original units. O$_3$, NO,
+NO$_2$ are ppbv; CO is ppmv; PM$_{2.5}$ is $\mu$g/m$^3$.}
+\label{tab:air-mae}
+\begin{tabular}{lrrrrr}\toprule
+Model & O$_3$ & NO & NO$_2$ & CO & PM$_{2.5}$ \\\midrule
+Persistence & 16.2164 & 12.9306 & 11.7579 & 0.3162 & 8.9186 \\
+Seasonal 24h (pending) & -- & -- & -- & -- & -- \\
+DLinear (supervised) & 10.2604 & 8.5991 & 7.1457 & 0.1796 & 7.6456 \\
+Chronos-2 + LMC (ES) & 12.3530 & 10.1432 & 8.1350 & 0.2200 & 7.7923 \\
+\quad LMC, final checkpoint & 13.0120 & 12.0548 & 8.8027 & 0.2331 & 8.2568 \\
+Controlled: LMC & -- & -- & -- & -- & -- \\
+Controlled: proposed & -- & -- & -- & -- & -- \\
+Budget: LMC & -- & -- & -- & -- & -- \\
+Budget: proposed & -- & -- & -- & -- & -- \\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{3pt}
+\caption{Ibirapuera 2019: WAPE by channel (\%). The denominator is the
+sum of absolute observed target values for that channel, not a pointwise
+percentage error.}
+\label{tab:air-wape}
+\begin{tabular}{lrrrrr}\toprule
+Model & O$_3$ & NO & NO$_2$ & CO & PM$_{2.5}$ \\\midrule
+Persistence & 74.6253 & 179.1779 & 80.9011 & 83.4835 & 69.5949 \\
+Seasonal 24h (pending) & -- & -- & -- & -- & -- \\
+DLinear (supervised) & 47.2167 & 119.1559 & 49.1666 & 47.4201 & 59.6608 \\
+Chronos-2 + LMC (ES) & 56.8464 & 140.5527 & 55.9734 & 58.0858 & 60.8055 \\
+\quad LMC, final checkpoint & 59.8794 & 167.0412 & 60.5678 & 61.5514 & 64.4306 \\
+Controlled: LMC & -- & -- & -- & -- & -- \\
+Controlled: proposed & -- & -- & -- & -- & -- \\
+Budget: LMC & -- & -- & -- & -- & -- \\
+Budget: proposed & -- & -- & -- & -- & -- \\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{3pt}
+\caption{Bahia 2019: MAE by channel. Demand is in MW; wind and solar are
+dimensionless capacity factors; inflow is in MWh.}
+\label{tab:energy-mae}
+\begin{tabular}{lrrrr}\toprule
+Model & Demand & Wind & Solar & Inflow \\\midrule
+Persistence & 264.8814 & 0.0961 & 0.1816 & 133.2286 \\
+Seasonal 24h (pending) & -- & -- & -- & -- \\
+DLinear (supervised) & 108.1513 & 0.0792 & 0.0275 & 215.2351 \\
+Chronos-2 + LMC (ES) & 229.9932 & 0.0947 & 0.0366 & 118.7217 \\
+\quad LMC, final checkpoint & 250.2420 & 0.0964 & 0.0338 & 119.6153 \\
+Controlled: LMC & -- & -- & -- & -- \\
+Controlled: proposed & -- & -- & -- & -- \\
+Budget: LMC & -- & -- & -- & -- \\
+Budget: proposed & -- & -- & -- & -- \\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{3pt}
+\caption{Bahia 2019: WAPE by channel (\%). As the solar target can be
+zero for many hours, WAPE is computed from channel totals.}
+\label{tab:energy-wape}
+\begin{tabular}{lrrrr}\toprule
+Model & Demand & Wind & Solar & Inflow \\\midrule
+Persistence & 8.2049 & 44.1823 & 100.0000 & 8.0452 \\
+Seasonal 24h (pending) & -- & -- & -- & -- \\
+DLinear (supervised) & 3.3501 & 36.3814 & 15.1264 & 12.9973 \\
+Chronos-2 + LMC (ES) & 7.1242 & 43.5269 & 20.1574 & 7.1692 \\
+\quad LMC, final checkpoint & 7.7514 & 44.3004 & 18.6221 & 7.2231 \\
+Controlled: LMC & -- & -- & -- & -- \\
+Controlled: proposed & -- & -- & -- & -- \\
+Budget: LMC & -- & -- & -- & -- \\
+Budget: proposed & -- & -- & -- & -- \\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{3pt}
+\caption{Prospective protocol records. Controlled-corpus runs will match
+examples and updates; pipeline runs will match elapsed machine hours with
+empty caches. Values await definitive executions.}
+\label{tab:foundation-prior-budget}
+\begin{tabular}{lrrr}\toprule
+Study and generator & Machine hours & Updates & Examples \\\midrule
+Controlled corpus: LMC & -- & -- & -- \\
+Controlled corpus: own generator & -- & -- & -- \\
+Complete pipeline: LMC & -- & -- & -- \\
+Complete pipeline: own generator & -- & -- & -- \\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Additional efficiency diagnostics for the prospective arms.
+``Reuse'' is examples divided by unique source trajectories; batch wait is
+consumer-observed time, not a direct GPU-stall measurement.}
+\label{tab:foundation-prior-efficiency}
+\begin{tabular}{lrrr}\toprule
+Study and generator & Unique trajectories & Reuse & Batch wait (s) \\\midrule
+Controlled corpus: LMC & -- & -- & -- \\
+Controlled corpus: proposed & -- & -- & -- \\
+Complete pipeline: LMC & -- & -- & -- \\
+Complete pipeline: proposed & -- & -- & -- \\\bottomrule
+\end{tabular}
+\end{table}
+
+These historical scores are descriptive. Daily forecast windows overlap, so
+the window count is not a count of independent trials. The DLinear training
+cap was revised after preliminary inspection of 2019 outcomes, although
+its final weights were selected on 2018 validation data. This is not direct
+future-target leakage into optimization, but it limits the independence of
+the 2019 comparison. No temporal-block interval or prospective primary
+summary has yet been computed. The historical cache state and step-indexed
+OneCycle scheduler also preclude treating these checkpoints as the final
+time-matched LMC arm. The new cold-cache run, numerical budget, scheduler,
+and decision rule must be recorded before training the competing arm. The
+reviewer's inspection of the independent-stage learning curves found
+decreasing training loss together with rising synthetic-validation loss
+late in that stage. This pattern is compatible with overfitting, although
+the small historical validation sample and incomplete local telemetry
+preclude quantifying how much of the budget was unproductive. The next run
+will record the full curves and the independent-stage terminal checkpoint.
+
+

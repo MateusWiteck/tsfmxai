@@ -1,0 +1,278 @@
+\subsection{Synthetic generators as forecasting priors}
+\label{sec:foundation-prior-design}
+
+Our primary question is which complete generation-and-training pipeline
+delivers the better zero-shot forecaster under the same machine-time budget.
+It rewards inexpensive generation and higher throughput. A complementary
+exposure-controlled study asks which generator supplies more useful data when
+the number of examples and optimizer updates are equal. The LMC arm samples
+windows from a finite trajectory bank, whereas our generator draws new
+systems for successive batches. This secondary study does not match unique
+trajectory counts. It therefore cannot isolate the content of the synthetic
+mechanisms from the diversity of trajectories. In particular, a tie here and
+a win in the time-limited study would not establish that speed alone caused
+the difference.
+Neither comparison by itself
+identifies which property of the synthetic mechanisms caused a difference. The
+controlled-corpus design follows \citet{nagpal2026mixdontpick}; budget-aware
+training follows \citet{kaddour2023notrainnogain}.
+
+\paragraph{Reference and shared backbone.}
+The LMC-Synth reference is the official TimePFN generator
+\citep{taga2025timepfn}, pinned to the revision recorded in the executed
+notebook. We use its
+independent KernelSynth stage before the correlated LMC stage. Both generator
+arms train the same randomly initialized Chronos-2 backbone
+\citep{ansari2025chronos2}, with six synthetic channels, 96 context steps,
+96 forecast steps, and an effective batch of 16 multivariate examples.
+Here an \emph{example}, or \emph{window}, means 192 consecutive generated time
+steps of one six-channel sample, with all channels aligned: the first
+$96\times6$ values are the context given to Chronos-2 and the following
+$96\times6$ are the forecast targets. A batch contains 16 such windows,
+represented by context and target tensors of shape $16\times96\times6$ each.
+One optimizer update consumes one batch. A source trajectory is a longer
+generated series from which a window is cut. In the independent KernelSynth
+stage, a six-channel sample combines six univariate source trajectories; in
+the correlated LMC stage it comes from one six-channel trajectory. The LMC
+bank can supply multiple windows from its source trajectories, whereas the
+current proposed-generator configuration contributes one window from each
+newly generated six-channel trajectory. Thus equal window counts do not imply
+equal numbers of distinct trajectories.
+
+We chose six channels for \emph{both} synthetic generator arms. This retains
+cross-series dependencies while allowing the six trajectories, their
+dependencies, and their forecast errors to be inspected together in an
+individual example. It also reduces generation and training cost on the
+available RTX~4070. At 160 channels, quantitative metrics remain possible,
+but an individual multivariate case is harder to inspect. We consider six a
+tractable first test of the proposed mechanisms, not evidence that findings
+will transfer to 160 channels. The published TimePFN uses 160 channels and
+another, much smaller architecture; our comparison is an explicit adaptation,
+not a reproduction of its reported result. The LMC's correlated stage and
+our generator both supply six series per window, with cross-series relations
+possible. Unpublished generator parameters are labelled as local
+choices. The recorded source precedence is: this study's explicit
+Chronos-2/six-channel decisions; subsequent author guidance dated
+6 November 2025; the official code revision of 29 July 2025; then the
+original article. Where a numerical value is absent from those sources,
+it is our choice. No generator parameters may be selected using 2019 test
+errors. The proposed generator's parameter ranges and any tuning trials
+must be recorded with their development-only selection data and compute
+cost; the two arms receive a declared, bounded tuning allowance. The
+reference generator comparison uses forecasting loss only. Two further
+interventions on our generator are evaluated below: an auxiliary equation
+head and an additional within-stage difficulty curriculum. The current
+example configuration selects the Shao--Wu treatment exclusively; the
+definitive configuration must pin this choice, not silently substitute a
+mixture of treatments.
+
+\paragraph{Controlled-corpus study.}
+We prepare one offline sequence of batches per generator with equal numbers of
+multivariate examples, channel count, context, and horizon. Generation time is
+measured separately. LMC windows come from its fixed bank and window rule;
+our generator contributes fresh trajectories with one window per trajectory.
+The study controls exposed examples, not unique trajectories or the window
+rule. Three Chronos-2 runs are planned: LMC without an equation head, our
+generator without a head, and our generator with a head. The equation-head
+run uses the same ordered forecasting windows as its no-head control; the
+offline corpus additionally stores the six equation targets and six
+innovation-scale targets per example, with teacher provenance and hashes.
+The three runs share
+the initialization policy, effective batch, optimizer, update count, and
+step-indexed learning-rate schedule. This controls exposure and deliberately
+does not measure the value of producing more examples per hour. The
+prespecified exposure budget is 445,433 updates, divided into 346,996
+independent and 98,437 correlated updates with 16 examples per update. These
+counts follow the finite-window rules of the pinned TimePFN implementation:
+its independent and correlated banks supply 5,551,945 and 1,575,000 candidate
+windows, respectively. The final incomplete batches discard nine and eight
+windows, leaving 7,126,928 exposed examples. Thus the controlled LMC run
+traverses each stage's available full batches once; our generator supplies
+the same number of examples from fresh trajectories. The configuration,
+seed list, and checkpoint rule are recorded before the definitive runs.
+The LMC's independent-to-correlated
+transition is mirrored as independent channels followed by cross-series
+dependencies in our generator. Both arms share a declared stage fraction
+and optimizer schedule. This matches the schedule, not trajectory diversity.
+The independent-to-correlated progression is common to all three runs; it is
+not the curriculum intervention evaluated below.
+
+\paragraph{Complete-pipeline study.}
+The second study fixes one physical machine, including its RTX~4070, CPU,
+RAM, and storage, and a ten-hour active wall-clock budget before any arm is
+trained. Five runs execute sequentially on that machine: LMC without a head;
+our generator without either additional intervention; our generator with the
+head only; our generator with the additional curriculum only; and our
+generator with both. Each receives the full, identical active-time budget.
+All begin with random Chronos-2 backbone weights
+and an empty experiment-specific data cache. The clock includes preparation
+and generation, worker startup, batch waiting, optimization, in-training
+validation, and checkpointing. Concurrent generation and training count once
+by elapsed time. Installation and final real-data evaluation are measured
+separately. LMC can reuse windows from a trajectory generated during its
+run; the proposed generator can introduce fresh trajectories. We record
+generated raw trajectories or an explicitly labelled bound, windows exposed,
+updates, cache occupancy, repeated windows, batch wait, throughput, sampled
+GPU utilization, and peak memory rather than requiring those quantities to
+match. Cold-cache
+pilots test feasibility; their caches are excluded from definitive runs.
+We distinguish a fully precomputed offline corpus, a finite bank filled
+on demand and cached, and continuous generation of new trajectories.
+Short pilots of these regimes measure throughput, exposed batch wait,
+memory, and failure rate. The regime for each arm is chosen from these
+operational measures before examining downstream test errors; the pilot
+selection rule and its cost must be documented. The actual policy for
+trajectory reuse is recorded rather than inferred from the word ``online.''
+
+The time-limited learning-rate schedule must finish within this budget.
+Its phase boundaries, rate values, and division between independent and
+LMC stages are frozen beforehand. Indexing scheduler progress by active
+elapsed time has published precedent \citep{kaddour2023notrainnogain}, but
+its application to these pipelines is our adaptation. The fixed split
+of 0.7790082908091677 is the fraction of updates in the historical
+LMC run; reusing it to divide wall time is a local choice, not an author
+recommendation. All five runs use the same split. The LMC arm can revisit its
+finite window bank. Reaching a safety update limit before the deadline
+invalidates the run instead of ending it as if the budget were spent.
+The primary checkpoint is the last update started before the deadline;
+an in-flight optimizer step is allowed to finish and its overrun is reported.
+Intermediate checkpoints
+serve resumption and diagnosis and are not selected using real test errors.
+Synthetic validation may diagnose training or select a separately labelled
+checkpoint, but the primary checkpoint remains the final-budget checkpoint;
+real datasets never select training checkpoints.
+The independent-stage terminal checkpoint is also retained to diagnose
+what the subsequent LMC stage adds; it is not the primary result. A
+controlled interruption saves weights, optimizer, scheduler, random state,
+stage, and accumulated active elapsed time. Time spent shut down does not
+consume the budget; startup and data work after resumption do. A run that
+cannot restore those states reproducibly is restarted under a new run ID.
+Ten hours is a local cost choice informed by the order of magnitude of the
+first LMC experiment, not a duration prescribed by TimePFN. Its final
+fixed-update checkpoint was actually recorded at about 13.23 hours of
+elapsed training time; therefore ten hours does not reproduce that full run
+or guarantee traversal of its entire finite bank. The historical LMC run
+remains an exploratory reference, not a matched-time result. The exact
+configuration hash and seed list must be recorded before definitive runs.
+
+\paragraph{Auxiliary equation head.}
+For each of the six generated series, a frozen six-series,
+\texttt{transformer\_skeleton} canonicalization encoder supplies one embedding
+of that series's equation. The target describes the skeleton, including
+cross-series references and lags, without requiring parameter prediction.
+The intended teacher is the 30-million-equation release; its exact repository,
+revision, checkpoint digest, vocabulary, and embedding normalization must be
+frozen in the run record before training. The teacher's weights do not receive
+gradients. A second auxiliary output predicts the innovation standard
+deviation for each series. Since the forecasting backbone normalizes each
+input series, this target must be expressed in the same per-series scale seen
+by the backbone: divide the innovation standard deviation in original units
+by the context scale used for that series, then use a declared positive floor
+and a log-scale loss. The precise Chronos-2 scaling convention and treatment
+of near-constant contexts must be verified in the pinned implementation and
+recorded before the definitive runs. Both auxiliary losses and their weights
+are fixed using development-only synthetic data and a declared, bounded tuning
+allowance, identical in principle to the allowance given to the reference
+arm. No weight or teacher checkpoint is chosen using real test errors. At
+real-data inference the auxiliary heads and teacher are unused; all variants
+forecast through the same Chronos-2 backbone and forecast head. We report
+embedding alignment and innovation-scale prediction on disjoint synthetic
+data as diagnostics, separately from real-data forecasting quality.
+
+\paragraph{Additional curriculum and paired controls.}
+All runs already follow the common independent-to-correlated two-stage
+schedule. Here ``additional curriculum'' means ordering examples by difficulty
+\emph{within} each of those stages. The planned difficulty factors are active
+channel count and expression complexity. Six-channel tensor shape is retained
+throughout: when only two or four channels are active, the others are masked.
+Within each stage, the curriculum and its control use the same predetermined
+counts of examples from each difficulty stratum and, where feasible, the same
+indexed examples. The control interleaves the strata throughout the stage;
+the curriculum places them in a frozen easy-to-hard order. This compares
+ordering rather than changing the overall difficulty mixture. The difficulty
+levels, quotas, ordering, masking, and randomization are fixed before training.
+For a time-limited run, different generation costs can still change how many
+examples from each stratum are actually consumed before the deadline. We
+record those realized counts and treat the throughput difference as part of
+the complete-pipeline result; it receives no compensating time. A separate
+exposure-controlled curriculum comparison would be needed to isolate ordering
+from this throughput effect.
+
+\paragraph{Planned contrasts and uncertainty.}
+There are eight prospective training runs per initialization seed: three in
+the controlled-corpus study and five in the complete-pipeline study. The
+primary complete-pipeline decision remains LMC versus our generator without
+either additional intervention. For the equation-head question, the
+prespecified principal contrast is our generator with versus without the head,
+both without the additional curriculum, under the equal-time budget. The
+corresponding controlled-corpus contrast asks whether the result persists at
+equal exposure. The curriculum contrast without a head, its contrast with a
+head, and their difference-in-differences interaction are secondary and
+reported without a separate confirmatory winner claim. All comparisons use
+the same real evaluation origins and channel-wise errors. Paired temporal-block
+intervals quantify uncertainty over those origins, not training-seed
+variability. The seed count has not yet been frozen; if only one seed is
+affordable, all intervention effects and the interaction are exploratory, and
+small differences cannot be distinguished from training randomness. Any
+confirmatory seed-replicated analysis requires a prespecified seed list and
+additional full runs, reported separately from the eight-run-per-seed plan.
+
+\paragraph{Real tasks and information access.}
+Ibirapuera, S\~ao Paulo, provides hourly O$_3$, NO, NO$_2$, CO, and
+PM$_{2.5}$ observations associated with \citet{seguel2022photochemical}.
+The Bahia subset of \citet{deng2023harmonized} provides disaggregated
+electricity demand, modeled wind and solar capacity factors, and hydropower
+inflow. The modeled potentials are not observed generation. Neither source
+paper reports our exact forecasting task. The exploratory protocol evaluates
+every eligible 2019 origin on a 24-hour grid, with 96 context and 96 forecast
+hours. Each channel needs at least 80\% observed values in both halves;
+missing future targets are excluded. Synthetic-pretrained Chronos-2 models
+receive real channels jointly without real-data fitting (zero-shot).
+DLinear \citep{zeng2023transformers} is fitted locally to earlier real years
+and validated on 2018; it is a supervised domain reference. Persistence and
+repetition of the preceding 24 hours are untrained controls. If a past
+same-hour value is missing, the seasonal control searches earlier 24-hour
+lags and finally uses the last observed context value. All methods
+must use identical origins and masks. The seasonal control is specified but
+has not yet been executed in the notebook or reported in the tables. Its
+score is an external adequacy check: we report whether each synthetic arm
+beats it in each channel and on the aggregate. Failure of either arm is
+reported irrespective of which generator wins the head-to-head comparison.
+The current 2019 results are exploratory because they were inspected during
+development. A confirmatory period or region will be selected before
+examining its model outcomes; another state in the Deng dataset is a
+candidate, but its identity, years, channels, and eligibility rule are not
+yet frozen. We will not label the existing 2019 comparison confirmatory.
+
+\paragraph{Metrics and decision rule.}
+For channel $c$, let $\mathcal O_c$ contain its observed target cells:
+\begin{equation}
+\operatorname{MAE}_c=\frac{\sum_{i\in\mathcal O_c}|\hat y_i-y_i|}
+{|\mathcal O_c|},\qquad
+\operatorname{WAPE}_c=100\,
+\frac{\sum_{i\in\mathcal O_c}|\hat y_i-y_i|}
+{\sum_{i\in\mathcal O_c}|y_i|}.
+\label{eq:foundation-prior-errors}
+\end{equation}
+WAPE is undefined for a zero denominator and can exceed 100\%. It avoids
+pointwise division by zero for wind and solar. Raw MAE is never averaged
+across unlike physical units.
+
+For the primary complete-pipeline study, the proposed summary is the
+geometric mean of each channel's MAE
+divided by its 24-hour seasonal-control MAE. Log ratios are averaged within
+each dataset, then the two datasets receive equal weight. A ratio of the
+proposed-generator summary to the LMC summary below one favors the former.
+A paired temporal-block interval wholly below or above one supports the
+corresponding direction; an interval containing one is inconclusive. The
+equation-head principal contrast uses the same hierarchical ratio, with the
+no-head version of our generator as denominator. Ratios for the curriculum
+and interaction contrasts are reported as secondary estimates, without
+promoting the best of several contrasts to a new primary result. The
+block rule, zero-denominator policy, and evaluation period must be frozen
+before this becomes a confirmatory decision. With two domains and a single
+model seed, if that is the eventual budget, the interval describes variation
+over these periods, not over all domains or initializations. The
+controlled-corpus study uses the same
+descriptive tables, but its result is explicitly secondary; it does not
+compete with the primary pipeline decision.
