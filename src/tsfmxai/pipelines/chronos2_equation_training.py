@@ -16,23 +16,44 @@ class Chronos2TrainingSpec:
     embedding_weight: float = 1.0
     noise_weight: float = 1.0
     freeze_forecaster: bool = False
+    initialization: str = 'random'
+    initialization_seed: int = 20261112
 
     def __post_init__(self):
         if not self.model_id or not self.revision:
             raise ValueError('Pin model_id and immutable revision')
         if self.skeleton_dimension < 1 or self.output_patch_size < 1:
             raise ValueError('dimensions must be positive')
+        if self.initialization not in ('random', 'pretrained'):
+            raise ValueError('initialization must be random or pretrained')
+        if self.initialization == 'random' and self.freeze_forecaster:
+            raise ValueError('Cannot freeze a randomly initialized forecaster')
+
+
+def build_forecaster(spec: Chronos2TrainingSpec):
+    """Construct on CPU; random mode downloads configuration only, never weights."""
+    from chronos.chronos2.config import Chronos2CoreConfig
+    from chronos.chronos2.model import Chronos2Model
+
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(spec.initialization_seed)
+        if spec.initialization == 'random':
+            config = Chronos2CoreConfig.from_pretrained(spec.model_id, revision=spec.revision)
+            model = Chronos2Model(config)
+        else:
+            model = Chronos2Model.from_pretrained(spec.model_id, revision=spec.revision)
+    if model.chronos_config.output_patch_size != spec.output_patch_size:
+        raise ValueError('Configured output_patch_size differs from Chronos architecture')
+    return model
 
 
 def load_equation_model(spec: Chronos2TrainingSpec, *, device: str | torch.device):
-    """Load the pinned Chronos-2 checkpoint and attach supervised auxiliary heads."""
-    try:
-        from chronos.chronos2.pipeline import Chronos2Pipeline
-    except ImportError as error:
-        raise ImportError("Install the project Chronos-2 checkout before loading this adapter") from error
-    pipeline = Chronos2Pipeline.from_pretrained(spec.model_id, revision=spec.revision)
-    model = Chronos2EquationModel(pipeline.model, skeleton_dimension=spec.skeleton_dimension,
-                                  freeze_forecaster=spec.freeze_forecaster)
+    """Construct Chronos-2 and auxiliary heads with reproducible initialization."""
+    forecaster = build_forecaster(spec)
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(spec.initialization_seed + 1)
+        model = Chronos2EquationModel(forecaster, skeleton_dimension=spec.skeleton_dimension,
+                                      freeze_forecaster=spec.freeze_forecaster)
     return model.to(device)
 
 
