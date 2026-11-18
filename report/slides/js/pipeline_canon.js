@@ -15,8 +15,8 @@
  */
 (function () {
   const D = window.GEN_DATA, T = window.CANON_TIMING, PIPE = window.PIPE_DATA, Z = window.ZC;
-  const ZG = window.ZGEN, ZH = window.ZHEAD, GD = window.GenDetail;
-  if (!D || !T || !PIPE || !Z || !ZG || !ZH || !GD) return;
+  const ZG = window.ZGEN, ZH = window.ZHEAD, GD = window.GenDetail, NF = window.NAIVE_FIX;
+  if (!D || !T || !PIPE || !Z || !ZG || !ZH || !GD || !NF) return;
   const { col, seg, ease, text, wrap, box, arrow, lagName } = Z;
   const W = 1200, H = 500;
 
@@ -604,6 +604,59 @@
     ctx.globalAlpha = 1;
   }
 
+  /** Why not just shrink every equation by one constant? Measured on the 5,000 plain trees. */
+  function sceneNaive(ctx, p) {
+    const parts = [["explode", col.ours], ["fade to almost zero", col.blue], ["stay alive", col.teal]];
+    box(ctx, 20, 60, 700, 388);
+    text(ctx, "Shrink every equation by the same constant s?", 40, 96, 22, col.ink, { weight: 700 });
+    text(ctx, "x(t) = s · f(past) + noise, the same 5,000 trees, 384 steps", 40, 122, 16, col.muted, { family: Z.SANS });
+    let lx = 40;
+    parts.forEach((g) => {
+      ctx.fillStyle = g[1];
+      ctx.fillRect(lx, 140, 14, 14);
+      text(ctx, g[0], lx + 22, 153, 16, col.ink, { weight: 600 });
+      lx += 50 + Z.measure(ctx, g[0], 16, 600);
+    });
+    const best = NF.rows.reduce((b, r, i) => (r.neither > NF.rows[b].neither ? i : b), 0);
+    NF.rows.forEach((r, i) => {
+      const y = 178 + i * 58, a = ease(seg(p, 0.1 + i * 0.12, 0.45 + i * 0.12)), x0 = 150, w = 530;
+      ctx.globalAlpha = a;
+      text(ctx, r.scale === 1 ? "s = 1 (plain)" : "s = " + r.scale, 40, y + 25, 18, col.ink, { weight: 600 });
+      let x = x0;
+      [r.explode, r.near_zero, r.neither].forEach((v, k) => {
+        const bw = w * v * a;
+        ctx.fillStyle = parts[k][1];
+        ctx.fillRect(x, y, bw, 36);
+        if (v >= 0.07) text(ctx, (100 * v).toFixed(1) + "%", x + bw / 2, y + 24, 15, "#fff", { align: "center", weight: 700 });
+        x += bw;
+      });
+      if (i === best) {
+        ctx.strokeStyle = col.ink;
+        ctx.lineWidth = 2.4;
+        ctx.strokeRect(x0 - 3, y - 3, w + 6, 42);
+      }
+      ctx.globalAlpha = 1;
+    });
+    ctx.globalAlpha = ease(seg(p, 0.7, 1));
+    const b = NF.rows[best];
+    text(ctx, `Best constant (boxed): ${(100 * b.neither).toFixed(1)} % alive, still ${(100 * b.explode).toFixed(1)} % exploding and ${(100 * b.near_zero).toFixed(1)} % collapsed.`, 40, 430, 16.5, col.ink, { weight: 600 });
+    ctx.globalAlpha = 1;
+
+    box(ctx, 740, 60, 440, 388);
+    text(ctx, "Why one constant is not enough", 760, 96, 21, col.ink, { weight: 700 });
+    ctx.globalAlpha = ease(seg(p, 0.35, 0.6));
+    box(ctx, 760, 112, 400, 140, { fill: col.osoft, stroke: col.ours });
+    text(ctx, "1   The right s depends on the tree", 776, 140, 17.5, col.ours, { weight: 700 });
+    wrap(ctx, "Shrink more and fewer series explode, but more collapse to zero; shrink less and many explode. No s serves every tree, and the gain of a tree with 16 lags is not visible in advance.", 776, 166, 370, 22, 15, col.ink);
+    ctx.globalAlpha = ease(seg(p, 0.55, 0.8));
+    box(ctx, 760, 264, 400, 130, { fill: col.soft, stroke: col.blue });
+    text(ctx, "2   Products have no single gain", 776, 292, 17.5, col.blue, { weight: 700 });
+    wrap(ctx, "In x(t−1)·x(t−2) the pull of the past grows with the state itself, so no coefficient bounds it. Tanh does (next).", 776, 318, 370, 22, 15, col.ink);
+    ctx.globalAlpha = ease(seg(p, 0.85, 1));
+    text(ctx, "So each tree gets its own fix.", 760, 428, 17, col.blue, { weight: 700 });
+    ctx.globalAlpha = 1;
+  }
+
   // ----------------------------------------------------------------------------- zoom machinery
   const FOCUS = {
     sampler: { x: 20, y: 252, w: 220, h: 190 },
@@ -709,9 +762,11 @@
     { narr: "Zoom · the raw series are not stable", sub: "a random recurrence explodes or fades", dur: 6500, foot: STAB,
       run: (c, p) => hop(c, p, FOCUS.sampler, sceneSim, FOCUS.series, sceneUnstable, NOFIX) },
     gStep(4, GS.problem),
+    { narr: "Why not just shrink the equation?", sub: "one constant for all trees is not enough", dur: 6500,
+      foot: "Same 5,000 plain trees, seed and diagnostics as experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb (s = 1 reproduces its 52.24 % and 10.36 %); report/slides/scripts/export_naive_fix.py.", run: sceneNaive },
     // ---- the fixing
     { narr: "Introduce the fixing", sub: "the tree is repaired before it is simulated", dur: 5200, foot: GEN,
-      run: (c, p) => (p < 0.45 ? zoomOut(c, p / 0.45, FOCUS.series, NOFIX, GS.problem) : scene0(c, 1, { fix: ease(seg(p, 0.5, 0.95)), show: 1 })) },
+      run: (c, p) => (p < 0.45 ? zoomOut(c, p / 0.45, FOCUS.series, NOFIX, (cc) => sceneNaive(cc, 1)) : scene0(c, 1, { fix: ease(seg(p, 0.5, 0.95)), show: 1 })) },
     { narr: "Zoom · the fixing", sub: "tanh on the lag factors, a certified scale, one of four methods", dur: 7000, foot: STAB,
       run: (c, p) => zoomIn(c, p, FOCUS.fix, FIXED, sceneFix) },
     gStep(5, GS.hub),

@@ -1,0 +1,1 @@
+window.NAIVE_FIX = {"trees":5000,"steps":384,"rows":[{"scale":1.0,"explode":0.5224,"near_zero":0.1036,"neither":0.374},{"scale":0.5,"explode":0.1944,"near_zero":0.1772,"neither":0.6284},{"scale":0.25,"explode":0.0146,"near_zero":0.3226,"neither":0.6628000000000001},{"scale":0.1,"explode":0.0,"near_zero":0.5908,"neither":0.4092}]};

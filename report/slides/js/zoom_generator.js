@@ -157,29 +157,48 @@
     return ys;
   };
   function problem(ctx, p) {
+    // 1,000 plain random trees, one dot each, in the shares measured on 5,000 (52.2 / 10.4 / 37.4 %)
+    const groups = [[522, col.ours, "explode"], [104, col.blue, "fade to almost zero"], [374, col.teal, "stay alive"]];
     box(ctx, 20, 60, 700, 388);
-    text(ctx, "A recurrence feeds its past back into itself", 40, 96, 22, col.ink, { weight: 700 });
-    text(ctx, "x(t) = g · x(t−1) + ε(t)", 40, 142, 30, col.ink, { family: Z.MATH });
-    text(ctx, "g = loop gain, as in an amplifier or a control loop", 40, 170, 17, col.muted);
-    [[0.7, col.teal, "g = 0.7: the past fades"], [1.15, col.ours, "g = 1.15: the past is amplified"]].forEach(([g, c, title], k) => {
-      const ys = loopRun(g), x0 = 40 + k * 338, w = 318, top = 214, h = 170, hi = Math.max(...ys.map(Math.abs));
-      const n = Math.max(2, Math.floor(ys.length * seg(p, k * 0.1, 0.8 + k * 0.1)));
-      ctx.strokeStyle = col.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, top + h); ctx.lineTo(x0 + w, top + h); ctx.stroke();
-      ctx.strokeStyle = c; ctx.lineWidth = 2.6; ctx.beginPath();
-      ys.slice(0, n).forEach((v, i) => { const X = x0 + (i / 30) * w, Y = top + h - (Math.abs(v) / hi) * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
-      ctx.stroke();
-      text(ctx, title, x0, top - 12, 17, c, { weight: 700 });
-      text(ctx, `peak ${hi.toFixed(hi < 10 ? 1 : 0)} within 30 steps`, x0, top + h + 24, 15, col.muted);
+    text(ctx, "Draw 1,000 plain random trees", 40, 96, 22, col.ink, { weight: 700 });
+    text(ctx, "each dot is one tree, its series simulated for 384 steps", 40, 122, 16, col.muted);
+    let lx = 40;
+    groups.forEach((g) => {
+      ctx.fillStyle = g[1];
+      ctx.beginPath(); ctx.arc(lx + 6, 150, 6, 0, Math.PI * 2); ctx.fill();
+      const label = `${g[0]} ${g[2]}`;
+      text(ctx, label, lx + 18, 156, 16, col.ink, { weight: 600 });
+      lx += 34 + Z.measure(ctx, label, 16, 600);
     });
-    text(ctx, "illustrative: |x| shown, same small noise in both", 40, 438, 13, col.muted);
+    const cols = 40, cw = 16, rh = 9.6, x0 = 44, y0 = 174, shown = Math.floor(1000 * seg(p, 0, 0.45));
+    const drop = ease(seg(p, 0.55, 0.8));
+    let k = 0;
+    groups.forEach((g, gi) => {
+      for (let i = 0; i < g[0]; i++, k++) {
+        if (k >= shown) return;
+        const cx = x0 + (k % cols) * cw + 6, cy = y0 + Math.floor(k / cols) * rh + 5;
+        ctx.globalAlpha = gi === 0 ? 1 - 0.78 * drop : 1;  // the exploded ones are discarded
+        ctx.fillStyle = gi === 0 && drop > 0.5 ? "#a9b2c6" : g[1];
+        ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+    ctx.globalAlpha = 1;
+    ctx.globalAlpha = ease(seg(p, 0.65, 0.9));
+    text(ctx, "522 trees sampled and simulated for nothing", 44, 436, 17, col.ours, { weight: 700 });
+    ctx.globalAlpha = 1;
     box(ctx, 740, 60, 440, 388);
-    text(ctx, "Random equations hide their gain", 760, 96, 22, col.ink, { weight: 700 });
-    wrap(ctx, "Ours have up to 16 lags and products of lags, so there is no single g to read off.", 760, 128, 400, 25, 18, col.ink);
-    ctx.globalAlpha = ease(seg(p, 0.5, 0.85));
-    text(ctx, "A plain random tree, nothing added:", 760, 222, 17, col.muted);
-    text(ctx, "49.2 %", 760, 280, 54, col.ours, { weight: 700 });
-    wrap(ctx, "of 128 mechanisms cross |x| > 100 within 384 steps (final-method experiment).", 760, 314, 400, 24, 17, col.ink);
-    text(ctx, "Next: four constructions.", 760, 420, 18, col.blue, { weight: 700 });
+    text(ctx, "Why stabilize?", 760, 96, 22, col.ink, { weight: 700 });
+    ctx.globalAlpha = ease(seg(p, 0.3, 0.55));
+    box(ctx, 760, 112, 400, 148, { fill: col.osoft, stroke: col.ours });
+    text(ctx, "1   No work thrown away", 776, 140, 18, col.ours, { weight: 700 });
+    wrap(ctx, "An exploding tree is found out only after its series is simulated, and then all of that work is discarded.", 776, 166, 370, 22, 15.5, col.ink);
+    text(ctx, "52.2 % of plain trees explode", 776, 244, 17, col.ours, { weight: 700 });
+    ctx.globalAlpha = ease(seg(p, 0.5, 0.75));
+    box(ctx, 760, 272, 400, 130, { fill: col.soft, stroke: col.blue });
+    text(ctx, "2   Closer to real data", 776, 300, 18, col.blue, { weight: 700 });
+    wrap(ctx, "Real series tend to stay bounded or settle. Plain trees explode or collapse to zero: only 37.4 % stay alive.", 776, 326, 370, 22, 15.5, col.ink);
+    ctx.globalAlpha = ease(seg(p, 0.8, 1));
+    text(ctx, "So the tree is fixed before it is simulated.", 760, 430, 17, col.blue, { weight: 700 });
     ctx.globalAlpha = 1;
   }
 
@@ -386,8 +405,8 @@
     { narr: "Our generator in five stages", sub: "a random equation, then its series", dur: 5200 },
     { narr: "① Draw a tree shape", sub: "uniformly among all valid trees", dur: 4200 },
     { narr: "② Bind the numbers", sub: "each slot gets a value", dur: 4200 },
-    { narr: "③ Why stabilize?", sub: "a feedback loop fades or explodes depending on its gain", dur: 5200,
-      foot: "Left: illustrative linear loop. Right: final_methods/00_final_methods_tradeoff.ipynb, 128 random mechanisms without protection, 384 steps; explosion = non-finite or |x| > 100." },
+    { narr: "③ Why stabilize?", sub: "plain random trees waste work and look nothing like real data", dur: 6200,
+      foot: "Shares measured on 5,000 plain random trees, 384 steps, drawn here as 1,000 dots: explosion = |x| > 100, near zero = last 48 values inside ±0.15 (experiments/abstract_syntax_tree/6_stability_methods_tradeoff.ipynb)." },
     { narr: "③ Four constructions, one contract", sub: "drawn at random per series; click one to see how it works", dur: 5600,
       foot: "Comparison numbers: final_methods/00_final_methods_tradeoff.ipynb (128 mechanisms per method, 384 steps; Shao-Wu product_lags). Near zero: every value within ?0.15 over the last 24 steps. Speed measured on one machine." },
     { narr: "④ Run the recurrence", sub: "history, then one step at a time", dur: 9000 },
