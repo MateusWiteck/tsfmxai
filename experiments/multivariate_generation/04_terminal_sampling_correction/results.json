@@ -1,0 +1,26 @@
+[
+  {
+    "topology": "independent",
+    "elapsed": 21.043579500168562,
+    "replacements": 36,
+    "original_equations_resampled": 111,
+    "attempts": 1315,
+    "windows": 4000
+  },
+  {
+    "topology": "random",
+    "elapsed": 22.025599600048736,
+    "replacements": 47,
+    "original_equations_resampled": 153,
+    "attempts": 1426,
+    "windows": 4000
+  },
+  {
+    "topology": "linked_chain",
+    "elapsed": 22.231531700119376,
+    "replacements": 45,
+    "original_equations_resampled": 156,
+    "attempts": 1418,
+    "windows": 4000
+  }
+]

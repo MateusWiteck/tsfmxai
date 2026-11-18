@@ -1,0 +1,64 @@
+{
+  "question": "Does topology-aware terminal sampling improve finite-trajectory acceptance and generation throughput?",
+  "hypothesis": "Lower terminal lag probability reduces numerical rejection.",
+  "configuration": {
+    "seed": 314159,
+    "minimum_lag_probability": 0.25,
+    "maximum": 0.75,
+    "tau": 1.0,
+    "self_weight": 3,
+    "external_cap": 2,
+    "simulation_dtype": "float64",
+    "output_dtype": "float32",
+    "initialization": "RandomHistorySpec defaults",
+    "noise": "std sampled U(.01,.1), Gaussian except bounded uniform Jacobian",
+    "retries": 3
+  },
+  "provenance": {
+    "python": "3.12.10",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git": "f821a537e71410d8a22d3b9ca9c0184324c6c184",
+    "source_sha256": {
+      "src\\tsfmxai\\generators\\combinatorial_expression.py": "f7a8f6bf1d670efea4945ea3838abc74f2a8a5353e50fd9382418bd8885bf259",
+      "src\\tsfmxai\\generators\\contraction.py": "2a45eb711f9c9f588574ef06df58b481f85d7337dd0801c833471e8957f20cde",
+      "src\\tsfmxai\\generators\\heaps.py": "28441edf7297744aaba3a3a45c7fb81f91248b39b3682885664b71271ef8eba2",
+      "src\\tsfmxai\\generators\\initialization.py": "806ca3615b1410a9a102637838e764b279d8c627fb3ddfb3fa5c7a23bca4f13a",
+      "src\\tsfmxai\\generators\\kernel_synth.py": "3f6690aa09518f8d4d1d98dff1a2a8446e3825e0069b9165bac0c0313e3bae2b",
+      "src\\tsfmxai\\generators\\multiseries.py": "ca0b950c07d50a8540e767e4e9745c0a1849d425c0920bf6d7fc7b04c3cb3af9",
+      "src\\tsfmxai\\generators\\random_expression.py": "45956fb0ae9f14bf82b4c94d318f3a5ca7fb40bf40c0daa26a1a3adb9b977278",
+      "src\\tsfmxai\\generators\\shao_wu.py": "d4e0e23ceecb9e7a9051103e94b9ec8de7ef6569babd23792eef6be291c844b3",
+      "src\\tsfmxai\\generators\\stationary.py": "59fd9dad1dbba5e46e2307ccb0a60ecc7aeef25adfef702c425e50635f708d8d",
+      "src\\tsfmxai\\generators\\stochastic.py": "af8abcfccc883c9faeffc927231a8ccd7b2c020f2c1f320b4b7939038ddc56ce",
+      "src\\tsfmxai\\generators\\trajectory.py": "339261b13d58efa9258fc5c2ff7af879e84b37d0e8d6f23f94be8c399ef2dc35",
+      "src\\tsfmxai\\generators\\__init__.py": "262b15628f7f3e96be56efbacc193d16a1669a6468721badc356ebec5dd57244"
+    }
+  },
+  "metrics": [
+    {
+      "topology": "independent",
+      "elapsed": 21.043579500168562,
+      "replacements": 36,
+      "original_equations_resampled": 111,
+      "attempts": 1315,
+      "windows": 4000
+    },
+    {
+      "topology": "random",
+      "elapsed": 22.025599600048736,
+      "replacements": 47,
+      "original_equations_resampled": 153,
+      "attempts": 1426,
+      "windows": 4000
+    },
+    {
+      "topology": "linked_chain",
+      "elapsed": 22.231531700119376,
+      "replacements": 45,
+      "original_equations_resampled": 156,
+      "attempts": 1418,
+      "windows": 4000
+    }
+  ],
+  "scientific_summary": "All three topologies generated 4000 windows. Comparison is one-seed exploratory evidence and changes the scientific prior.",
+  "reproduction": "PYTHONPATH=src .venv/Scripts/python.exe experiments/multivariate_generation/04_terminal_sampling_correction/run.py"
+}

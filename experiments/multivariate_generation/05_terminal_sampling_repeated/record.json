@@ -1,0 +1,212 @@
+{
+  "question": "Runtime and resampling under corrected terminal choice",
+  "seeds": [
+    314159,
+    271828,
+    161803
+  ],
+  "configuration": "run.py, explicit diagnostic mixture and paired sampling policies",
+  "provenance": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git": "f821a537e71410d8a22d3b9ca9c0184324c6c184",
+    "source_sha256": {
+      "src\\tsfmxai\\generators\\combinatorial_expression.py": "f7a8f6bf1d670efea4945ea3838abc74f2a8a5353e50fd9382418bd8885bf259",
+      "src\\tsfmxai\\generators\\contraction.py": "2a45eb711f9c9f588574ef06df58b481f85d7337dd0801c833471e8957f20cde",
+      "src\\tsfmxai\\generators\\heaps.py": "28441edf7297744aaba3a3a45c7fb81f91248b39b3682885664b71271ef8eba2",
+      "src\\tsfmxai\\generators\\initialization.py": "806ca3615b1410a9a102637838e764b279d8c627fb3ddfb3fa5c7a23bca4f13a",
+      "src\\tsfmxai\\generators\\kernel_synth.py": "3f6690aa09518f8d4d1d98dff1a2a8446e3825e0069b9165bac0c0313e3bae2b",
+      "src\\tsfmxai\\generators\\multiseries.py": "ca0b950c07d50a8540e767e4e9745c0a1849d425c0920bf6d7fc7b04c3cb3af9",
+      "src\\tsfmxai\\generators\\random_expression.py": "45956fb0ae9f14bf82b4c94d318f3a5ca7fb40bf40c0daa26a1a3adb9b977278",
+      "src\\tsfmxai\\generators\\shao_wu.py": "d4e0e23ceecb9e7a9051103e94b9ec8de7ef6569babd23792eef6be291c844b3",
+      "src\\tsfmxai\\generators\\stationary.py": "59fd9dad1dbba5e46e2307ccb0a60ecc7aeef25adfef702c425e50635f708d8d",
+      "src\\tsfmxai\\generators\\stochastic.py": "af8abcfccc883c9faeffc927231a8ccd7b2c020f2c1f320b4b7939038ddc56ce",
+      "src\\tsfmxai\\generators\\trajectory.py": "339261b13d58efa9258fc5c2ff7af879e84b37d0e8d6f23f94be8c399ef2dc35",
+      "src\\tsfmxai\\generators\\__init__.py": "262b15628f7f3e96be56efbacc193d16a1669a6468721badc356ebec5dd57244"
+    }
+  },
+  "metrics": [
+    {
+      "seed": 314159,
+      "corrected": false,
+      "topology": "independent",
+      "elapsed": 68.16095190006308,
+      "replacements": 734,
+      "original_equations_resampled": 2125,
+      "attempts": 7140,
+      "windows": 4000
+    },
+    {
+      "seed": 314159,
+      "corrected": false,
+      "topology": "random",
+      "elapsed": 46.202056099893525,
+      "replacements": 404,
+      "original_equations_resampled": 1195,
+      "attempts": 4430,
+      "windows": 4000
+    },
+    {
+      "seed": 314159,
+      "corrected": false,
+      "topology": "linked_chain",
+      "elapsed": 47.57105560018681,
+      "replacements": 409,
+      "original_equations_resampled": 1240,
+      "attempts": 4516,
+      "windows": 4000
+    },
+    {
+      "seed": 314159,
+      "corrected": true,
+      "topology": "independent",
+      "elapsed": 20.82952390005812,
+      "replacements": 36,
+      "original_equations_resampled": 111,
+      "attempts": 1315,
+      "windows": 4000
+    },
+    {
+      "seed": 314159,
+      "corrected": true,
+      "topology": "random",
+      "elapsed": 21.89100329997018,
+      "replacements": 47,
+      "original_equations_resampled": 153,
+      "attempts": 1426,
+      "windows": 4000
+    },
+    {
+      "seed": 314159,
+      "corrected": true,
+      "topology": "linked_chain",
+      "elapsed": 21.659554899903014,
+      "replacements": 45,
+      "original_equations_resampled": 156,
+      "attempts": 1418,
+      "windows": 4000
+    },
+    {
+      "seed": 271828,
+      "corrected": false,
+      "topology": "independent",
+      "elapsed": 67.25126149994321,
+      "replacements": 665,
+      "original_equations_resampled": 1862,
+      "attempts": 6523,
+      "windows": 4000
+    },
+    {
+      "seed": 271828,
+      "corrected": false,
+      "topology": "random",
+      "elapsed": 47.92549640010111,
+      "replacements": 372,
+      "original_equations_resampled": 1075,
+      "attempts": 4163,
+      "windows": 4000
+    },
+    {
+      "seed": 271828,
+      "corrected": false,
+      "topology": "linked_chain",
+      "elapsed": 47.65036280010827,
+      "replacements": 353,
+      "original_equations_resampled": 1038,
+      "attempts": 3999,
+      "windows": 4000
+    },
+    {
+      "seed": 271828,
+      "corrected": true,
+      "topology": "independent",
+      "elapsed": 20.304721500026062,
+      "replacements": 19,
+      "original_equations_resampled": 57,
+      "attempts": 1174,
+      "windows": 4000
+    },
+    {
+      "seed": 271828,
+      "corrected": true,
+      "topology": "random",
+      "elapsed": 22.98586739995517,
+      "replacements": 49,
+      "original_equations_resampled": 146,
+      "attempts": 1446,
+      "windows": 4000
+    },
+    {
+      "seed": 271828,
+      "corrected": true,
+      "topology": "linked_chain",
+      "elapsed": 22.9615009999834,
+      "replacements": 43,
+      "original_equations_resampled": 131,
+      "attempts": 1389,
+      "windows": 4000
+    },
+    {
+      "seed": 161803,
+      "corrected": false,
+      "topology": "independent",
+      "elapsed": 64.67398279998451,
+      "replacements": 658,
+      "original_equations_resampled": 1863,
+      "attempts": 6489,
+      "windows": 4000
+    },
+    {
+      "seed": 161803,
+      "corrected": false,
+      "topology": "random",
+      "elapsed": 46.68077820003964,
+      "replacements": 378,
+      "original_equations_resampled": 1126,
+      "attempts": 4185,
+      "windows": 4000
+    },
+    {
+      "seed": 161803,
+      "corrected": false,
+      "topology": "linked_chain",
+      "elapsed": 46.03868469991721,
+      "replacements": 366,
+      "original_equations_resampled": 1069,
+      "attempts": 4142,
+      "windows": 4000
+    },
+    {
+      "seed": 161803,
+      "corrected": true,
+      "topology": "independent",
+      "elapsed": 20.302678300067782,
+      "replacements": 20,
+      "original_equations_resampled": 58,
+      "attempts": 1176,
+      "windows": 4000
+    },
+    {
+      "seed": 161803,
+      "corrected": true,
+      "topology": "random",
+      "elapsed": 23.265439299866557,
+      "replacements": 58,
+      "original_equations_resampled": 186,
+      "attempts": 1501,
+      "windows": 4000
+    },
+    {
+      "seed": 161803,
+      "corrected": true,
+      "topology": "linked_chain",
+      "elapsed": 23.183155999984592,
+      "replacements": 52,
+      "original_equations_resampled": 159,
+      "attempts": 1444,
+      "windows": 4000
+    }
+  ],
+  "scientific_summary": "Corrected terminal sampling reduced replacements and mean elapsed time for all topologies across three seeds.",
+  "reproduction": "PYTHONPATH=src python experiments/multivariate_generation/05_terminal_sampling_repeated/run.py"
+}
