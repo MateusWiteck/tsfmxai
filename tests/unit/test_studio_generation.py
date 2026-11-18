@@ -1,12 +1,9 @@
-import json
-
 import numpy as np
 import pytest
 
 from tsfmxai.generators import RandomTreeConfig, initialize_shao_wu_history
 from tsfmxai.representations import Lag, Tanh, walk
 from tsfmxai.visualization.studio_generation import METHODS, sample_studio_system, sample_studio_trajectories
-from frontend.app import FrontendHandler
 
 
 @pytest.mark.parametrize("method", METHODS)
@@ -36,25 +33,6 @@ def test_studio_methods_generate_reproducible_two_channel_batches(method):
             assert all(n.variable == i for n in walk(equation.expression) if isinstance(n, Lag))
 
 
-@pytest.mark.parametrize("method", METHODS)
-def test_frontend_routes_serialize_all_method_trees_and_certificates(method):
-    class Handler:
-        _write_json = lambda self, payload: setattr(self, "payload", payload)
-    handler = Handler()
-    FrontendHandler._sample_system(handler, {"stability_method": method, "seed": 19,
-                                            "maximum_operators": 2, "maximum_lag": 3,
-                                            "innovation_std": .05})
-    mechanism = handler.payload
-    assert mechanism["stability_method"] == method
-    assert len(mechanism["equations"]) == 2
-    json.dumps(mechanism, allow_nan=False)
-    FrontendHandler._sample_trajectories(handler, {"mechanism_id": mechanism["id"],
-                                                 "trajectory_count": 2, "generated_steps": 8,
-                                                 "innovation_std": .05})
-    assert len(handler.payload["trajectories"]) == 2
-    json.dumps(handler.payload, allow_nan=False)
-
-
 def test_unknown_method_and_changed_certified_noise_are_rejected():
     config = RandomTreeConfig(num_series=2, maximum_lag=2)
     with pytest.raises(ValueError, match="desconhecido"):
@@ -70,12 +48,3 @@ def test_shao_wu_has_only_product_lag_guarantee():
                                   method="shao_wu", seed=19)
     assert system.certificates[0]["guarantee"] == "geometric_moment_contraction"
     assert system.certificates[0]["holds"]
-
-
-def test_frontend_rejects_removed_shao_wu_selector():
-    class Handler:
-        _write_json = lambda self, payload: setattr(self, "payload", payload)
-
-    with pytest.raises(ValueError, match="shao_wu_mode foi removido"):
-        FrontendHandler._sample_system(Handler(), {"stability_method": "shao_wu",
-                                                   "shao_wu_mode": "product_output"})

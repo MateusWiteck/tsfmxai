@@ -3,188 +3,130 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Visualização local de mecanismos e séries sintéticas do tsfmxai" />
+    <meta name="description" content="Pré-visualização do gerador multivariado de séries sintéticas do tsfmxai" />
     <title>tsfmxai · Mechanism Studio</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand-mark">τ</div>
-      <div>
+      <div class="brand-text">
         <p class="eyebrow">TSFMXAI / LABORATÓRIO LOCAL</p>
         <h1>Mechanism Studio</h1>
       </div>
-      <div class="scope-chip"><span></span> sistema multivariado · 2 séries</div>
+      <div class="scope-chip" id="scope-chip"><span></span><em id="scope-text">gerador multivariado de treino</em></div>
     </header>
 
-    <main>
-      <section class="hero">
-        <div>
-          <p class="kicker">Do mecanismo às observações</p>
-          <h2>Sorteie duas regras.<br />Observe um só sistema.</h2>
+    <div class="layout">
+      <aside class="sidebar" aria-label="Parâmetros da geração">
+        <div class="sidebar-intro">
+          <h2>Parâmetros</h2>
+          <p>Passe o mouse sobre o <span class="info inline" aria-hidden="true">i</span> para ver o que cada parâmetro controla. Tudo aqui é executado pelo mesmo gerador que alimenta o treinamento.</p>
         </div>
-        <p class="hero-copy">
-          Duas árvores definem as recorrências de <code>x₀</code> e <code>x₁</code>. Cada
-          equação pode consultar lags das duas variáveis; todas as trajetórias preservam o
-          sistema e alteram apenas condições iniciais e inovações reproduzíveis.
-        </p>
-      </section>
+        <div class="presets" id="presets" role="group" aria-label="Pontos de partida"></div>
+        <form id="controls" autocomplete="off" onsubmit="return false"></form>
+        <div class="sidebar-actions">
+          <button class="primary" id="generate-system" type="button">Gerar sistema e trajetórias</button>
+          <button class="secondary" id="generate-series" type="button" disabled>Sortear novas trajetórias (mesmo sistema)</button>
+        </div>
+      </aside>
 
-      <section class="workspace">
-        <section class="controls panel" aria-label="Configuração da geração">
-          <div class="control-group">
-          <div class="panel-heading">
-            <div><span class="step">01</span><h3>Configurar sistema</h3></div>
-            <button class="icon-button" id="randomize-tree-seed" title="Sortear outra seed">↻</button>
-          </div>
+      <main class="content">
+        <div id="status" class="status" role="status"></div>
 
-          <div class="field full">
-            <label for="stability-method">Controle de explosão</label>
-            <select id="stability-method">
-              <option value="none">Nenhum — AST livre</option>
-              <option value="coefficient_gate">Coeficientes nos lags — heurística</option>
-              <option value="contraction">Contração por Jacobiano — domínio limitado</option>
-              <option value="shao_wu">Shao–Wu — saturação de produtos</option>
-              <option value="heaps">Heaps — VAR(p) estacionário</option>
-              <option value="stationary_var1">VAR(1) — raio espectral menor que 1</option>
-            </select>
-            <p class="muted" id="stability-description"></p>
+        <section class="hero panel">
+          <div>
+            <p class="kicker">Do mecanismo às observações</p>
+            <h2>Um sistema multivariado,<br />muitas realizações.</h2>
           </div>
-          <div class="field full">
-            <label for="tree-seed">Seed do mecanismo</label>
-            <input id="tree-seed" type="number" value="20260930" min="0" />
-          </div>
-          <div class="field-grid">
-            <div class="field">
-              <label for="min-operators">Operadores mín.</label>
-              <input id="min-operators" type="number" value="1" min="0" max="12" />
-            </div>
-            <div class="field">
-              <label for="max-operators">Operadores máx.</label>
-              <input id="max-operators" type="number" value="5" min="0" max="12" />
-            </div>
-            <div class="field">
-              <label for="min-lag">Lag mínimo</label>
-              <input id="min-lag" type="number" value="1" min="1" max="48" />
-            </div>
-            <div class="field">
-              <label for="max-lag">Lag máximo</label>
-              <input id="max-lag" type="number" value="16" min="1" max="48" />
-            </div>
-          </div>
-
-          <details>
-            <summary>Distribuição dos nós</summary>
-            <div class="field-grid nested">
-              <div class="field"><label for="p-parameter">P(parâmetro)</label><input id="p-parameter" type="number" value="0.45" min="0" max="1" step="0.05" /></div>
-              <div class="field"><label for="p-lag">P(lag)</label><input id="p-lag" type="number" value="0.55" min="0" max="1" step="0.05" /></div>
-              <div class="field"><label for="p-add">P(adição)</label><input id="p-add" type="number" value="0.65" min="0" max="1" step="0.05" /></div>
-            </div>
-            <label class="check"><input id="require-lag" type="checkbox" checked /><span>Exigir ao menos um lag</span></label>
-          </details>
-
-          <button class="primary" id="generate-tree">Gerar duas equações</button>
-          </div>
-          <div class="control-group">
-          <div class="panel-heading compact">
-            <div><span class="step">02</span><h3>Sortear trajetórias</h3></div>
-            <button class="icon-button" id="randomize-series-seed" title="Sortear outra seed">↻</button>
-          </div>
-          <div class="field full"><label for="series-seed">Seed das trajetórias</label><input id="series-seed" type="number" value="314159" min="0" /></div>
-          <div class="field-grid">
-            <div class="field"><label for="trajectory-count">Trajetórias</label><input id="trajectory-count" type="number" value="12" min="1" max="80" /></div>
-            <div class="field"><label for="generated-steps">Passos gerados</label><input id="generated-steps" type="number" value="60" min="1" max="500" /></div>
-            <div class="field"><label for="initial-min">Inicial mín.</label><input id="initial-min" type="number" value="-1" step="0.1" /></div>
-            <div class="field"><label for="initial-max">Inicial máx.</label><input id="initial-max" type="number" value="1" step="0.1" /></div>
-          </div>
-          <div class="field full range-field">
-            <label for="innovation"><span id="innovation-label">Desvio da inovação</span> <output id="innovation-value">0.00</output></label>
-            <input id="innovation" type="range" value="0" min="0" max="1" step="0.01" />
-          </div>
-          <button class="secondary" id="generate-series" disabled>Sortear trajetórias</button>
-          <p class="control-note"><strong>num_series = 2</strong>. Cada amostra fixa uma equação para <code>x₀(t)</code> e outra para <code>x₁(t)</code>. Na contração por Jacobiano, as duas séries são independentes.</p>
-          </div>
+          <p class="hero-copy">
+            Cada canal tem a sua própria equação, sorteada como árvore e cobrindo lags de si
+            mesmo e dos canais permitidos pela topologia. O que você vê abaixo é exatamente o que o
+            gerador de treino produz: as equações, o grafo de dependências e janelas de
+            <strong>contexto + horizonte</strong>, para avaliar as séries antes de gastar tempo treinando.
+          </p>
         </section>
 
-        <div class="results">
-          <div id="status" class="status" role="status">Preparando o laboratório…</div>
-          <p class="muted" id="stability-summary" role="status"></p>
+        <section class="kpis" id="kpis" aria-label="Resumo do sistema"></section>
 
-          <section class="panel formula-panel">
-            <div class="section-title"><span>SYSTEM / 2 EQUATIONS</span><h3>Recorrências sorteadas</h3></div>
-            <div class="equation-grid" id="equation-grid">
-              <p class="empty">Gere um sistema para visualizar suas equações.</p>
+        <section class="two-column">
+          <article class="panel">
+            <div class="section-title"><div><span>TOPOLOGY</span><h3>Quem influencia quem <i class="info" data-tip="Cada seta vai da fonte para o canal que a lê. Seta cheia: a fonte realmente aparece na equação. Seta tracejada: a topologia permitia a fonte, mas a árvore sorteada não a usou. Anel duplo marca canais com tratamento Shao–Wu.">i</i></h3></div></div>
+            <div id="graph" class="graph"><p class="empty">Gere um sistema para ver sua topologia.</p></div>
+            <div class="legend">
+              <span><i class="swatch solid"></i>fonte usada</span>
+              <span><i class="swatch dashed"></i>permitida, não usada</span>
+              <span><i class="swatch ring"></i>Shao–Wu</span>
             </div>
-            <div class="metrics" id="tree-metrics"></div>
-          </section>
+          </article>
+          <article class="panel">
+            <div class="section-title"><div><span>STRUCTURAL SUPPORT</span><h3>Mapa canal–lag <i class="info" data-tip="Linhas são os canais-alvo; colunas, as fontes. Cada célula lista os lags da fonte que aparecem na equação do alvo. Células hachuradas não eram permitidas pela topologia.">i</i></h3></div></div>
+            <div id="dependency-map" class="dependency-map"><p class="empty">Nenhum sistema disponível.</p></div>
+          </article>
+        </section>
 
-          <section class="two-column">
-            <article class="panel visual-panel">
-              <div class="section-title split-title">
-                <div><span>STRUCTURE</span><h3>Árvore de <span id="active-tree-target">x₀(t)</span></h3></div>
-                <div class="equation-tabs" id="equation-tabs" aria-label="Equação exibida"></div>
-              </div>
-              <div id="tree-visualization" class="tree-stage"><p class="empty">Gere um sistema para visualizar sua estrutura.</p></div>
-              <div class="legend"><span class="operator-dot"></span>operador <span class="lag-dot"></span>lag <span class="parameter-dot"></span>parâmetro</div>
-            </article>
-            <article class="panel binding-panel">
-              <div class="section-title"><span>BINDING</span><h3>Valores de <span id="active-binding-target">x₀(t)</span></h3></div>
-              <p class="muted">A estrutura permanece fixa; coeficientes contínuos e lags discretos ocupam slots próprios.</p>
-              <div id="binding-table" class="binding-table"><p class="empty">Nenhum binding disponível.</p></div>
-            </article>
-          </section>
+        <section class="panel">
+          <div class="section-title"><div><span>EQUATIONS</span><h3>Recorrências sorteadas <i class="info" data-tip="Uma equação por canal. A forma executada já inclui o tratamento do canal (saturação com tanh e escala de Shao–Wu, quando houver). A forma canônica é o polinômio normalizado que a cabeça de equação aprende a prever.">i</i></h3></div><p class="section-note">Clique em um canal para inspecionar sua árvore.</p></div>
+          <div class="equation-grid" id="equation-grid"><p class="empty">Gere um sistema para visualizar suas equações.</p></div>
+        </section>
 
-          <section class="panel chart-panel">
+        <section class="two-column">
+          <article class="panel visual-panel">
+            <div class="section-title"><div><span>STRUCTURE</span><h3>Árvore de <span id="active-tree-target">x₀(t)</span> <i class="info" data-tip="A árvore da equação executada do canal selecionado. Nós de operador (+, ×, tanh) em verde, lags em azul e coeficientes em laranja.">i</i></h3></div></div>
+            <div id="tree-visualization" class="tree-stage"><p class="empty">Gere um sistema para visualizar sua estrutura.</p></div>
+            <div class="legend"><span><i class="dot operator"></i>operador</span><span><i class="dot lag"></i>lag</span><span><i class="dot parameter"></i>coeficiente</span></div>
+          </article>
+          <article class="panel">
+            <div class="section-title"><div><span>BINDING</span><h3>Valores de <span id="active-binding-target">x₀(t)</span> <i class="info" data-tip="A estrutura da árvore fica fixa; os coeficientes contínuos e os lags discretos ocupam slots próprios, sorteados depois da estrutura.">i</i></h3></div></div>
+            <div id="binding-table" class="binding-table"><p class="empty">Nenhum binding disponível.</p></div>
+          </article>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="section-title chart-title">
+            <div><span>TRAJECTORIES / PLAYER</span><h3>Uma realização por vez <i class="info" data-tip="Todas as realizações compartilham o mesmo sistema; mudam apenas o histórico inicial e o ruído. A área azulada é o contexto que o modelo recebe; a alaranjada, o horizonte que ele deve prever.">i</i></h3></div>
+            <div class="acceptance" id="acceptance"></div>
+          </div>
+          <div class="trajectory-controls">
+            <button type="button" id="trajectory-previous" class="secondary" disabled>← Anterior</button>
+            <button type="button" id="trajectory-play" class="secondary" aria-pressed="false" disabled>▶ Reproduzir</button>
+            <button type="button" id="trajectory-next" class="secondary" disabled>Próxima →</button>
+            <label for="trajectory-speed">Tempo por realização
+              <select id="trajectory-speed"><option value="750">0,75 s</option><option value="1500" selected>1,5 s</option><option value="3000">3 s</option><option value="5000">5 s</option></select>
+            </label>
+            <label for="trajectory-scale">Escala <i class="info" data-tip="Linear mostra os valores como são. Logarítmica com sinal usa sign(x)·log₁₀(1+|x|) e é útil quando um canal cresce muito; os rótulos continuam em unidades originais.">i</i>
+              <select id="trajectory-scale"><option value="linear">Linear</option><option value="symlog">Log. com sinal</option></select>
+            </label>
+            <label class="check" for="show-history"><input type="checkbox" id="show-history" checked /><span>Mostrar histórico inicial <i class="info" data-tip="Mostra os valores usados apenas para começar a recorrência (lags máximos). Eles não fazem parte da janela de treino.">i</i></span></label>
+          </div>
+          <div class="trajectory-selector">
+            <label for="trajectory-select" id="trajectory-position">Nenhuma trajetória</label>
+            <input type="range" id="trajectory-select" min="1" max="1" value="1" step="1" disabled />
+          </div>
+          <div class="init-components" id="initialization-components" hidden></div>
+          <p class="muted" id="trajectory-caption">Cada painel usa sua própria escala; o tempo permanece alinhado entre os canais.</p>
+          <div class="canvas-wrap" id="trajectory-wrap"><canvas id="trajectory-chart"></canvas></div>
+          <div class="legend"><span><i class="swatch band-context"></i>contexto</span><span><i class="swatch band-horizon"></i>horizonte</span><span><i class="swatch history"></i>histórico inicial</span><span class="readout" id="readout"></span></div>
+        </section>
+
+        <section class="two-column lower">
+          <article class="panel phase-panel">
             <div class="section-title chart-title">
-              <div><span>TRAJECTORIES / PLAYER</span><h3>Uma trajetória por vez</h3></div>
-              <p id="trajectory-caption">Cada painel usa sua própria escala; o tempo permanece alinhado.</p>
-            </div>
-            <div class="trajectory-controls">
-              <button type="button" id="trajectory-previous" class="secondary" disabled>Anterior</button>
-              <button type="button" id="trajectory-play" class="secondary" aria-pressed="false" disabled>Reproduzir</button>
-              <button type="button" id="trajectory-next" class="secondary" disabled>Próxima</button>
-              <label for="trajectory-speed">Tempo por trajetória
-                <select id="trajectory-speed"><option value="750">0,75 s</option><option value="1500" selected>1,5 s</option><option value="3000">3 s</option><option value="5000">5 s</option></select>
-              </label>
-              <label for="trajectory-scale">Escala
-                <select id="trajectory-scale"><option value="linear">Linear</option><option value="symlog">Logarítmica com sinal</option></select>
-              </label>
-            </div>
-            <div class="trajectory-selector">
-              <label for="trajectory-select" id="trajectory-position">Nenhuma trajetória</label>
-              <input type="range" id="trajectory-select" min="1" max="1" value="1" step="1" disabled />
-            </div>
-            <p class="muted">Cada quadro mostra a trajetória completa de x₀ e x₁ da mesma realização. A escala se ajusta a ela; reproduzir percorre todas as trajetórias uma vez. A escala logarítmica com sinal usa sign(x) · log₁₀(1 + |x|).</p>
-            <div class="canvas-wrap"><canvas id="trajectory-chart"></canvas></div>
-            <div class="chart-legend"><span class="line-x0"></span>x₀ <span class="line-x1"></span>x₁ <span class="line-start"></span>início da recorrência</div>
-          </section>
-
-          <section class="two-column lower">
-            <article class="panel heatmap-panel">
-              <details id="ensemble-overview"><summary>Visão geral de todas as trajetórias</summary>
-              <div class="section-title"><span>ENSEMBLE × VARIABLE</span><h3>Mapas das duas séries</h3></div>
-              <div class="canvas-wrap heatmap-wrap"><canvas id="heatmap"></canvas></div>
-              <p class="muted">Os blocos de x₀ e x₁ usam escalas de cor independentes. Cada linha é uma trajetória do mesmo sistema.</p>
-              </details>
-            </article>
-            <article class="panel dependency-panel">
-              <div class="section-title"><span>STRUCTURAL SUPPORT</span><h3>Mapa variável–lag</h3></div>
-              <p class="muted">Cada célula informa quais lags da variável-fonte aparecem na equação da variável-alvo.</p>
-              <div id="dependency-map" class="dependency-map"><p class="empty">Nenhum sistema disponível.</p></div>
-            </article>
-          </section>
-
-          <section class="panel phase-panel">
-            <div class="section-title chart-title">
-              <div><span>JOINT DYNAMICS</span><h3>Espaço de estados x₀ × x₁</h3></div>
-              <p>Trajetória selecionada: o mesmo quadro dos painéis temporais, com escala própria.</p>
+              <div><span>JOINT DYNAMICS</span><h3>Espaço de estados <i class="info" data-tip="Plano entre dois canais da realização selecionada. Com um único canal, mostra x(t−1) contra x(t). O ponto marca o início da janela.">i</i></h3></div>
+              <div class="phase-selects"><label>x <select id="phase-x"></select></label><label>y <select id="phase-y"></select></label></div>
             </div>
             <div class="canvas-wrap phase-wrap"><canvas id="phase-chart"></canvas></div>
-            <div class="chart-legend"><span class="line-x0"></span>trajetória selecionada <span class="phase-start-dot"></span>início da recorrência</div>
-          </section>
-        </div>
-      </section>
-    </main>
+          </article>
+          <article class="panel heatmap-panel">
+            <details id="ensemble-overview"><summary>Visão geral de todas as realizações <i class="info" data-tip="Um mapa de calor por canal: cada linha é uma realização do mesmo sistema, e a cor mostra o valor ao longo do tempo (laranja positivo, azul negativo).">i</i></summary>
+              <div class="canvas-wrap heatmap-wrap"><canvas id="heatmap"></canvas></div>
+              <p class="muted">Cada canal usa sua própria escala de cor.</p>
+            </details>
+          </article>
+        </section>
+      </main>
+    </div>
+    <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
     <script src="/app.js"></script>
   </body>
 </html>

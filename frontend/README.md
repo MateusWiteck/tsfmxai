@@ -1,7 +1,10 @@
 # Mechanism Studio
 
-Local interface for inspecting a sampled two-equation system and drawing
-multiple multivariate trajectories from the same bound recurrences.
+Local interface to preview the **multivariate training generator** before
+spending time on training. It runs the same code the training pipeline uses:
+`sample_multiseries_system` for the system and `TrainingBatchStream` for the
+trajectories. The adapter lives in `src/tsfmxai/visualization/studio_multiseries.py`;
+the frontend reimplements no scientific behavior.
 
 ## Run
 
@@ -11,78 +14,38 @@ From the repository root:
 .\.venv\Scripts\python.exe frontend\app.py
 ```
 
-Then open <http://127.0.0.1:8000>.
+Then open <http://127.0.0.1:8000>. Default values are served by
+`/api/defaults` and mirror the six-series canonical training configuration.
 
-The server uses only Python's standard library plus the project dependencies.
-It imports the reusable sampler and trajectory executor from `src/tsfmxai/`;
-the frontend does not reimplement their scientific behavior.
+## What it shows
 
-## Current scope
+- **Parameters** (sidebar), grouped as system, equation structure, treatment and
+  noise, and trajectories. Hover or focus the `i` icon beside any parameter for
+  a description. Four starting points (training config, didactic, stable,
+  univariate) are provided.
+- **Topology graph** and **channel-lag map**: which channels may and do read
+  which, and at which lags. Dashed edges are permitted but unused.
+- **One equation per channel**: executed formula, pre-treatment formula for
+  Shao–Wu channels, canonical polynomial (the equation head's target), tree,
+  and bindings.
+- **Trajectory player**: one realization at a time, every channel aligned, with
+  the context and horizon of the training window marked, optional initial
+  history, hover readout, linear or signed-log scale, state-space view and an
+  ensemble heatmap.
+- **Random startup families** (default, as in training): for every channel the
+  page draws which families appear (constant, white noise, cosine) with the chosen
+  probabilities, draws their parameters and sums them. The player lists the drawn
+  components of each channel for the selected realization. The fixed laws (uniform,
+  zero, constant, cosine) remain available for comparison.
+- **Acceptance rate and system replacement**: fixed policy, identical to training. A
+  realization that goes to inf/NaN gets 3 new initial histories; if all 3 fail, the
+  system is replaced by a newly sampled tree. There is no option to change or disable
+  this. The page shows the accepted system and how many were discarded.
 
-The executable system has `num_series=2` and retains one sampled AST for each
-target, `x0(t)` and `x1(t)`. Either equation may read lagged values from either
-series. At each time step both right-hand sides are evaluated against the same
-past before either new value is appended, so the system is synchronous and has
-no implicit contemporaneous ordering.
+A window is `context + horizon` generated steps with no burn-in; the initial
+history only starts the recurrence and is never part of a window. Trajectories
+use float32 output as in training. Per-channel Heaps and contraction treatments
+are not supported by the generator, so they are not offered.
 
-The trajectory count represents independent realizations of that same
-two-equation system. Each realization receives independently sampled initial
-conditions and, when enabled, Gaussian innovations, while formulas, parameters,
-and lag bindings remain fixed.
-
-The frontend applies no finite magnitude threshold to generated values. It
-stops only when numerical execution produces a non-finite value (`NaN` or
-infinity), which cannot be represented by the JSON response or plotted
-meaningfully.
-
-The interface currently shows:
-
-- both sampled AST topologies through an equation selector;
-- both skeleton and numerically bound formulas;
-- parameter and lag bindings for the selected target;
-- an explicit target-by-source lag-support matrix;
-- aligned panels showing one complete multivariate trajectory at a time;
-- play/pause, previous/next, direct trajectory selection, and playback speed;
-- independent scaling for each selected trajectory, with linear or signed-log axes;
-- an optional, collapsed ensemble overview with one heatmap per variable;
-- a synchronized state-space view `x0(t) x x1(t)` for the selected trajectory;
-- the boundary between initial conditions and recursively generated values.
-
-Candidate next views are horizon-wise dependency propagation, local
-contribution flow between the two equations, a stability map over parameters
-and initial conditions.
-
-Playback runs entirely in the browser, advancing through all saved trajectories
-once and stopping at the last one. It does not resample or alter values. The
-signed-log view uses `sign(x) * log10(1 + abs(x))` and labels ticks in original
-units. Each trajectory gets its own scale, so compare magnitudes using tick
-labels rather than apparent line height. New generation pauses playback;
-manual navigation also pauses it.
-
-The same playback can work on static hosting with exported trajectory data.
-The current GitHub Pages site renders experiment notebooks; the studio still
-uses the local Python API to sample new mechanisms and trajectories.
-
-## Explosion-control selector
-
-Choose a method before clicking **Gerar duas equações**. The studio retains the
-actual sampled formulas and certificates and uses each family's existing
-trajectory generator; it does not clip trajectories to simulate stability.
-
-| Method | Behavior |
-|---|---|
-| None | Original unrestricted, coupled AST sampler. |
-| Coefficient-gated lags | Existing heuristic; no stability certificate. |
-| Jacobian contraction | Two independently certified scalar recurrences on `[-1, 1]`, with bounded uniform innovations. |
-| Shao–Wu: factors | Uses `product_lags`: `tanh(u) * tanh(v)`, with standalone linear terms and a checked global GMC sensitivity budget. |
-| Heaps VAR(p) | Coupled linear stationary VAR; lag bounds select the order and history is drawn from its joint stationary law. |
-| Stationary VAR(1) | Coupled linear VAR with spectral radius below one and stationary Gaussian initialization. |
-
-The innovation control sets a uniform bound for Jacobian contraction and a
-Gaussian standard deviation for the other methods. Certified Gaussian methods
-require a positive standard deviation. Changing the innovation setting requires
-resampling the certified mechanism. Manual initial bounds apply to the two
-uncertified methods; the others retain their prescribed initialization law.
-Tree/operator controls apply to AST families, not linear VAR families. The
-certificate status is displayed above the equations. Gaussian stationarity and
-GMC do not impose a hard bound on every realized amplitude.
+Each system is kept in memory (last 64) so that new trajectories can be drawn
+from the same system. Request limits: 12 channels, 64 realizations, 1024 steps.
