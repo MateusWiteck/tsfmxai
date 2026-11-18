@@ -201,8 +201,6 @@ initializations = {
 trajectory = TrajectoryConfig(
     generated_steps=128,
     initialization=initializations["uniform"],
-    max_initialization_retries=3,
-    on_retry_exhausted="skip",
     resample_innovations=False,
 )
 ```
@@ -344,17 +342,17 @@ usa `float64`; a conversão para o dtype final também é verificada. `NaN`, inf
 e overflow aritmético são registrados como falhas.
 
 ```python
-strict_trajectory = replace(trajectory, on_retry_exhausted="raise")
 resample_both = replace(trajectory, resample_innovations=True)
-no_retries = replace(trajectory, max_initialization_retries=0)
 ```
 
-Há uma tentativa inicial mais o número configurado de novas tentativas. Por
-padrão, muda apenas o histórico inicial; o ruído é repetido. Inicializações
-determinísticas, como zero e constante, continuam iguais nessas tentativas.
-`skip` ignora a trajetória após esgotar tentativas; `raise` lança uma exceção.
-Não se sorteia automaticamente um sistema substituto, nem se aproveita um prefixo
-de uma trajetória que falhou. Erros de configuração são reportados diretamente.
+Política fixa, sem opção para alterá-la: uma tentativa inicial mais exatamente 3
+novas tentativas. Por padrão, muda apenas o histórico inicial; o ruído é repetido.
+Inicializações determinísticas, como zero e constante, continuam iguais nessas
+tentativas. Se as 4 tentativas de alguma trajetória caírem em `NaN`/infinito, o
+sistema sorteado a partir da configuração é descartado e uma nova árvore é
+sorteada, repetindo até funcionar (limite defensivo de 10 000 trocas). Sistemas
+explícitos não podem ser re-sorteados; suas trajetórias que falham são ignoradas e
+contadas. Erros de configuração são reportados diretamente.
 
 Os metadados são objetos Python em memória. A função não salva um corpus nem
 gera um manifesto em disco automaticamente.
@@ -445,8 +443,6 @@ do cosseno. Nada é executado e descartado para produzir esse histórico.
 |---|---|---|
 | `generated_steps` | Inteiro >= 1, e >= contexto + horizonte ao gerar batches | Obrigatório |
 | `initialization` | `HistorySpec` compatível com o sistema | Obrigatório |
-| `max_initialization_retries` | Inteiro >= 0; tentativas totais = 1 + esse valor | `3` |
-| `on_retry_exhausted` | `"skip"` ignora a trajetória; `"raise"` lança `RuntimeError` | `"skip"` |
 | `resample_innovations` | `False` repete o ruído nas tentativas; `True` sorteia outro ruído também | `False` |
 
 Não existe parâmetro de magnitude máxima nesta configuração. Falhas de finitude

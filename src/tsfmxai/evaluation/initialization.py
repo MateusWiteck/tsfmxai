@@ -19,7 +19,9 @@ from tsfmxai.generators.random_expression import RandomTreeConfig, derive_sample
 from tsfmxai.generators.shao_wu import (
     ShaoWuConfig, ShaoWuMechanism, sample_shao_wu_mechanism,
 )
-from tsfmxai.generators.initialization import HistorySpec, make_initial_history
+from tsfmxai.generators.initialization import (
+    HistorySpec, RandomHistorySpec, make_initial_history, random_history_bound,
+)
 from tsfmxai.generators.stochastic import simulate_innovation_path
 from tsfmxai.generators.trajectory import required_multivariate_history_length
 
@@ -180,6 +182,8 @@ def history_spec_unavailable(spec, mechanism):
             values = spec.offset + spec.amplitude * np.cos(
                 2 * np.pi * np.arange(int(spec.period * spec.fraction)) / spec.period)
             bound = np.max(np.abs(values))
+        elif isinstance(spec, RandomHistorySpec):
+            bound = random_history_bound(spec)
         else:
             return "Unbounded startup law outside certified domain"
         if bound > radius + 1e-12:

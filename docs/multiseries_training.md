@@ -40,8 +40,6 @@ stream = generate_training_batches(
     trajectory=TrajectoryConfig(
         generated_steps=128,
         initialization=HistorySpec("uniform radius 1", "uniform", amplitude=1.),
-        max_initialization_retries=3,
-        on_retry_exhausted="skip",
     ),
     training=TrainingFormat(
         context_length=32, prediction_length=16, stride=16, batch_size=8,
@@ -119,12 +117,66 @@ burn-in: `generated_steps` excludes startup observations, and windows contain
 generated observations only. The Heaps stationary initializer remains available
 to its original users, but is rejected for arbitrary mixed systems.
 
-One initial attempt plus `max_initialization_retries` is allowed. By default
-only the history seed changes: innovations are identical between attempts.
+### Random startup families (`RandomHistorySpec`)
+
+The current general generator default is `RandomHistorySpec`; the separate
+prospective prior comparison still pins a uniform `HistorySpec`. For **every
+channel**, each of three families appears independently with its own
+probability; the parameters of the present families are drawn and the
+components are summed. With no family present the channel history is zero.
+
+| Family | Component | Parameters drawn (defaults) |
+|---|---|---|
+| constant | `s * m` | sign `s = ±1`, `m ~ U(constant_magnitude)` = U(0, 1) |
+| noise | i.i.d. `U(-r, r)` per lag | `r ~ U(noise_radius)` = U(0.1, 1) |
+| cosine | `A cos(2πk/T + φ)` | `A ~ U(cosine_amplitude)` = U(0.1, 1), integer `T ~ U{cosine_period}` = U{4..48}, `φ ~ U(0, 2π)` |
+
+All probabilities default to 0.5. The cosine is evaluated directly on the
+required history length (random phase instead of a cycle prefix), so it never
+fails the lag-coverage check. Draw order is fixed per channel (presence of all
+families, then all parameters), so one family's parameters do not depend on
+which others appear. Every retry draws families and parameters again, so
+retries differ even when the drawn family is a constant. Window metadata records
+`initialization_components`: for every channel, the list of present families and
+their parameters (`None` for a fixed `HistorySpec`).
+
+```python
+from tsfmxai.generators.initialization import RandomHistorySpec
+trajectory = TrajectoryConfig(
+    generated_steps=128,
+    initialization=RandomHistorySpec(constant_probability=.5, noise_probability=.5,
+                                     cosine_probability=.5),
+)
+```
+
+The constant ranges follow the exploratory constant sweep (2026-11-16, same bank
+as `time_series_initialization/final_methods`): explosions occur only for the
+original AST and depend mostly on the tree (50% even with a zero history,
+rising to 62% at ±16); Jacobian, Shao–Wu and Heaps did not explode for any
+tested constant. The Heaps stationary law is not a family because it exists only
+for Heaps VAR mechanisms.
+
+Possible future families, not implemented or studied: Gaussian white noise,
+linear trend, random walk / AR(1), step or impulse, and Gaussian-process draws
+from the KernelSynth bank; components shared across channels; products of
+components; a cap on the summed magnitude.
+
+### Failure policy
+
+Failure policy (fixed, not configurable): one initial attempt plus exactly 3 retries.
+By default only the history seed changes: innovations are identical between attempts.
 `resample_innovations=True` explicitly changes both. Deterministic initializers
-produce identical histories on retries. Exhaustion either skips the trajectory
-or raises, according to `on_retry_exhausted`. No replacement system is sampled.
-Failure-policy benchmarking remains necessary before choosing a production policy.
+produce identical histories on retries.
+
+If all 4 attempts of any trajectory go to inf/NaN, the system sampled from a config is
+discarded and a new tree is drawn: replacement `r >= 1` of system `i` uses seed
+`stream_seed(seed, 11, i, r)`, so output stays independent of batching and workers.
+All trajectories of the discarded system are dropped and regenerated with the
+replacement. This repeats until a system works (a defensive limit of 10 000
+replacements raises `RuntimeError`). Explicit `systems=` cannot be resampled, so their
+failing trajectories are skipped and counted. `stats.replaced_systems` and
+`stats.discarded_trajectories` count the discards, and each window's metadata records
+`system_replacements`.
 
 Simulation is float64 without a magnitude threshold, clipping, or normalization.
 Nonfinite inputs, nonfinite execution, arithmetic overflow, and nonfinite output
@@ -164,3 +216,40 @@ with every foundation-model training loop.
 Window metadata holds references to in-memory mechanism/configuration objects,
 not a standalone JSON manifest. Retain these objects or serialize them explicitly
 when persisting a corpus; this API does not write datasets or sidecar artifacts.
+
+
+### Four-family sampling
+
+The current default per-channel prior is original 0, Shao-Wu 0.5, Jacobian
+1/6, and Heaps 1/3. These probabilities are local choices, not fitted from
+the forecasting test sets. Jacobian and Heaps currently use self-only sources;
+original and Shao-Wu retain the sampled topology. There is no joint mixed-system
+stability certificate. Jacobian retains its bounded-domain certificate (radius
+3 by default), uses uniform innovations with the requested standard deviation,
+and rejects incompatible initial histories without clipping. Heaps constructs
+a stable scalar AR via the existing Heaps reverse map, using a unit reference
+covariance to determine coefficients; its actual innovations use the sampled
+Gaussian standard deviation. Random startup does not imply stationarity.
+Heaps can introduce intermediate lags down to 1.
+
+After the initial history attempt and three retries, an exhausted trajectory
+causes the whole config-sampled system to be replaced, including its accepted
+trajectories. This policy applies to all families. Explicit systems are not
+replaced. `replaced_systems` counts replacements; `resampled_equations` counts
+equations in discarded systems, and `resampled_original_equations` counts the
+original subset. `replacement_records` retains discarded seeds and reasons.
+These counters include numerical output-conversion failures as well as
+nonfinite recurrence outputs; consult failure reasons for the distinction.
+
+### Topology-aware sampling of terminal nodes
+
+For original channels, `lag_sampling`
+sets the probability of drawing a lag when a terminal is constructed.
+Given normalized source weights q and m = 1/sum(q**2), this probability is
+minimum + (maximum-minimum)*(m-1)/(m-1+tau). Defaults are .25, .75 and 1,
+applying a reduction of 25 percentage points to the previous probability curve.
+The sampler draws operator count from the original size distribution, then
+uses weighted completion counts at that size. Lag labels divide the lag mass
+equally. Degree limits and mandatory-lag settings condition the final tree
+distribution. None selects the unweighted combinatorial sampler.
+Historical retention experiment records describe the superseded post-sampling replacement method.

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from dataclasses import dataclass
+from fractions import Fraction
 from math import isfinite
 import random
 
@@ -69,17 +70,26 @@ class CombinatorialTreeSampler:
     the configured bounds are weighted by their counts, including size.
     """
 
-    def __init__(self, config: CombinatorialTreeConfig = CombinatorialTreeConfig()):
+    def __init__(self, config: CombinatorialTreeConfig = CombinatorialTreeConfig(), *, lag_probability: float | None = None):
         self.config = config
         self.lag_count = config.maximum_lag - config.minimum_lag + 1
         self.atom_count = config.num_series * self.lag_count
+        self.parameter_weight = 1
+        lag_weight = self.atom_count
+        if lag_probability is not None:
+            if not 0 <= lag_probability <= 1:
+                raise ValueError("Invalid terminal lag probability.")
+            # Integer masses preserve exact unranking. Lag labels share their mass.
+            chance = Fraction(float(lag_probability))
+            lag_weight = chance.numerator * self.atom_count
+            self.parameter_weight = (chance.denominator - chance.numerator) * self.atom_count
         self.counts: dict[tuple[int, int], StructureCounts] = {}
         self._branches: dict[tuple[int, int], list[tuple[str, int, int, int]]] = {}
         self._cumulative: dict[tuple[int, int], list[int]] = {}
         for degree in range(config.max_degree + 1):
             self.counts[0, degree] = (
-                StructureCounts(1, 0, 1) if degree == 0 else
-                StructureCounts(self.atom_count, 0, 0) if degree == 1 else
+                StructureCounts(self.parameter_weight, 0, self.parameter_weight) if degree == 0 else
+                StructureCounts(lag_weight, 0, 0) if degree == 1 else
                 StructureCounts()
             )
         for n in range(1, config.maximum_operators + 1):
@@ -167,7 +177,7 @@ class CombinatorialTreeSampler:
                     slot = f"P{len(parameter_slots)}"
                     parameter_slots.append(slot)
                     return Parameter(slot)
-                series, lag_offset = divmod(local_rank, self.lag_count)
+                series, lag_offset = divmod(local_rank % self.atom_count, self.lag_count)
                 slot = f"L{len(lag_values)}"
                 lag_values[slot] = self.config.minimum_lag + lag_offset
                 return Lag(series, slot)

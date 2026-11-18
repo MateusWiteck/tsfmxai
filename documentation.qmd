@@ -68,7 +68,6 @@ for channel, equation in enumerate(system.equations):
 trajectory = TrajectoryConfig(
     generated_steps=128,
     initialization=HistorySpec("uniform [-1, 1]", "uniform", amplitude=1.0),
-    max_initialization_retries=3, on_retry_exhausted="skip",
     resample_innovations=False,
 )
 training = TrainingFormat(
@@ -140,9 +139,7 @@ alternative = generate_training_batches(
                      layout="batch_channel_time"),
 )
 alternative_batch = next(alternative)
-strict = replace(trajectory, on_retry_exhausted="raise")
 resample_both = replace(trajectory, resample_innovations=True)
-no_retries = replace(trajectory, max_initialization_retries=0)
 ```
 
 ## Parameter reference
@@ -229,12 +226,11 @@ These are the same startup laws as the initialization experiments, without impli
 |---|---|---|
 | `generated_steps` | Integer >= 1; must cover context + prediction lengths | Required |
 | `initialization` | Compatible `HistorySpec` | Required |
-| `max_initialization_retries` | Integer >= 0; total attempts = 1 + this value | `3` |
-| `on_retry_exhausted` | `"skip"` drops the trajectory; `"raise"` raises `RuntimeError` | `"skip"` |
 | `resample_innovations` | `False` reuses noise on retries; `True` resamples it too | `False` |
 
-Generated steps exclude startup history. There is no magnitude cutoff. Retries
-do not replace the mechanism; deterministic histories stay identical across retries.
+Generated steps exclude startup history. There is no magnitude cutoff. The failure
+policy is fixed: 3 retries with new startup histories (deterministic histories stay identical),
+then, for config-sampled systems, the tree is discarded and a new one is sampled until one works.
 
 ### `TrainingFormat`
 

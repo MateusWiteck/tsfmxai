@@ -35,9 +35,9 @@ def config(dependency="random"):
         treatment_probs={"original": .5, "shao_wu": .5})
 
 
-def stream(system, *, steps=12, dtype="float64", history=None, retries=0, batch_size=2):
+def stream(system, *, steps=12, dtype="float64", history=None, batch_size=2):
     return generate_training_batches(systems=[system], trajectory=TrajectoryConfig(
-        steps, history or HistorySpec("zero", "zero"), retries),
+        steps, history or HistorySpec("zero", "zero")),
         training=TrainingFormat(3, 2, 2, batch_size, dtype=dtype), seed=42)
 
 
@@ -139,26 +139,22 @@ def test_finite_large_values_accepted_but_output_overflow_recorded():
     system = explicit([equation(Parameter("c"), {"c": 1e50})])
     large = next(stream(system))
     assert np.all(large.context == 1e50)
-    data = stream(system, dtype="float32", retries=2)
+    data = stream(system, dtype="float32")
     assert list(data) == []
-    assert data.stats.initialization_attempts == 3
+    assert data.stats.initialization_attempts == 4
     assert data.stats.skipped_trajectories == 1
     assert {f["reason"] for f in data.stats.failures} == {"nonfinite_output_dtype"}
     assert len({f["innovation_seed"] for f in data.stats.failures}) == 1
-    assert len({f["initialization_seed"] for f in data.stats.failures}) == 3
+    assert len({f["initialization_seed"] for f in data.stats.failures}) == 4
 
 
-def test_nonfinite_recurrence_stops_and_raise_policy():
+def test_nonfinite_recurrence_is_skipped_for_explicit_systems():
     system = explicit([equation(Multiply(Parameter("a"), Lag(0, "L")),
                                 {"a": 1e200}, {"L": 1})])
     data = stream(system, history=HistorySpec("one", "constant", offset=1.))
     assert list(data) == []
     assert data.stats.failures[0]["reason"] == "nonfinite_simulation"
-    data = generate_training_batches(systems=[system], trajectory=TrajectoryConfig(
-        6, HistorySpec("one", "constant", offset=1.), 0, "raise"),
-        training=TrainingFormat(3, 2, 1))
-    with pytest.raises(RuntimeError, match="exhausted"):
-        list(data)
+    assert data.stats.skipped_trajectories == 1
 
 
 def test_padding_noise_laws_and_batch_size_do_not_change_examples():
@@ -190,7 +186,7 @@ def test_sampling_stream_vocabulary_and_scale_only_layout():
 
 
 @pytest.mark.parametrize("kwargs", [dict(channel_count_probs={0: 1.}),
-    dict(dependency_probs={"random": -.5}), dict(treatment_probs={"heaps": 1.}),
+    dict(dependency_probs={"random": -.5}), dict(treatment_probs={"unsupported": 1.}),
     dict(self_source_weight=0.), dict(max_external_sources=-1)])
 def test_bad_configs_fail_early(kwargs):
     with pytest.raises(ValueError):
@@ -232,7 +228,7 @@ def test_failed_system_does_not_suppress_following_system_or_partial_batch():
     bad = explicit([equation(Parameter("c"), {"c": 1e50})])
     good = explicit([equation(Parameter("c"), {"c": 7.})])
     data = generate_training_batches(systems=[bad, good],
-        trajectory=TrajectoryConfig(6, HistorySpec("zero", "zero"), 0),
+        trajectory=TrajectoryConfig(6, HistorySpec("zero", "zero")),
         training=TrainingFormat(3, 2, 2, 8))
     batches = list(data)
     assert len(batches) == 1 and batches[0].context.shape == (1, 3, 1)
@@ -250,3 +246,56 @@ def test_codec_handles_cancelled_lags_and_zero_equation():
     assert system.canonical[0].skeleton == ()
     ids = batch.equation_targets[0, 0][batch.equation_mask[0, 0]]
     assert data.codec.decode(ids[1:])["skeleton"] == ()
+
+
+def _replacement_stream(seed, count=3):
+    cfg = MultiseriesConfig(
+        ast_config=CombinatorialTreeConfig(maximum_operators=4, maximum_lag=4, max_degree=3),
+        channel_count_probs={3: 1.}, dependency_probs={"random": 1.},
+        treatment_probs={"original": 1.}, lag_sampling=None)
+    return generate_training_batches(
+        config=cfg, num_systems=1, trajectories_per_system=count, seed=seed,
+        trajectory=TrajectoryConfig(40, HistorySpec("uniform", "uniform")),
+        training=TrainingFormat(20, 10, 10, 64))
+
+
+def test_system_is_replaced_when_every_initialization_fails():
+    # Seed 5: the first original system explodes in all three trajectories.
+    stream = _replacement_stream(5)
+    batches = list(stream)
+    assert sum(b.context.shape[0] for b in batches) == 6
+    assert stream.stats.skipped_trajectories == 0
+    assert stream.stats.replaced_systems >= 1
+    assert stream.stats.resampled_equations == 3 * stream.stats.replaced_systems
+    assert stream.stats.resampled_original_equations == stream.stats.resampled_equations
+    assert stream.stats.accepted_trajectories == 3
+    assert all(m["system_replacements"] == stream.stats.replaced_systems for b in batches for m in b.metadata)
+    assert len({m["system"].seed for b in batches for m in b.metadata}) == 1
+    again = list(_replacement_stream(5))
+    np.testing.assert_array_equal(batches[0].context, again[0].context)
+
+
+def test_partially_failing_system_is_replaced_as_a_whole_and_discards_are_counted():
+    stream = _replacement_stream(4)
+    list(stream)
+    assert stream.stats.discarded_trajectories <= stream.stats.attempted_trajectories
+    assert stream.stats.resampled_equations == 3 * stream.stats.replaced_systems
+    assert stream.stats.accepted_trajectories == 3
+
+
+def test_replacement_limit_is_only_a_safety_net(monkeypatch):
+    monkeypatch.setattr("tsfmxai.datasets.multiseries.SYSTEM_REPLACEMENT_LIMIT", 1)
+    monkeypatch.setattr("tsfmxai.datasets.multiseries.simulate_innovation_path",
+                        lambda *a, **k: np.full_like(a[3], np.nan))
+    with pytest.raises(RuntimeError, match="No finite system"):
+        list(_replacement_stream(5))
+
+
+def test_replacement_is_on_by_default_but_never_applies_to_explicit_systems():
+    assert not hasattr(TrajectoryConfig(6, HistorySpec("zero", "zero")), "max_system_replacements")
+    system = explicit([equation(Lag(0, "l"), {}, {"l": 1})], noise=0.)
+    data = generate_training_batches(
+        systems=[system], trajectory=TrajectoryConfig(6, HistorySpec("constant", "constant", offset=1e200)),
+        training=TrainingFormat(3, 2, 2, 2, dtype="float32"), seed=1)
+    list(data)
+    assert data.stats.replaced_systems == 0

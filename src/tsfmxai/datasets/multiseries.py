@@ -10,7 +10,9 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from tsfmxai.generators.initialization import HistorySpec, make_initial_history
+from tsfmxai.generators.initialization import (
+    HistorySpec, RandomHistorySpec, make_initial_history, sample_random_history,
+)
 from tsfmxai.generators.multiseries import (
     MultiseriesConfig, MultiseriesSystem, sample_multiseries_system,
     positive_integer, stream_seed,
@@ -18,6 +20,11 @@ from tsfmxai.generators.multiseries import (
 from tsfmxai.generators.stochastic import simulate_innovation_path
 from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec
 from tsfmxai.representations.expression import Lag, walk
+
+
+INITIALIZATION_RETRIES = 3
+# Defensive bound only; a sane configuration never gets near it.
+SYSTEM_REPLACEMENT_LIMIT = 10_000
 
 
 @dataclass(frozen=True)
@@ -28,21 +35,27 @@ class TrajectoryConfig:
     The startup history is used to seed the recurrence and is not returned by
     ``simulate_innovation_path`` or included in training windows. No additional
     burn-in is applied by this stream.
+
+    The failure policy is fixed and not configurable: a trajectory that goes to
+    inf/NaN is retried with exactly ``INITIALIZATION_RETRIES`` (3) new startup
+    histories; if all fail, a config-sampled system is discarded and a new tree
+    is sampled.
+
+    ``initialization`` is either one fixed ``HistorySpec`` shared by all
+    channels or a ``RandomHistorySpec``, which draws for every channel which
+    startup families (constant, white noise, cosine) appear and sums them.
     """
 
     generated_steps: int
-    initialization: HistorySpec
-    max_initialization_retries: int = 3
-    on_retry_exhausted: str = "skip"
+    initialization: HistorySpec | RandomHistorySpec
     resample_innovations: bool = False
 
     def __post_init__(self):
         positive_integer(self.generated_steps, "generated_steps")
-        positive_integer(self.max_initialization_retries, "max_initialization_retries", minimum=0)
-        if self.on_retry_exhausted not in ("skip", "raise"):
-            raise ValueError("on_retry_exhausted must be skip or raise.")
         if type(self.resample_innovations) is not bool:
             raise ValueError("resample_innovations must be boolean.")
+        if not isinstance(self.initialization, (HistorySpec, RandomHistorySpec)):
+            raise ValueError("initialization must be a HistorySpec or RandomHistorySpec.")
         if self.initialization.kind == "stationary":
             raise ValueError("A mixed system has no retained Heaps joint stationary law. "
                              "Use zero, constant, uniform or cosine initialization.")
@@ -76,6 +89,11 @@ class GenerationStats:
     initialization_attempts: int = 0
     accepted_trajectories: int = 0
     skipped_trajectories: int = 0
+    replaced_systems: int = 0
+    resampled_equations: int = 0
+    resampled_original_equations: int = 0
+    replacement_records: list[dict] = field(default_factory=list)
+    discarded_trajectories: int = 0
     yielded_windows: int = 0
     failures: list[dict] = field(default_factory=list)
 
@@ -143,11 +161,14 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
 """
 
     def __init__(self, *, config, systems, num_systems, trajectories_per_system,
-                 trajectory, training, seed):
+                 trajectory, training, seed, system_seeds=None):
         if (config is None) == (systems is None):
             raise ValueError("Provide exactly one of config or systems.")
         positive_integer(trajectories_per_system, "trajectories_per_system")
         positive_integer(seed, "seed", minimum=0)
+        if system_seeds is not None and (config is None or len(system_seeds) != num_systems):
+            raise ValueError("system_seeds needs a config and one seed per system.")
+        self.system_seeds = tuple(system_seeds) if system_seeds is not None else None
         if training.context_length + training.prediction_length > trajectory.generated_steps:
             raise ValueError("Generated steps must cover context plus future; startup is excluded.")
         self.config = config
@@ -157,6 +178,8 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
             self.num_systems = num_systems
             channels = max(c for c, p in config.channel_count_probs.items() if p > 0)
             minimum_lag, maximum_lag = config.ast_config.minimum_lag, config.ast_config.maximum_lag
+            if config.treatment_probs.get("heaps", 0) > 0:
+                minimum_lag = 1
             degree = config.ast_config.max_degree
         else:
             if not self.systems or num_systems is not None:
@@ -185,13 +208,22 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
         cfg, dtype = self.trajectory, self.training.dtype
         self.stats.attempted_trajectories += 1
         root = stream_seed(self.seed, 20, system_index, trajectory_index)
-        for attempt in range(cfg.max_initialization_retries + 1):
+        for attempt in range(INITIALIZATION_RETRIES + 1):
             self.stats.initialization_attempts += 1
             init_seed = stream_seed(root, 0, attempt)
             noise_seed = stream_seed(root, 1, attempt if cfg.resample_innovations else 0)
-            unit = np.random.default_rng(init_seed).uniform(
-                -1., 1., (system.num_channels, system.history_length))
-            history = make_initial_history(cfg.initialization, system, unit, init_seed)
+            if isinstance(cfg.initialization, RandomHistorySpec):
+                history, components = sample_random_history(
+                    cfg.initialization, system.num_channels, system.history_length,
+                    np.random.default_rng(stream_seed(init_seed, 2)))
+            else:
+                unit = np.random.default_rng(init_seed).uniform(
+                    -1., 1., (system.num_channels, system.history_length))
+                history = make_initial_history(cfg.initialization, system, unit, init_seed)
+                components = None
+            for channel, treatment in enumerate(system.treatments):
+                if treatment.method == "jacobian" and np.any(np.abs(history[channel]) > treatment.domain_radius):
+                    raise ValueError("Jacobian initial history exceeds its certified domain; adjust initialization or domain_radius.")
             innovations = _innovations(system, cfg.generated_steps, noise_seed)
             reason = None
             if not np.isfinite(history).all() or not np.isfinite(innovations).all():
@@ -216,15 +248,33 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
                           attempt=attempt, initialization_seed=init_seed, innovation_seed=noise_seed)
             if reason is None:
                 self.stats.accepted_trajectories += 1
-                return output, dict(**record, system=system, initial_history=history,
-                                    initialization=cfg.initialization, root_seed=self.seed,
-                                    trajectory_config=cfg, training_format=self.training,
-                                    simulation_dtype="float64", numpy_version=np.__version__)
+                return (output, dict(**record, system=system, initial_history=history,
+                                     initialization_components=components,
+                                     initialization=cfg.initialization, root_seed=self.seed,
+                                     trajectory_config=cfg, training_format=self.training,
+                                     simulation_dtype="float64", numpy_version=np.__version__)), None
             self.stats.failures.append(dict(**record, reason=reason))
         self.stats.skipped_trajectories += 1
-        if cfg.on_retry_exhausted == "raise":
-            raise RuntimeError(f"Trajectory exhausted initialization attempts: {record}; {reason}")
-        return None
+        return None, f"Trajectory exhausted initialization attempts: {record}; {reason}"
+
+    def _system(self, system_index, replacement):
+        if replacement == 0:
+            seed = (self.system_seeds[system_index] if self.system_seeds is not None
+                    else stream_seed(self.seed, 10, system_index))
+        else:
+            seed = stream_seed(self.seed, 11, system_index, replacement)
+        return sample_multiseries_system(self.config, seed=seed)
+
+    def _simulate_system(self, system, system_index):
+        """Run every trajectory of one system; return accepted paths and any exhaustion message."""
+        paths, failure = [], None
+        for trajectory_index in range(self.trajectories_per_system):
+            result, message = self._trajectory(system, system_index, trajectory_index)
+            if result is None:
+                failure = failure or message
+            else:
+                paths.append(result)
+        return paths, failure
 
     def _generate(self):
         windows = []
@@ -232,21 +282,41 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
         width = cfg.context_length + cfg.prediction_length
         for system_index in range(self.num_systems):
             self.stats.attempted_systems += 1
-            system = (self.systems[system_index] if self.systems is not None else
-                      sample_multiseries_system(self.config, seed=stream_seed(self.seed, 10, system_index)))
-            targets = [self.codec.encode(e)["target"] for e in system.equations]
+            budget = SYSTEM_REPLACEMENT_LIMIT if self.config is not None else 0
             # Configuration errors (e.g. a too-short cosine prefix) propagate;
             # retrying a numerical trajectory must not hide invalid settings.
-            for trajectory_index in range(self.trajectories_per_system):
-                result = self._trajectory(system, system_index, trajectory_index)
-                if result is None:
-                    continue
-                path, metadata = result
+            for replacement in range(budget + 1):
+                system = (self.systems[system_index] if self.systems is not None
+                          else self._system(system_index, replacement))
+                skipped_before = self.stats.skipped_trajectories
+                accepted_before = self.stats.accepted_trajectories
+                paths, failure = self._simulate_system(system, system_index)
+                if failure is None or self.config is None:
+                    break
+                if replacement == budget:
+                    raise RuntimeError(
+                        f"No finite system after {budget} replacements: {failure}")
+                # Every initialization of some trajectory failed: draw a new system.
+                self.stats.replaced_systems += 1
+                self.stats.resampled_equations += system.num_channels
+                originals = sum(t.method == "original" for t in system.treatments)
+                self.stats.resampled_original_equations += originals
+                self.stats.replacement_records.append(dict(
+                    system_index=system_index, replacement=replacement + 1,
+                    discarded_seed=system.seed, equations=system.num_channels,
+                    original_equations=originals, reason=failure))
+                self.stats.discarded_trajectories += (
+                    self.stats.accepted_trajectories - accepted_before)
+                self.stats.accepted_trajectories = accepted_before
+                self.stats.skipped_trajectories = skipped_before
+            targets = [self.codec.encode(e)["target"] for e in system.equations]
+            for path, metadata in paths:
                 for start in range(0, path.shape[1] - width + 1, cfg.stride):
                     split = start + cfg.context_length
                     windows.append(dict(context=path[:, start:split], future=path[:, split:start+width],
                                         system=system, targets=targets,
-                                        metadata=dict(metadata, window_start=start)))
+                                        metadata=dict(metadata, window_start=start,
+                                                      system_replacements=replacement)))
                     self.stats.yielded_windows += 1
                     if len(windows) == cfg.batch_size:
                         yield _collate(windows, cfg, self.codec)
@@ -259,13 +329,16 @@ def generate_training_batches(*, config: MultiseriesConfig | None = None,
                               systems: Sequence[MultiseriesSystem] | None = None,
                               num_systems: int | None = None, trajectories_per_system: int = 1,
                               trajectory: TrajectoryConfig, training: TrainingFormat,
-                              seed: int = 0) -> TrainingBatchStream:
+                              seed: int = 0, system_seeds: Sequence[int] | None = None) -> TrainingBatchStream:
     """Create a streaming dataset; consume it to execute generation.
 
-Supply either config + num_systems or explicit systems. Retries only change
-startup histories by default; replacing failed systems is deliberately not
-implemented until the proposed throughput/selection study determines a policy.
+Supply either config + num_systems or explicit systems. A trajectory that goes
+to inf/NaN gets exactly 3 new startup histories; if all fail, a config-sampled
+system is replaced by a newly sampled tree (``system_seeds`` optionally fixes the
+first draw per system). Explicit systems cannot be resampled, so their failing
+trajectories are skipped and counted.
 """
     return TrainingBatchStream(config=config, systems=systems, num_systems=num_systems,
                                trajectories_per_system=trajectories_per_system,
-                               trajectory=trajectory, training=training, seed=seed)
+                               trajectory=trajectory, training=training, seed=seed,
+                               system_seeds=system_seeds)
