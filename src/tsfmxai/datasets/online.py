@@ -121,6 +121,8 @@ def worker_seed_init(worker_id: int) -> None:
     """Seed incidental worker RNG use; scientific randomness is keyed by batch ID."""
     seed = int(np.random.SeedSequence([torch_worker_seed(), worker_id]).generate_state(1)[0])
     np.random.seed(seed)
+    import torch
+    torch.set_num_threads(1)
 
 
 def torch_worker_seed() -> int:
@@ -146,5 +148,6 @@ def make_dataloader(plan: OnlineBatchPlan, *, num_workers: int = 0,
         generator=torch.Generator().manual_seed(plan.root_seed),
     )
     if num_workers:
-        kwargs.update(prefetch_factor=prefetch_factor, persistent_workers=True)
+        kwargs.update(prefetch_factor=prefetch_factor, persistent_workers=True,
+                      multiprocessing_context='spawn')
     return DataLoader(**kwargs)

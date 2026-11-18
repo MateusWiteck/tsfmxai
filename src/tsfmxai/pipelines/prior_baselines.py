@@ -12,6 +12,7 @@ import json
 import math
 import os
 from pathlib import Path
+import platform
 import random
 import shutil
 import subprocess
@@ -226,7 +227,7 @@ def _cycle(progress, peak):
     return lr, beta1
 
 
-def _environment(device):
+def _environment(device, output):
     packages = {}
     for package in ("torch", "chronos-forecasting", "numpy", "gluonts", "tsfmxai"):
         try:
@@ -239,6 +240,32 @@ def _environment(device):
     except (OSError, subprocess.CalledProcessError):
         commit = None
     gpu = torch.cuda.get_device_name(device) if device.startswith("cuda") else None
+    cpu_model = platform.processor() or os.environ.get("PROCESSOR_IDENTIFIER")
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.exists():
+        cpu_model = next((line.split(":", 1)[1].strip() for line in
+                          cpuinfo.read_text(encoding="utf-8").splitlines()
+                          if line.startswith("model name")), cpu_model)
+    try:
+        import psutil
+        physical_cores = psutil.cpu_count(logical=False)
+        ram_bytes = psutil.virtual_memory().total
+    except ImportError:
+        physical_cores = None
+        meminfo = Path("/proc/meminfo")
+        ram_bytes = (int(next(line.split()[1] for line in
+                              meminfo.read_text().splitlines() if line.startswith("MemTotal:"))) * 1024
+                     if meminfo.exists() else None)
+    driver = power_limit = None
+    if device.startswith("cuda"):
+        try:
+            hardware = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=driver_version,power.limit",
+                 "--format=csv,noheader", "--id=0"], text=True,
+                stderr=subprocess.DEVNULL, timeout=3).strip().split(",", 1)
+            driver, power_limit = (value.strip() for value in hardware)
+        except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
     source_root = Path(__file__).resolve().parents[2]
     code_hashes = {}
     for name in ("tsfmxai/pipelines/prior_baselines.py",
@@ -249,7 +276,29 @@ def _environment(device):
         code_hashes[name] = hashlib.sha256((source_root / name).read_bytes()).hexdigest()
     return {"repository_commit": commit, "packages": packages,
             "torch_cuda": torch.version.cuda, "gpu": gpu,
+            "hostname": platform.node(), "cpu_model": cpu_model,
+            "logical_cores": os.cpu_count(), "physical_cores": physical_cores,
+            "ram_total_bytes": ram_bytes,
+            "disk_total_bytes": shutil.disk_usage(output).total,
+            "disk_device": os.stat(output).st_dev,
+            "nvidia_driver": driver, "gpu_power_limit": power_limit,
             "code_sha256": code_hashes}
+
+
+RESUME_IDENTITY_FIELDS = (
+    "repository_commit", "code_sha256", "hostname", "cpu_model", "gpu",
+    "packages", "torch_cuda",
+)
+
+
+def _compare_resume_environment(saved, current):
+    """Reject identity changes; retain transient hardware differences as diagnostics."""
+    if not isinstance(saved, dict) or any(saved.get(key) != current.get(key)
+                                          for key in RESUME_IDENTITY_FIELDS):
+        raise ValueError("Resume environment identity does not match")
+    return {key: {"checkpoint": saved.get(key), "resume": current.get(key)}
+            for key in saved.keys() | current.keys()
+            if key not in RESUME_IDENTITY_FIELDS and saved.get(key) != current.get(key)}
 
 
 def _gpu_sample(device):
@@ -273,7 +322,7 @@ def _gpu_sample(device):
 def _reconcile_log(path, completed):
     """Keep only telemetry backed by the restored model checkpoint."""
     if not path.exists():
-        return 0.0, 0
+        return 0.0, 0, 0.0
     retained, discarded = [], []
     for line in path.read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
@@ -311,7 +360,8 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     output.mkdir(parents=True, exist_ok=True)
     signature = {"arm": arm, "study": study, "protocol": asdict(protocol),
                  "upstream": provenance, "tiny": tiny}
-    environment = _environment(device)
+    environment = _environment(device, output)
+    disk_free_at_start = shutil.disk_usage(output).free
     if study == "controlled":
         manifest = json.loads((Path(corpus) / "manifest.json").read_text(encoding="utf-8"))
         if manifest["arm"] != arm or manifest["protocol"] != asdict(protocol):
@@ -334,8 +384,12 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         if saved["signature"] != signature:
             raise ValueError("Resume signature does not match")
-        if saved.get("environment") != environment:
-            raise ValueError("Resume environment does not match")
+        environment_differences = _compare_resume_environment(
+            saved.get("environment"), environment)
+        if environment_differences:
+            with (output / "resume_events.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({"environment_differences": environment_differences,
+                                         "utc": datetime.now(timezone.utc).isoformat()}) + "\n")
         model.load_state_dict(saved["model"])
         optimizer.load_state_dict(saved["optimizer"])
         completed, active_before = saved["updates"], saved["active_seconds"]
@@ -518,6 +572,7 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                "updates_per_active_hour": completed * 3600 / elapsed() if elapsed() else None,
                "stop_reason": reason, "signature": signature,
                "environment": environment,
+               "disk_free_bytes_at_start": disk_free_at_start,
                "windows_seen": completed * protocol.batch_size,
                "raw_cached_trajectories": cache_counts if arm == "lmc" else None,
                "repeated_lmc_windows": (sum(max(0, stage_counts[name] - lmc_spec(protocol).updates(
