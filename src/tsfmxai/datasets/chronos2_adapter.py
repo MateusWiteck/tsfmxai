@@ -23,6 +23,7 @@ def adapt_grouped_batch(
     equation_targets: Any | None = None,
     equation_mask: Any | None = None,
     noise_std: Any | None = None,
+    noise_mask: Any | None = None,
 ) -> dict[str, Any]:
     """Build Chronos-2 tensors while retaining one group ID per multivariate item.
 
@@ -78,6 +79,11 @@ def adapt_grouped_batch(
         if tuple(std.shape) != (num_examples, channels_per_example):
             raise ValueError("noise_std must have [examples, channels] shape")
         adapted["noise_std"] = std.reshape(rows)
+    if noise_mask is not None:
+        mask = _tensor(noise_mask, dtype=torch.bool)
+        if tuple(mask.shape) != (num_examples, channels_per_example):
+            raise ValueError("noise_mask must have [examples, channels] shape")
+        adapted["noise_mask"] = mask.reshape(rows)
     return adapted
 
 
@@ -103,15 +109,18 @@ def adapt_tsfmxai_batch(batch: Any, *, layout: str = "batch_time_channel",
     n_channels = counts.pop()
     ctx = torch.stack([item[0] for item in examples])
     fut = torch.stack([item[1] for item in examples])
-    eq, eqmask, noise = [], [], []
+    eq, eqmask, noise, noise_mask = [], [], [], []
     for i, (_, _, keep) in enumerate(examples):
         eq.append(torch.as_tensor(batch.equation_targets[i, keep]))
         eqmask.append(torch.as_tensor(batch.equation_mask[i, keep]))
         noise.append(torch.as_tensor(batch.noise_targets["std"][i, keep]))
+        if "mask" in batch.noise_targets:
+            noise_mask.append(torch.as_tensor(batch.noise_targets["mask"][i, keep]))
     adapted = adapt_grouped_batch(
         ctx, fut, num_examples=len(examples), channels_per_example=n_channels,
         equation_targets=torch.stack(eq), equation_mask=torch.stack(eqmask),
         noise_std=torch.stack(noise),
+        noise_mask=torch.stack(noise_mask) if noise_mask else None,
     )
     if output_patch_size is None:
         raise ValueError("output_patch_size is required for Chronos-2 training")

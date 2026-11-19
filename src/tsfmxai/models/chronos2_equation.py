@@ -65,9 +65,20 @@ def equation_training_loss(output,batch,*,embedding_weight=1.0,noise_weight=1.0,
     pred=output['skeleton_embedding']; teacher=teacher.detach()
     if normalize_teacher:
         teacher=F.normalize(teacher,dim=-1); pred=F.normalize(pred,dim=-1)
-    skeleton_loss=F.mse_loss(pred,teacher)
+    mask=batch.get('equation_target_mask')
+    if mask is None and 'equation_mask' in batch:
+        mask=batch['equation_mask'].any(dim=-1)
+    if mask is None: mask=torch.ones(pred.shape[0],dtype=torch.bool,device=pred.device)
+    mask=mask.to(device=pred.device,dtype=torch.bool)
+    if mask.shape != pred.shape[:1]: raise ValueError('equation target mask shape mismatch')
+    skeleton_loss=F.mse_loss(pred[mask],teacher[mask]) if mask.any() else pred.sum()*0.
     log_std_target=torch.log(noise.clamp_min(torch.finfo(noise.dtype).eps))
-    noise_loss=F.smooth_l1_loss(output['predicted_log_noise_std'],log_std_target)
+    noise_mask=batch.get('noise_mask',mask)
+    noise_mask=noise_mask.to(device=noise.device,dtype=torch.bool)
+    if noise_mask.shape != noise.shape: raise ValueError('noise mask shape mismatch')
+    noise_loss=(F.smooth_l1_loss(output['predicted_log_noise_std'][noise_mask],
+                                 log_std_target[noise_mask]) if noise_mask.any()
+                else output['predicted_log_noise_std'].sum()*0.)
     total=forecast+embedding_weight*skeleton_loss+noise_weight*noise_loss
     return total,{'forecast':forecast.detach(),'skeleton_embedding':skeleton_loss.detach(),
                   'innovation_log_std':noise_loss.detach()}

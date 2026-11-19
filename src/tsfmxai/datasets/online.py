@@ -15,6 +15,7 @@ from tsfmxai.datasets.multiseries import (
     generate_training_batches,
 )
 from tsfmxai.generators.multiseries import MultiseriesConfig, stream_seed
+from tsfmxai.generators.hybrid import HybridConfig
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class CurriculumStage:
     """Generator configuration active over a contiguous range of batch IDs."""
 
     first_batch: int
-    config: MultiseriesConfig
+    config: MultiseriesConfig | HybridConfig
     systems_per_batch: int
     trajectories_per_system: int = 1
 
@@ -71,7 +72,12 @@ class OnlineBatchPlan:
         """Generate exactly one batch; output depends on its global ID, not worker."""
         stage = self.stage_for(batch_id)
         seed = stream_seed(self.root_seed, 701, batch_id)
-        stream = generate_training_batches(
+        if isinstance(stage.config, HybridConfig):
+            from tsfmxai.datasets.hybrid import generate_hybrid_training_batches
+            generator = generate_hybrid_training_batches
+        else:
+            generator = generate_training_batches
+        stream = generator(
             config=stage.config,
             num_systems=stage.systems_per_batch,
             trajectories_per_system=stage.trajectories_per_system,

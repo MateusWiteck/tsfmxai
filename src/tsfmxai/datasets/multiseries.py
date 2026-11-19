@@ -127,7 +127,7 @@ def _collate(windows, training, codec):
     future = np.zeros((size, training.prediction_length, channels), dtype=training.dtype)
     channel_mask = np.zeros((size, channels), dtype=bool)
     encoded = [w["targets"] for w in windows]
-    tokens = max(len(seq) for sample in encoded for seq in sample)
+    tokens = max(1, *(len(seq) for sample in encoded for seq in sample))
     equations = np.zeros((size, channels, tokens), dtype=np.int64)
     equation_mask = np.zeros_like(equations, dtype=bool)
     std = np.zeros((size, channels), dtype=training.dtype)
@@ -142,12 +142,15 @@ def _collate(windows, training, codec):
         for channel, sequence in enumerate(sequences):
             equations[row, channel, :len(sequence)] = sequence
             equation_mask[row, channel, :len(sequence)] = True
-            std[row, channel] = system.innovations[channel].std
-            family[row, channel] = int(system.innovations[channel].family == "uniform")
+            if sequence:
+                std[row, channel] = system.innovations[channel].std
+                family[row, channel] = int(system.innovations[channel].family == "uniform")
         metadata.append(window["metadata"])
     if training.layout == "batch_channel_time":
         context, future = context.transpose(0, 2, 1), future.transpose(0, 2, 1)
     noise = {"std": std}
+    if any(hasattr(window["system"], "channel_families") for window in windows):
+        noise["mask"] = equation_mask.any(axis=2)
     if training.noise_target == "scale_and_family":
         noise["family"] = family  # 0 Gaussian, 1 uniform, -1 padded channel
     return TrainingBatch(context, future, channel_mask, equations, equation_mask, noise, tuple(metadata))
@@ -233,8 +236,15 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
                     # This path contains recurrence outputs only. ``history`` is
                     # an initial condition for evaluating the first output, not
                     # a prefix that may be exposed as model context.
-                    path = simulate_innovation_path(system.expressions, system.bindings,
-                                                    history, innovations, stop_threshold=None)
+                    if hasattr(system, "channel_families"):
+                        from tsfmxai.generators.hybrid import simulate_hybrid_path
+                        path, history = simulate_hybrid_path(
+                            system, history, innovations,
+                            seed=stream_seed(root, 2, attempt),
+                        )
+                    else:
+                        path = simulate_innovation_path(system.expressions, system.bindings,
+                                                        history, innovations, stop_threshold=None)
                     with np.errstate(over="ignore", invalid="ignore"):
                         output = path.astype(dtype)
                         noise_std = np.asarray([s.std for s in system.innovations], dtype=dtype)
@@ -309,14 +319,18 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
                     self.stats.accepted_trajectories - accepted_before)
                 self.stats.accepted_trajectories = accepted_before
                 self.stats.skipped_trajectories = skipped_before
-            targets = [self.codec.encode(e)["target"] for e in system.equations]
+            targets = [self.codec.encode(e)["target"] if not hasattr(system, "channel_families")
+                       or system.channel_families[i] == "ast" else []
+                       for i, e in enumerate(system.equations)]
             for path, metadata in paths:
                 for start in range(0, path.shape[1] - width + 1, cfg.stride):
                     split = start + cfg.context_length
                     windows.append(dict(context=path[:, start:split], future=path[:, split:start+width],
                                         system=system, targets=targets,
                                         metadata=dict(metadata, window_start=start,
-                                                      system_replacements=replacement)))
+                                                      system_replacements=replacement,
+                                                      channel_families=getattr(system, "channel_families",
+                                                                               ("ast",) * system.num_channels))))
                     self.stats.yielded_windows += 1
                     if len(windows) == cfg.batch_size:
                         yield _collate(windows, cfg, self.codec)

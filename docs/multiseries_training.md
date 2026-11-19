@@ -1,5 +1,37 @@
 # Multiseries training batches
 
+## Hybrid AST and KernelSynth channels (experimental)
+
+`HybridConfig(ast=..., family_probs={"ast": 0.75, "kernel_synth": 0.25})`
+selects the **generator family** independently for each channel. This choice is
+separate from the AST treatment distribution. KernelSynth channels are
+univariate Gaussian-process draws with temporal covariance; they do not use a
+cross-channel covariance matrix. AST channels may refer to lagged KernelSynth
+channels through the ordinary multiseries topology. KernelSynth channels are
+exogenous: their values never depend on AST channels.
+
+`generate_hybrid_training_batches` and `OnlineBatchPlan` retain the same
+forecasting shapes. `channel_mask` stays true for KernelSynth channels, while
+their `equation_mask` and `noise_targets['mask']` are false. Their zero-filled
+target storage is padding, not ground truth. The equation loss and innovation
+scale loss must use these masks; the forecast loss includes every channel.
+KernelSynth's GP scale is not an AST innovation standard deviation.
+
+The current compatibility implementation samples a base AST system for all
+channels, including those later assigned to KernelSynth. Its unused ASTs have
+no training targets; their sampling and certification time is included in
+batch-generation benchmarks. This is overhead that a later native family
+sampler can remove. The family choice is kept distinct so another channel
+generator can be added without treating it as an AST postprocessing method.
+
+An experimental timing runner is `scripts/benchmark_hybrid_batches.py`. It
+reports delivered-batch latency with fixed workers and records the realized
+KernelSynth fraction. Its timings are generation-only; they do not measure
+training throughput or GPU stalls.
+It samples approximately 208-point paths for the 96/96 configuration and is
+not directly comparable to the TimePFN LMC benchmark, which uses 1,024-point
+cached trajectories and includes model optimization in its cold-update timing.
+
 The public entry points are `sample_multiseries_system`,
 `build_multiseries_system` (in `tsfmxai.generators.multiseries`), and
 `generate_training_batches` (in `tsfmxai.datasets`). Generation is streaming:
