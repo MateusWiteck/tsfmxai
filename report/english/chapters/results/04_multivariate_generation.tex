@@ -1,5 +1,36 @@
 \subsection{Corrected terminal sampling and generation cost}
 \label{sec:multivariate-generation-results}
+An exploratory hybrid-channel benchmark adds univariate KernelSynth draws as
+exogenous sources for AST channels. It fixes eight DataLoader workers on the
+local CPU and delivers batches of 16 examples, six channels, 96 context steps,
+and 96 future steps. After 16 warmup batches, 64 batches are measured at each
+per-channel KernelSynth probability. The measured quantity is elapsed delivery
+time divided by 64, with the consumer continuously requesting batches; it is
+not GPU stall or full training time. The executed experiment record is in
+\texttt{experiments/generator\_model\_evaluation/kernel\_synth\_hybrid/}.
+\begin{table}[htbp]\centering
+\caption{Exploratory hybrid generator throughput on one local CPU run.}
+\label{tab:hybrid-kernelsynth-throughput}
+\begin{tabular}{rrr}\hline
+Configured KernelSynth probability & Realized channel fraction & Seconds/batch \\\hline
+0\% & 0.0\% & 0.190 \\
+25\% & 25.1\% & 0.198 \\
+50\% & 49.7\% & 0.203 \\
+75\% & 74.8\% & 0.189 \\\hline
+\end{tabular}\end{table}
+These four observations do not show a monotonic cost increase. They are one
+ordered run per probability, so machine load and prefetch can affect the small
+differences. The compatibility implementation still samples an unused AST for
+each KernelSynth channel, and caches kernel factorizations within each worker
+while drawing fresh GP trajectories. This benchmark establishes only the
+observed batch delivery cost of that implementation, not a forecasting gain.
+It cannot be directly compared with the earlier TimePFN LMC cold-update timing:
+this benchmark draws approximately 208-point trajectories with one window per
+system and no model step, whereas the pinned TimePFN runner draws 1,024-point
+trajectories, caches them, extracts multiple windows, and its cold timing
+includes a GPU update. The hybrid path uses the official kernel bank in a
+separate sampler, not the pinned TimePFN sampling implementation.
+
 The corrected sampler assigns terminal types during tree construction. Its
 default lag probability starts at 25\% for self-only channels and approaches
 75\% as the effective source count grows. Table~\ref{tab:terminal-sampling}
