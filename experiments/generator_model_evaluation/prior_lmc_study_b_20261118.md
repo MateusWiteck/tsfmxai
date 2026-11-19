@@ -46,8 +46,10 @@ O checkpoint final foi avaliado localmente com
 elegíveis do Ibirapuera e 357 da Bahia, com 96 horas de contexto e 96 de
 previsão. Sem ajuste em dados reais. O ano 2019 já foi inspecionado durante
 o desenvolvimento; esta análise **não é teste confirmatório**. A média
-geométrica hierárquica do MAE relativo ao seasonal naive de 24 h foi
-**1,0635** (menor é melhor); o modelo venceu o controle em **6 dos 9 canais**.
+geométrica do MAE relativo ao seasonal naive de 24 h foi **0,9584 no
+Ibirapuera** (melhor em 4/5 canais) e **1,1800 na Bahia** (melhor em 2/4
+canais). Um valor abaixo de 1 favorece o modelo; os conjuntos não são
+agrupados em um único escore.
 MAE por canal: Ibirapuera O3 12,7529 ppbv, NO 9,7218 ppbv, NO2 8,3857
 ppbv, CO 0,2190 ppmv, PM2.5 7,9072 µg/m³; Bahia demanda 238,6866 MW,
 vento 0,0976, solar 0,0361 e afluência 115,6647 MWh. WAPE por canal está
@@ -82,4 +84,4 @@ python scripts/run_prior_baseline.py train \
   --output outputs/prior_b_lmc
 ```
 
-Modelo publicado: [Chronos-2 LMC, Estudo B](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-b-seed2021), em repositório privado, commit Hugging Face `088a3a40f37c1bfa8e9766283405ec5e6e8dd559` (o upload inicial dos pesos foi `e3c70c73ab032ab03017ace843ee5a16d291cf7f`). Na raiz ficam os pesos finais e `evaluation_2019_exploratory.json`; `independent_end/` contém o checkpoint de fim do primeiro estágio. `latest.pt`, cache e telemetria completa permanecem apenas na pasta local ignorada.
+Modelo publicado: [Chronos-2 LMC, Estudo B](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-b-seed2021), em repositório privado, commit Hugging Face `106312370c233571b4ea50de66ae3a2705dc8948` (o upload inicial dos pesos foi `e3c70c73ab032ab03017ace843ee5a16d291cf7f`). Na raiz ficam os pesos finais e `evaluation_2019_exploratory.json`, com os dois datasets separados; `independent_end/` contém o checkpoint de fim do primeiro estágio. `latest.pt`, cache e telemetria completa permanecem apenas na pasta local ignorada.

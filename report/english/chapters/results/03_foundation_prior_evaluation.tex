@@ -76,13 +76,28 @@ yet; dashes mark missing executions, not zero errors. The abbreviated A/B
 labels denote the exposure-controlled and time-controlled studies; the
 combined condition means equation head plus additional curriculum.
 
-Under the prespecified equal-domain, equal-channel geometric mean of MAE
-relative to seasonal naive, the exploratory adequacy ratios are 1.1228 for
-Study A LMC and 1.0635 for Study B LMC. A ratio above one means worse
-average relative MAE than that simple control. Study A beats the seasonal
-control in four of nine channels; Study B does so in six of nine. These
-descriptive numbers do not compare the two generator pipelines, because
-their paired proposed-generator runs have not been evaluated.
+Table~\ref{tab:lmc-dataset-relative-mae} summarizes each dataset separately,
+using the geometric mean of its channels' MAE relative to that channel's
+seasonal-naive MAE. A ratio above one means worse than the seasonal control
+on that dataset's summary. Study B LMC is below one for Ibirapuera but above
+one for Bahia; a single pooled number would hide this difference. These
+descriptive scores do not compare generator pipelines, because their paired
+proposed-generator runs have not been evaluated.
+
+\begin{table}[H]
+\centering\small
+\caption{Exploratory 2019 zero-shot adequacy of the two completed LMC runs,
+reported separately for each dataset. Lower relative MAE is better;
+the number of improved channels counts MAE below the seasonal naive.}
+\label{tab:lmc-dataset-relative-mae}
+\begin{tabular}{llrrr}\toprule
+Dataset & LMC run & Origins & Relative MAE & Improved channels \\\midrule
+Ibirapuera & Study A & 255 & 1.0175 & 3/5 \\
+Ibirapuera & Study B & 255 & 0.9584 & 4/5 \\
+Bahia & Study A & 357 & 1.2390 & 1/4 \\
+Bahia & Study B & 357 & 1.1800 & 2/4 \\\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{table}[H]
 \centering\small\setlength{\tabcolsep}{3pt}

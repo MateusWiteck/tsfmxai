@@ -46,9 +46,10 @@ O checkpoint final foi avaliado localmente com
 elegíveis do Ibirapuera e 357 da Bahia, com 96 horas de contexto e 96 de
 previsão. Não houve ajuste nos dados reais. Os anos de 2019 já haviam sido
 inspecionados durante o desenvolvimento; estes números **não são teste
-confirmatório**. A média geométrica hierárquica do MAE relativo ao seasonal
-naive de 24 h foi **1,1228** (menor é melhor); o modelo venceu esse controle
-em **4 dos 9 canais**. MAE por canal: Ibirapuera O3 13,1562 ppbv, NO
+confirmatório**. A média geométrica do MAE relativo ao seasonal naive de 24 h
+foi **1,0175 no Ibirapuera** (melhor em 3/5 canais) e **1,2390 na Bahia**
+(melhor em 1/4 canais). Um valor abaixo de 1 favorece o modelo; os conjuntos
+não são agrupados em um único escore. MAE por canal: Ibirapuera O3 13,1562 ppbv, NO
 10,7423 ppbv, NO2 9,0093 ppbv, CO 0,2279 ppmv, PM2.5 8,3646 µg/m³;
 Bahia demanda 255,6400 MW, vento 0,0961, solar 0,0356 e afluência
 135,3384 MWh. WAPE por canal está nas tabelas do relatório. MAEs de unidades
@@ -86,4 +87,4 @@ python scripts/run_prior_baseline.py train \
   --corpus outputs/prior_a_lmc_corpus --output outputs/prior_a_lmc
 ```
 
-Modelo publicado: [Chronos-2 LMC, Estudo A](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-a-seed2021), em repositório privado, commit Hugging Face `0a69a11be29e58b60960bb0873b5dcaa4ecf359f` (o upload inicial dos pesos foi `f1cd22cb58e12e8775d23ac6075176f873501483`). Na raiz ficam os pesos finais e `evaluation_2019_exploratory.json`; `independent_end/` contém o checkpoint de fim do primeiro estágio. O pacote publicado não inclui `latest.pt`, corpus ou telemetria completa; esses artefatos permanecem na pasta local ignorada.
+Modelo publicado: [Chronos-2 LMC, Estudo A](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-a-seed2021), em repositório privado, commit Hugging Face `a84e84dcf23d51dd154affa6f09e7413ab0c3ba5` (o upload inicial dos pesos foi `f1cd22cb58e12e8775d23ac6075176f873501483`). Na raiz ficam os pesos finais e `evaluation_2019_exploratory.json`, com os dois datasets separados; `independent_end/` contém o checkpoint de fim do primeiro estágio. O pacote publicado não inclui `latest.pt`, corpus ou telemetria completa; esses artefatos permanecem na pasta local ignorada.

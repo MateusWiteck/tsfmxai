@@ -236,7 +236,8 @@ lags and finally uses the last observed context value. All methods
 must use identical origins and masks. The seasonal control has now been
 evaluated for the 2019 exploratory windows and is reported in the tables. Its
 score is an external adequacy check: we report whether each synthetic arm
-beats it in each channel and on the aggregate. Failure of either arm is
+beats it in each channel and on each dataset's scale-free summary. Failure
+of either arm is
 reported irrespective of which generator wins the head-to-head comparison.
 The current 2019 results are exploratory because they were inspected during
 development. A confirmatory period or region will be selected before
@@ -258,21 +259,22 @@ WAPE is undefined for a zero denominator and can exceed 100\%. It avoids
 pointwise division by zero for wind and solar. Raw MAE is never averaged
 across unlike physical units.
 
-For the primary complete-pipeline study, the proposed summary is the
-geometric mean of each channel's MAE
-divided by its 24-hour seasonal-control MAE. Log ratios are averaged within
-each dataset, then the two datasets receive equal weight. A ratio of the
-proposed-generator summary to the LMC summary below one favors the former.
-A paired temporal-block interval wholly below or above one supports the
-corresponding direction; an interval containing one is inconclusive. The
-equation-head principal contrast uses the same hierarchical ratio, with the
-no-head version of our generator as denominator. Ratios for the curriculum
-and interaction contrasts are reported as secondary estimates, without
-promoting the best of several contrasts to a new primary result. The
-block rule, zero-denominator policy, and evaluation period must be frozen
-before this becomes a confirmatory decision. With two domains and a single
-model seed, if that is the eventual budget, the interval describes variation
-over these periods, not over all domains or initializations. The
-controlled-corpus study uses the same
-descriptive tables, but its result is explicitly secondary; it does not
-compete with the primary pipeline decision.
+For each dataset separately, the scale-free summary is the geometric mean
+of its channels' MAE divided by their respective 24-hour seasonal-control
+MAE. We report the Ibirapuera and Bahia summaries in separate rows and do
+not pool them into one score. Within each dataset, the proposed-generator
+summary divided by the LMC summary below one favors our generator. A paired
+temporal-block interval wholly below or above one supports that dataset's
+direction; an interval containing one is inconclusive. A joint claim that
+one pipeline is better on both chosen datasets requires the same supported
+direction in both. Opposite directions are reported as mixed, and any
+inconclusive dataset prevents a joint winner claim. The equation-head
+principal contrast uses the same per-dataset summary, with the no-head
+version of our generator as denominator. Curriculum and interaction
+contrasts remain secondary; their results are also reported by dataset.
+The block rule, zero-denominator policy, and evaluation periods must be
+frozen before a confirmatory decision. With a single model seed, if that is
+the eventual budget, these intervals describe variation across temporal
+origins, not across initializations or new domains. The controlled-corpus
+study uses the same per-dataset descriptive tables, but is secondary to
+the complete-pipeline comparison.

@@ -166,8 +166,9 @@ python scripts/evaluate_prior_baselines.py \
 ```
 
 O resultado inclui MAE e WAPE por canal, MAE relativo ao seasonal naive de
-24 horas, média geométrica com peso igual para os dois domínios e intervalo
-pareado por blocos de sete origens diárias. O script não agrega MAE bruto de
+24 horas e **uma média geométrica por dataset**, com intervalo pareado por
+blocos de sete origens diárias em cada dataset. Não há escore único que
+combine Ibirapuera e Bahia. O script não agrega MAE bruto de
 unidades diferentes. O período 2019 continua **exploratório**; ele não vira
 confirmação só porque o cálculo foi automatizado. Os caminhos de dados acima
 são exemplos: use os arquivos reais baixados pelo notebook 09 ou informe seus

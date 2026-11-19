@@ -79,25 +79,24 @@ def main() -> None:
             )["per_channel"]
         del model
 
-    # Equal domain weight, then equal channel weight. These are descriptive
-    # adequacy scores against seasonal naive, not a Study A-versus-B contrast.
-    result["relative_mae_geomean"] = {}
-    for label in models:
-        domain_logs = []
-        for item in result["domains"].values():
+    # Report each domain on its own scale-free summary. Do not pool domains.
+    result["relative_mae_geomean_by_dataset"] = {}
+    for name, item in result["domains"].items():
+        result["relative_mae_geomean_by_dataset"][name] = {}
+        for label in models:
             channel_logs = [
                 math.log(item[label][channel]["mae"] / item["seasonal"][channel]["mae"])
                 for channel in item["channels"]
             ]
-            domain_logs.append(sum(channel_logs) / len(channel_logs))
-        result["relative_mae_geomean"][label] = math.exp(
-            sum(domain_logs) / len(domain_logs)
-        )
+            result["relative_mae_geomean_by_dataset"][name][label] = math.exp(
+                sum(channel_logs) / len(channel_logs)
+            )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({"origins": {name: len(item.origins) for name, item in windows.items()},
-                      "relative_mae_geomean": result["relative_mae_geomean"]}, indent=2))
+                      "relative_mae_geomean_by_dataset":
+                          result["relative_mae_geomean_by_dataset"]}, indent=2))
 
 
 if __name__ == "__main__":

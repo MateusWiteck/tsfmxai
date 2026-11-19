@@ -444,7 +444,11 @@
       <div class="box" style="flex:1;font-size:0.65em"><b>1.64 h</b> corpus preparation<br>Outside training clock</div>
       <div class="box" style="flex:1;font-size:0.65em"><b>12.70 h</b> training<br>Batch wait: 24.5 s (0.054%)</div>
     </div>
-    <p style="font-size:0.55em;margin-top:18px"><b>Exploratory 2019 zero-shot:</b> geometric mean of MAE / seasonal-naive MAE = <b>1.1228</b>; better than seasonal naive in 4/9 channels. Ibirapuera: 255 origins; Bahia: 357. Ratio above 1 means worse on this summary.</p>
+    <table style="font-size:0.58em;width:100%;margin:12px 0">
+      <thead><tr><th>Exploratory 2019 zero-shot</th><th>Origins</th><th>Relative MAE vs. seasonal naive</th><th>Improved channels</th></tr></thead>
+      <tbody><tr><td>Ibirapuera air quality</td><td>255</td><td><b>1.0175</b></td><td>3/5</td></tr>
+      <tr><td>Bahia electricity system</td><td>357</td><td><b>1.2390</b></td><td>1/4</td></tr></tbody>
+    </table>
     <p style="font-size:0.49em">Synthetic validation used 64 examples per stage; correlated metrics were last measured at update 445,000, before the final checkpoint at 445,433. No held-out synthetic test was run.</p>
     <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/prior_lmc_study_a_20261118.md &middot; RTX 4070, VM02 &middot; config SHA-256 b18e5a49&hellip;</p>
   </div>
@@ -468,7 +472,11 @@
       <div class="box" style="flex:1;font-size:0.65em"><b>10.003 h</b> active time<br>Generation included</div>
       <div class="box" style="flex:1;font-size:0.65em"><b>4,264 s</b> batch wait<br>11.84% of active time</div>
     </div>
-    <p style="font-size:0.55em;margin-top:18px"><b>Exploratory 2019 zero-shot:</b> geometric mean of MAE / seasonal-naive MAE = <b>1.0635</b>; better than seasonal naive in 6/9 channels. Ibirapuera: 255 origins; Bahia: 357. Ratio above 1 means worse on this summary.</p>
+    <table style="font-size:0.58em;width:100%;margin:12px 0">
+      <thead><tr><th>Exploratory 2019 zero-shot</th><th>Origins</th><th>Relative MAE vs. seasonal naive</th><th>Improved channels</th></tr></thead>
+      <tbody><tr><td>Ibirapuera air quality</td><td>255</td><td><b>0.9584</b></td><td>4/5</td></tr>
+      <tr><td>Bahia electricity system</td><td>357</td><td><b>1.1800</b></td><td>2/4</td></tr></tbody>
+    </table>
     <p style="font-size:0.49em">Synthetic validation used 64 examples per stage; correlated metrics were last measured at update 297,500, before the final checkpoint at 299,991. Batch wait is not a direct GPU-stall measure.</p>
     <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/prior_lmc_study_b_20261118.md &middot; RTX 4070, VM03 &middot; config SHA-256 b18e5a49&hellip;</p>
   </div>

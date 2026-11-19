@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tsfmxai.evaluation.prior_outcome import (hierarchical_relative_mae,
+from tsfmxai.evaluation.prior_outcome import (per_dataset_relative_mae,
                                                paired_block_interval, seasonal_naive)
 from tsfmxai.evaluation.real_world import (forecast_chronos2, load_brazil_energy,
                                             load_ibirapuera, select_windows)
@@ -44,7 +44,7 @@ def main():
                 model, item, device=args.device, batch_size=args.batch_size)
         del model
 
-    result = hierarchical_relative_mae(domains)
+    result = per_dataset_relative_mae(domains)
     result["paired_block_interval"] = paired_block_interval(
         domains, block_windows=args.block_windows,
         replicates=args.bootstrap_replicates)
@@ -63,13 +63,18 @@ def main():
                   detail["per_channel"]["seasonal"][channel]["mae"]
                   for channel in windows[name].channels}
             for arm in ("lmc", "own")}
-    result["beats_seasonal_overall"] = {arm: score < 1
-                                        for arm, score in result["overall"].items()}
+    result["beats_seasonal_by_dataset"] = {
+        name: {arm: score < 1 for arm, score in detail["relative_geomean"].items()}
+        for name, detail in result["per_domain"].items()
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps({"own_over_lmc": result["own_over_lmc"],
-                      "interval": result["paired_block_interval"],
-                      "beats_seasonal_overall": result["beats_seasonal_overall"]},
+    print(json.dumps({"by_dataset": {
+                          name: {"own_over_lmc": detail["own_over_lmc"],
+                                 "relative_geomean": detail["relative_geomean"],
+                                 "interval": result["paired_block_interval"][name]}
+                          for name, detail in result["per_domain"].items()},
+                      "beats_seasonal_by_dataset": result["beats_seasonal_by_dataset"]},
                      indent=2))
 
 

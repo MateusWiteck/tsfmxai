@@ -1,4 +1,4 @@
-"""Predeclared, unit-free outcome for paired zero-shot prior comparisons."""
+"""Unit-free outcomes per dataset for paired zero-shot comparisons."""
 from __future__ import annotations
 
 import math
@@ -47,27 +47,24 @@ def _domain_log_score(target, channels, predictions):
     return scores, metrics
 
 
-def hierarchical_relative_mae(domains):
-    """Equal weight across domains, then equal weight across their channels."""
+def per_dataset_relative_mae(domains):
+    """Geometric mean of channel MAE ratios, separately for each dataset."""
     if not domains:
         raise ValueError("At least one domain is required")
-    logs, details = [], {}
+    details = {}
     for domain, item in domains.items():
         scores, metrics = _domain_log_score(item["target"], item["channels"],
                                              item["predictions"])
-        logs.append(scores)
+        relative = {arm: math.exp(value) for arm, value in scores.items()}
         details[domain] = {"per_channel": metrics,
                            "relative_mae_per_channel": {
                                arm: {channel: metrics[arm][channel]["mae"] /
                                      metrics["seasonal"][channel]["mae"]
                                      for channel in item["channels"]}
                                for arm in ("lmc", "own")},
-                           "relative_geomean": {arm: math.exp(value)
-                                                for arm, value in scores.items()}}
-    overall = {arm: math.exp(float(np.mean([score[arm] for score in logs])))
-               for arm in ("lmc", "own")}
-    return {"per_domain": details, "overall": overall,
-            "own_over_lmc": overall["own"] / overall["lmc"]}
+                           "relative_geomean": relative,
+                           "own_over_lmc": relative["own"] / relative["lmc"]}
+    return {"per_domain": details}
 
 
 def paired_block_interval(domains, *, block_windows=7, replicates=1000, seed=2021,
@@ -76,7 +73,7 @@ def paired_block_interval(domains, *, block_windows=7, replicates=1000, seed=202
     if block_windows < 1 or replicates < 1 or not 0 < alpha < 1:
         raise ValueError("Invalid block bootstrap settings")
     rng = np.random.default_rng(seed)
-    ratios = np.empty(replicates)
+    ratios = {domain: np.empty(replicates) for domain in domains}
     for replicate in range(replicates):
         sampled = {}
         for domain, item in domains.items():
@@ -91,8 +88,15 @@ def paired_block_interval(domains, *, block_windows=7, replicates=1000, seed=202
                                "channels": item["channels"],
                                "predictions": {name: pred[indices] for name, pred
                                                in item["predictions"].items()}}
-        ratios[replicate] = hierarchical_relative_mae(sampled)["own_over_lmc"]
-    low, high = np.quantile(ratios, [alpha / 2, 1 - alpha / 2])
-    return {"low": float(low), "high": float(high), "replicates": replicates,
-            "block_windows": block_windows, "seed": seed,
-            "decision": ("own" if high < 1 else "lmc" if low > 1 else "inconclusive")}
+        scores = per_dataset_relative_mae(sampled)["per_domain"]
+        for domain in domains:
+            ratios[domain][replicate] = scores[domain]["own_over_lmc"]
+    intervals = {}
+    for domain, values in ratios.items():
+        low, high = np.quantile(values, [alpha / 2, 1 - alpha / 2])
+        intervals[domain] = {"low": float(low), "high": float(high),
+                             "replicates": replicates, "block_windows": block_windows,
+                             "seed": seed,
+                             "decision": ("own" if high < 1 else "lmc" if low > 1
+                                          else "inconclusive")}
+    return intervals
