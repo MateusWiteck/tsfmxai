@@ -421,8 +421,56 @@
 <!-- 14c. Planned comparison with LMC-Synth -->
 <section id="evalplan">
   <div class="canvas" style="height:660px">
-    <div class="crumb"><b>Comparison</b> &middot; this project's generator against LMC-Synth <span>&nbsp;&nbsp;planned: no forecasting model has been trained or measured yet</span></div>
+    <div class="crumb"><b>Comparison</b> &middot; this project's generator against LMC-Synth <span>&nbsp;&nbsp;LMC arms completed; our generator and real-data comparisons pending</span></div>
     <div class="zoom"></div>
+  </div>
+</section>
+
+<!-- LMC baseline, Study A: fixed exposure -->
+<section id="lmc-study-a">
+  <div class="canvas">
+    <div class="kicker">LMC baseline &middot; Study A &middot; completed</div>
+    <h2>Equal exposure: 445,433 updates</h2>
+    <p>Chronos-2 from random weights &middot; six channels &middot; 96 context + 96 forecast &middot; seed 2021</p>
+    <table style="font-size:0.70em;width:100%;margin:22px 0">
+      <thead><tr><th>Stage</th><th>Updates</th><th>Last synthetic validation loss</th><th>MAE</th></tr></thead>
+      <tbody>
+        <tr><td>Independent KernelSynth</td><td>346,996</td><td>6.9405</td><td>0.7078</td></tr>
+        <tr><td>Correlated LMC</td><td>98,437</td><td>7.2990</td><td>0.6239</td></tr>
+      </tbody>
+    </table>
+    <div class="row" style="gap:18px">
+      <div class="box" style="flex:1;font-size:0.65em"><b>7,126,928</b> windows exposed<br>One pass through full LMC batches</div>
+      <div class="box" style="flex:1;font-size:0.65em"><b>1.64 h</b> corpus preparation<br>Outside training clock</div>
+      <div class="box" style="flex:1;font-size:0.65em"><b>12.70 h</b> training<br>Batch wait: 24.5 s (0.054%)</div>
+    </div>
+    <p style="font-size:0.55em;margin-top:18px"><b>Exploratory 2019 zero-shot:</b> geometric mean of MAE / seasonal-naive MAE = <b>1.1228</b>; better than seasonal naive in 4/9 channels. Ibirapuera: 255 origins; Bahia: 357. Ratio above 1 means worse on this summary.</p>
+    <p style="font-size:0.49em">Synthetic validation used 64 examples per stage; correlated metrics were last measured at update 445,000, before the final checkpoint at 445,433. No held-out synthetic test was run.</p>
+    <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/prior_lmc_study_a_20261118.md &middot; RTX 4070, VM02 &middot; config SHA-256 b18e5a49&hellip;</p>
+  </div>
+</section>
+
+<!-- LMC baseline, Study B: fixed active time -->
+<section id="lmc-study-b">
+  <div class="canvas">
+    <div class="kicker">LMC baseline &middot; Study B &middot; completed</div>
+    <h2>Equal machine time: 10 hours</h2>
+    <p>Cold cache at start &middot; Chronos-2 from random weights &middot; six channels &middot; seed 2021</p>
+    <table style="font-size:0.70em;width:100%;margin:22px 0">
+      <thead><tr><th>Stage</th><th>Updates</th><th>Last synthetic validation loss</th><th>MAE</th></tr></thead>
+      <tbody>
+        <tr><td>Independent KernelSynth</td><td>241,898</td><td>6.3194</td><td>0.6876</td></tr>
+        <tr><td>Correlated LMC</td><td>58,093</td><td>7.2337</td><td>0.6215</td></tr>
+      </tbody>
+    </table>
+    <div class="row" style="gap:18px">
+      <div class="box" style="flex:1;font-size:0.65em"><b>299,991</b> updates<br>4,799,856 windows exposed</div>
+      <div class="box" style="flex:1;font-size:0.65em"><b>10.003 h</b> active time<br>Generation included</div>
+      <div class="box" style="flex:1;font-size:0.65em"><b>4,264 s</b> batch wait<br>11.84% of active time</div>
+    </div>
+    <p style="font-size:0.55em;margin-top:18px"><b>Exploratory 2019 zero-shot:</b> geometric mean of MAE / seasonal-naive MAE = <b>1.0635</b>; better than seasonal naive in 6/9 channels. Ibirapuera: 255 origins; Bahia: 357. Ratio above 1 means worse on this summary.</p>
+    <p style="font-size:0.49em">Synthetic validation used 64 examples per stage; correlated metrics were last measured at update 297,500, before the final checkpoint at 299,991. Batch wait is not a direct GPU-stall measure.</p>
+    <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/prior_lmc_study_b_20261118.md &middot; RTX 4070, VM03 &middot; config SHA-256 b18e5a49&hellip;</p>
   </div>
 </section>
 

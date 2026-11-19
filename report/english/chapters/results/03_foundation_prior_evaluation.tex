@@ -1,10 +1,61 @@
 ﻿\subsection{Forecasting from synthetic priors: real-data evaluation}
 \label{sec:foundation-prior-results}
 
+\paragraph{Completed LMC training arms.}
+The prespecified LMC reference runs are complete, while their matched
+proposed-generator arms and real-data evaluations remain pending. Both used
+seed 2021, a randomly initialized 119.48M-parameter Chronos-2, six channels,
+96 context and 96 forecast steps, and a batch of 16. The shared configuration
+SHA-256 is
+\texttt{b18e5a493466307a33c516a9dd75fe00f7685b7572878b292ea9eda1912f60e4}.
+The code revision was \texttt{1add431}; TimePFN was pinned to \texttt{e11d5c2}.
+All 463 remote SHA-256 entries per run matched the received local files.
+The full records are in
+\texttt{experiments/generator\_model\_evaluation/prior\_lmc\_study\_a\_20261118.md}
+and \texttt{prior\_lmc\_study\_b\_20261118.md}. The model repositories are
+\url{https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-a-seed2021}
+and \url{https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-b-seed2021}
+(private at publication).
+
+Study A prepared its corpus in 5,886.4~s outside the training clock, then
+exhausted all 445,433 updates in 45,704.2~s (12.70~h), exposing 7,126,928
+windows. Observed batch wait totaled 24.5~s. Study B began with an empty
+run-specific cache and included generation in its ten-hour active budget.
+It stopped after 299,991 updates, 4,799,856 windows, and 36,012.3~s
+(10.003~h). Observed batch wait was 4,264.2~s (11.84\% of active time);
+no LMC windows were repeated. Batch wait is not direct GPU stall. The
+studies ran on separate RTX~4070 hosts with different CPUs, so their
+throughputs are not a controlled machine comparison.
+
+Table~\ref{tab:lmc-new-synthetic-validation} gives the last synthetic
+validation measurement in each stage, each on 64 examples. It is neither a
+held-out synthetic test nor a real-data score. The last correlated validation
+precedes the final exported checkpoint in both runs. The independent-stage
+validation loss in Study A rose after its observed minimum, a diagnostic
+pattern compatible with overfitting; the final-budget model remains primary.
+
+\begin{table}[H]
+\centering\small
+\caption{Last recorded synthetic validation for the new LMC runs. Loss is
+the Chronos-2 objective; MSE and MAE use the synthetic target scale. The
+global update identifies the evaluated weights.}
+\label{tab:lmc-new-synthetic-validation}
+\begin{tabular}{llrrrr}\toprule
+Study & Stage & Global update & Loss & MSE & MAE \\\midrule
+A & Independent & 346,996 & 6.9405 & 4.0176 & 0.7078 \\
+A & Correlated & 445,000 & 7.2990 & 3.5314 & 0.6239 \\
+B & Independent & 241,898 & 6.3194 & 4.2290 & 0.6876 \\
+B & Correlated & 297,500 & 7.2337 & 3.4763 & 0.6215 \\\bottomrule
+\end{tabular}
+\end{table}
+
 Tables~\ref{tab:air-mae}--\ref{tab:energy-wape} separate the two error
-measures by dataset and channel. The measured entries come from the executed
-local evaluation notebook
-for 2019: 255 eligible daily-grid windows at Ibirapuera and 357 in Bahia,
+measures by dataset and channel. The older persistence, DLinear, and
+historical LMC entries come from the executed local evaluation notebook.
+The new seasonal and Study A/B LMC rows come from
+\texttt{scripts/evaluate\_lmc\_checkpoints.py}, applied to the received final
+checkpoints. All use 2019: 255 eligible daily-grid windows at Ibirapuera and
+357 in Bahia,
 each with 96 context and 96 forecast hours. A dash denotes a model that has
 not yet been trained and evaluated; it is not a zero error. The principal
 generator comparisons will use LMC-Synth and this project's generator with
@@ -18,9 +69,20 @@ prespecified, independent benchmark. Both historical LMC checkpoints are
 exploratory: ES was selected by synthetic-validation early stopping, and
 ``final'' was saved after the original fixed-update budget. The prospective
 protocol uses its final budget checkpoint as the primary result. Neither
-historical row represents that future matched-budget arm. Seasonal
-naive and our generator have no measured entries yet. The dashes mark missing
-executions, not zero errors.
+historical row represents a new matched-budget arm. The new LMC rows are
+zero-shot evaluations of the two final checkpoints. The seasonal control
+was evaluated on the same origins. Our generator has no measured entries
+yet; dashes mark missing executions, not zero errors. The abbreviated A/B
+labels denote the exposure-controlled and time-controlled studies; the
+combined condition means equation head plus additional curriculum.
+
+Under the prespecified equal-domain, equal-channel geometric mean of MAE
+relative to seasonal naive, the exploratory adequacy ratios are 1.1228 for
+Study A LMC and 1.0635 for Study B LMC. A ratio above one means worse
+average relative MAE than that simple control. Study A beats the seasonal
+control in four of nine channels; Study B does so in six of nine. These
+descriptive numbers do not compare the two generator pipelines, because
+their paired proposed-generator runs have not been evaluated.
 
 \begin{table}[H]
 \centering\small\setlength{\tabcolsep}{3pt}
@@ -30,14 +92,18 @@ NO$_2$ are ppbv; CO is ppmv; PM$_{2.5}$ is $\mu$g/m$^3$.}
 \begin{tabular}{lrrrrr}\toprule
 Model & O$_3$ & NO & NO$_2$ & CO & PM$_{2.5}$ \\\midrule
 Persistence & 16.2164 & 12.9306 & 11.7579 & 0.3162 & 8.9186 \\
-Seasonal 24h (pending) & -- & -- & -- & -- & -- \\
+Seasonal 24h & 12.3112 & 9.8112 & 9.0830 & 0.2290 & 8.8572 \\
 DLinear (supervised) & 10.2604 & 8.5991 & 7.1457 & 0.1796 & 7.6456 \\
 Chronos-2 + LMC (ES) & 12.3530 & 10.1432 & 8.1350 & 0.2200 & 7.7923 \\
 \quad LMC, final checkpoint & 13.0120 & 12.0548 & 8.8027 & 0.2331 & 8.2568 \\
-Controlled: LMC & -- & -- & -- & -- & -- \\
-Controlled: proposed & -- & -- & -- & -- & -- \\
-Budget: LMC & -- & -- & -- & -- & -- \\
-Budget: proposed & -- & -- & -- & -- & -- \\\bottomrule
+A: LMC & 13.1562 & 10.7423 & 9.0093 & 0.2279 & 8.3646 \\
+A: ours & -- & -- & -- & -- & -- \\
+A: ours + head & -- & -- & -- & -- & -- \\
+B: LMC & 12.7529 & 9.7218 & 8.3857 & 0.2190 & 7.9072 \\
+B: ours & -- & -- & -- & -- & -- \\
+B: ours + head & -- & -- & -- & -- & -- \\
+B: ours + curriculum & -- & -- & -- & -- & -- \\
+B: ours + both & -- & -- & -- & -- & -- \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -50,14 +116,18 @@ percentage error.}
 \begin{tabular}{lrrrrr}\toprule
 Model & O$_3$ & NO & NO$_2$ & CO & PM$_{2.5}$ \\\midrule
 Persistence & 74.6253 & 179.1779 & 80.9011 & 83.4835 & 69.5949 \\
-Seasonal 24h (pending) & -- & -- & -- & -- & -- \\
+Seasonal 24h & 56.6544 & 135.9532 & 62.4964 & 60.4782 & 69.1157 \\
 DLinear (supervised) & 47.2167 & 119.1559 & 49.1666 & 47.4201 & 59.6608 \\
 Chronos-2 + LMC (ES) & 56.8464 & 140.5527 & 55.9734 & 58.0858 & 60.8055 \\
 \quad LMC, final checkpoint & 59.8794 & 167.0412 & 60.5678 & 61.5514 & 64.4306 \\
-Controlled: LMC & -- & -- & -- & -- & -- \\
-Controlled: proposed & -- & -- & -- & -- & -- \\
-Budget: LMC & -- & -- & -- & -- & -- \\
-Budget: proposed & -- & -- & -- & -- & -- \\\bottomrule
+A: LMC & 60.5429 & 148.8541 & 61.9894 & 60.1658 & 65.2721 \\
+A: ours & -- & -- & -- & -- & -- \\
+A: ours + head & -- & -- & -- & -- & -- \\
+B: LMC & 58.6868 & 134.7143 & 57.6982 & 57.8170 & 61.7028 \\
+B: ours & -- & -- & -- & -- & -- \\
+B: ours + head & -- & -- & -- & -- & -- \\
+B: ours + curriculum & -- & -- & -- & -- & -- \\
+B: ours + both & -- & -- & -- & -- & -- \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -69,14 +139,18 @@ dimensionless capacity factors; inflow is in MWh.}
 \begin{tabular}{lrrrr}\toprule
 Model & Demand & Wind & Solar & Inflow \\\midrule
 Persistence & 264.8814 & 0.0961 & 0.1816 & 133.2286 \\
-Seasonal 24h (pending) & -- & -- & -- & -- \\
+Seasonal 24h & 205.2009 & 0.0980 & 0.0188 & 133.2286 \\
 DLinear (supervised) & 108.1513 & 0.0792 & 0.0275 & 215.2351 \\
 Chronos-2 + LMC (ES) & 229.9932 & 0.0947 & 0.0366 & 118.7217 \\
 \quad LMC, final checkpoint & 250.2420 & 0.0964 & 0.0338 & 119.6153 \\
-Controlled: LMC & -- & -- & -- & -- \\
-Controlled: proposed & -- & -- & -- & -- \\
-Budget: LMC & -- & -- & -- & -- \\
-Budget: proposed & -- & -- & -- & -- \\\bottomrule
+A: LMC & 255.6400 & 0.0961 & 0.0356 & 135.3384 \\
+A: ours & -- & -- & -- & -- \\
+A: ours + head & -- & -- & -- & -- \\
+B: LMC & 238.6866 & 0.0976 & 0.0361 & 115.6647 \\
+B: ours & -- & -- & -- & -- \\
+B: ours + head & -- & -- & -- & -- \\
+B: ours + curriculum & -- & -- & -- & -- \\
+B: ours + both & -- & -- & -- & -- \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -88,29 +162,38 @@ zero for many hours, WAPE is computed from channel totals.}
 \begin{tabular}{lrrrr}\toprule
 Model & Demand & Wind & Solar & Inflow \\\midrule
 Persistence & 8.2049 & 44.1823 & 100.0000 & 8.0452 \\
-Seasonal 24h (pending) & -- & -- & -- & -- \\
+Seasonal 24h & 6.3562 & 45.0423 & 10.3275 & 8.0452 \\
 DLinear (supervised) & 3.3501 & 36.3814 & 15.1264 & 12.9973 \\
 Chronos-2 + LMC (ES) & 7.1242 & 43.5269 & 20.1574 & 7.1692 \\
 \quad LMC, final checkpoint & 7.7514 & 44.3004 & 18.6221 & 7.2231 \\
-Controlled: LMC & -- & -- & -- & -- \\
-Controlled: proposed & -- & -- & -- & -- \\
-Budget: LMC & -- & -- & -- & -- \\
-Budget: proposed & -- & -- & -- & -- \\\bottomrule
+A: LMC & 7.9186 & 44.1523 & 19.6162 & 8.1726 \\
+A: ours & -- & -- & -- & -- \\
+A: ours + head & -- & -- & -- & -- \\
+B: LMC & 7.3935 & 44.8705 & 19.9063 & 6.9846 \\
+B: ours & -- & -- & -- & -- \\
+B: ours + head & -- & -- & -- & -- \\
+B: ours + curriculum & -- & -- & -- & -- \\
+B: ours + both & -- & -- & -- & -- \\\bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering\small\setlength{\tabcolsep}{3pt}
-\caption{Prospective protocol records. Controlled-corpus runs will match
-examples and updates; pipeline runs will match elapsed machine hours with
-empty caches. Values await definitive executions.}
+\caption{Prospective protocol records. Controlled-corpus runs match exposed
+examples and updates; pipeline runs match elapsed active machine hours with
+empty run-specific caches. Dashes await the proposed-generator arms. Study A
+preparation (1.64 h) is excluded from its training hours.}
 \label{tab:foundation-prior-budget}
 \begin{tabular}{lrrr}\toprule
 Study and generator & Machine hours & Updates & Examples \\\midrule
-Controlled corpus: LMC & -- & -- & -- \\
-Controlled corpus: own generator & -- & -- & -- \\
-Complete pipeline: LMC & -- & -- & -- \\
-Complete pipeline: own generator & -- & -- & -- \\\bottomrule
+Controlled corpus: LMC & 12.696 & 445,433 & 7,126,928 \\
+Controlled corpus: ours & -- & -- & -- \\
+Controlled corpus: ours + head & -- & -- & -- \\
+Complete pipeline: LMC & 10.003 & 299,991 & 4,799,856 \\
+Complete pipeline: ours & -- & -- & -- \\
+Complete pipeline: ours + head & -- & -- & -- \\
+Complete pipeline: ours + curriculum & -- & -- & -- \\
+Complete pipeline: ours + both & -- & -- & -- \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -122,28 +205,33 @@ consumer-observed time, not a direct GPU-stall measurement.}
 \label{tab:foundation-prior-efficiency}
 \begin{tabular}{lrrr}\toprule
 Study and generator & Unique trajectories & Reuse & Batch wait (s) \\\midrule
-Controlled corpus: LMC & -- & -- & -- \\
-Controlled corpus: proposed & -- & -- & -- \\
-Complete pipeline: LMC & -- & -- & -- \\
-Complete pipeline: proposed & -- & -- & -- \\\bottomrule
+Controlled corpus: LMC & 34,998 & 203.64 & 24.5 \\
+Controlled corpus: ours & -- & -- & -- \\
+Controlled corpus: ours + head & -- & -- & -- \\
+Complete pipeline: LMC & 34,998 & 137.15 & 4,264.2 \\
+Complete pipeline: ours & -- & -- & -- \\
+Complete pipeline: ours + head & -- & -- & -- \\
+Complete pipeline: ours + curriculum & -- & -- & -- \\
+Complete pipeline: ours + both & -- & -- & -- \\\bottomrule
 \end{tabular}
 \end{table}
 
-These historical scores are descriptive. Daily forecast windows overlap, so
+These 2019 scores are exploratory. Daily forecast windows overlap, so
 the window count is not a count of independent trials. The DLinear training
 cap was revised after preliminary inspection of 2019 outcomes, although
 its final weights were selected on 2018 validation data. This is not direct
 future-target leakage into optimization, but it limits the independence of
-the 2019 comparison. No temporal-block interval or prospective primary
-summary has yet been computed. The historical cache state and step-indexed
-OneCycle scheduler also preclude treating these checkpoints as the final
-time-matched LMC arm. The new cold-cache run, numerical budget, scheduler,
-and decision rule must be recorded before training the competing arm. The
+the 2019 comparison. No paired temporal-block interval for a
+proposed-generator-versus-LMC contrast can be computed before the paired arm
+exists. The historical cache state and step-indexed OneCycle scheduler
+preclude treating the older checkpoints as the new time-matched LMC arm. The
+new cold-cache LMC run, numerical ten-hour budget, scheduler, and decision
+rule are recorded; the paired proposed-generator run remains outstanding. The
 reviewer's inspection of the independent-stage learning curves found
 decreasing training loss together with rising synthetic-validation loss
 late in that stage. This pattern is compatible with overfitting, although
 the small historical validation sample and incomplete local telemetry
-preclude quantifying how much of the budget was unproductive. The next run
-will record the full curves and the independent-stage terminal checkpoint.
+preclude quantifying how much of the budget was unproductive. The new runs
+record the full curves and the independent-stage terminal checkpoints.
 
 
