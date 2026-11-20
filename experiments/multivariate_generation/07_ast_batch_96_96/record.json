@@ -1,0 +1,129 @@
+{
+  "question": "How quickly does the AST generator deliver training-shape batches online?",
+  "hypothesis": "Throughput differs by dependency topology at fixed batch dimensions.",
+  "configuration": {
+    "seed": 20261119,
+    "workers": 8,
+    "prefetch_factor": 2,
+    "pin_memory": false,
+    "blas_threads": 1,
+    "warmup_batches": 16,
+    "measured_batches": 64,
+    "systems_per_batch": 16,
+    "trajectories_per_system": 1,
+    "generator": {
+      "ast_config": {
+        "minimum_operators": 1,
+        "maximum_operators": 3,
+        "num_series": 1,
+        "minimum_lag": 1,
+        "maximum_lag": 16,
+        "max_degree": 4,
+        "require_lag": true,
+        "minimum_parameter_magnitude": 0.05,
+        "maximum_parameter_magnitude": 0.9
+      },
+      "channel_count_probs": {
+        "6": 1.0
+      },
+      "dependency_probs": {
+        "random": 1.0
+      },
+      "treatment_probs": {
+        "original": 0.0,
+        "shao_wu": 0.5,
+        "jacobian": 0.16666666666666666,
+        "heaps": 0.3333333333333333
+      },
+      "max_external_sources": 2,
+      "self_source_weight": 3.0,
+      "allow_no_lags": true,
+      "noise": {
+        "std_range": [
+          0.01,
+          0.1
+        ],
+        "std_sampling": "uniform",
+        "family_policy": "by_treatment"
+      },
+      "target_gain": 0.8,
+      "safety_factor": 0.95,
+      "lag_sampling": {
+        "minimum": 0.25,
+        "maximum": 0.75,
+        "tau": 1.0
+      }
+    },
+    "trajectory": {
+      "generated_steps": 192,
+      "initialization": {
+        "name": "uniform",
+        "kind": "uniform",
+        "amplitude": 1.0,
+        "offset": 0.0,
+        "period": 48,
+        "fraction": 1.0
+      },
+      "resample_innovations": false
+    },
+    "training": {
+      "context_length": 96,
+      "prediction_length": 96,
+      "stride": 96,
+      "batch_size": 16,
+      "dtype": "float32",
+      "layout": "batch_time_channel",
+      "noise_target": "scale_and_family"
+    },
+    "topologies": [
+      "independent",
+      "random",
+      "linked_chain"
+    ]
+  },
+  "provenance": {
+    "git_head": "51bfcf5d1fa08b108bca6b38e2e9766efe45b516",
+    "source_sha256": {
+      "scripts/benchmark_ast_96_96.py": "8ba04e24352b86c471ad6845189300fd7dcbe9cb16ba636cf8fd8157f5539dba",
+      "src/tsfmxai/datasets/multiseries.py": "c91c14343a6ce97a6e7389ec7d8c4c702ad6a9fd3fa964037f53c4b135e93eef",
+      "src/tsfmxai/datasets/online.py": "af1ee71ebd3a3a5e6b9e4b1c3193a8403841a3bfd1eb969668bdd777ccc170b1",
+      "src/tsfmxai/generators/multiseries.py": "ca0b950c07d50a8540e767e4e9745c0a1849d425c0920bf6d7fc7b04c3cb3af9"
+    },
+    "python": "3.11.9",
+    "numpy": "1.26.4",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "cpu": "Intel64 Family 6 Model 158 Stepping 10, GenuineIntel",
+    "logical_cpus": 8
+  },
+  "results": [
+    {
+      "topology": "independent",
+      "measured_batches": 64,
+      "sustained_seconds_per_batch": 0.19160890312559786,
+      "batches_per_second": 5.218964169658177,
+      "median_next_batch_seconds": 0.0017787499818950891,
+      "p95_next_batch_seconds": 1.210113295121117,
+      "elapsed_including_startup_seconds": 26.1740615000017
+    },
+    {
+      "topology": "random",
+      "measured_batches": 64,
+      "sustained_seconds_per_batch": 0.16991417343888315,
+      "batches_per_second": 5.885324218463108,
+      "median_next_batch_seconds": 0.0019608500879257917,
+      "p95_next_batch_seconds": 0.9786344449385067,
+      "elapsed_including_startup_seconds": 23.39702170016244
+    },
+    {
+      "topology": "linked_chain",
+      "measured_batches": 64,
+      "sustained_seconds_per_batch": 0.17163149218686158,
+      "batches_per_second": 5.8264365546112185,
+      "median_next_batch_seconds": 0.0019210500176995993,
+      "p95_next_batch_seconds": 0.8814305600477372,
+      "elapsed_including_startup_seconds": 22.611542999977246
+    }
+  ],
+  "scientific_summary": "CPU-only batch delivery with one run per topology. The 64/16 historical experiment uses a different workload; this run fixes the prospective 16-example, 96/96, six-channel contract. Delivery latency includes prefetch and serialization but excludes Chronos optimization and GPU stall.",
+  "reproduction": "From repository root with Python 3.11 and project dependencies: python scripts/benchmark_ast_96_96.py --output experiments/multivariate_generation/07_ast_batch_96_96/record.json --workers 8 --warmup 16 --measured 64"
+}
