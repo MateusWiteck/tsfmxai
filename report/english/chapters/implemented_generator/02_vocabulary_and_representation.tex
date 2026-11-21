@@ -107,20 +107,42 @@ lag leaf, or a $\tanh$) is one token, and each position in the sequence has its
 own learned position embedding. The hyperparameter \texttt{max\_nodes} is the
 size of that table: it is the \emph{largest number of nodes an input tree may
 have}, and a longer tree cannot be encoded. A sampled tree with $K$ binary
-operations has $2K+1$ nodes. Product-lag protection may additionally wrap each
-of its at most $K+1$ lag leaves in a $\tanh$, so a protected tree has at most
-$3K+2$ nodes. With the default limit of $K=6$ operations this gives 13 nodes
-for a raw tree and at most 20 for a protected one, hence
-\texttt{max\_nodes}${}=20$ in
-\path{configs/canonicalization_10m_six_series.json}. The bound does not depend on
-the lag range, but the vocabulary size does: the codec has
-$2SL+5$ symbols for $L$ lags and $S$ source series (197 for $L=16$, $S=6$). The model is
-defined in \path{src/tsfmxai/symbolic_regression/canonical_models.py}.
+operations has $2K+1$ nodes. Shao--Wu wraps each of its at most $K+1$ lag leaves
+that enter a product in a $\tanh$ and multiplies the equation by its gain scale,
+which adds two nodes, so a Shao--Wu equation has at most $3K+4$ nodes. Jacobian
+multiplies a tree by its contraction scale, giving at most $2K+3$ nodes. A Heaps
+autoregression with $p$ lags has $4p+1$ nodes. With $K=6$ operations and
+$p\le16$ lags, the largest equations have 22, 15, and 65 nodes respectively, hence
+\texttt{max\_nodes}${}=65$ in
+\path{configs/canonicalization_multiseries_six_series.json}. The codec has
+$2SL+5$ symbols for $L$ lags and $S$ source series (197 for $L=16$, $S=6$). The
+model is defined in
+\path{src/tsfmxai/symbolic_regression/canonical_models.py}.
 
-\paragraph{Six-series encoder--decoder protocol.}
-The configured corpus contains $10^7$ sampled trees, with one equation per
-example and references to any of six source series. The vocabulary contains
-$2 \times 6 \times 16 + 5 = 197$ tokens. Both the skeleton-only and joint
-variants are trained from random initialization. Results will be recorded after
-execution; the reproducible configuration is
-\path{configs/canonicalization_10m_six_series.json}.
+\paragraph{Six-series teacher.}
+The teacher is trained on the equations that the forecasting generator
+executes. Each example draws one six-channel system with
+\texttt{sample\_multiseries\_system}, picks one channel deterministically from
+the sample index, and encodes that channel's executed equation, including its
+treatment. Equations therefore reference any of the six channels by absolute
+index, as the equation head requires. The generator settings match the
+forecasting arm: one to six operators, lags 1--16, degree at most four,
+parameter magnitudes between 0.05 and 1, random topology with at most two
+external sources, and the dependency-driven treatment rule. Data generation
+stops with an error if an equation exceeds \texttt{max\_nodes} or its canonical
+target exceeds the decoding length. A run with a skeleton-disjoint split measures
+generalization to unseen skeletons; the teacher used for the equation head is
+then trained on every split, for the number of epochs fixed by that run, so
+that no skeleton the generator produces is missing from its training data.
+
+The earlier six-series release, trained on $3\times10^7$ trees from the
+combinatorial sampler with $\tanh$ protection, quantifies what coefficient
+prediction adds. On its 5,998,787 held-out test skeletons, the skeleton-only
+variant recovered the exact canonical skeleton for 97.9\% of equations (term
+F1 0.994). The joint variant, which also predicts one coefficient per term,
+recovered the skeleton for 97.3\%, but the skeleton together with every
+coefficient within 0.01 (absolute or relative, whichever is larger) for only 7.6\%;
+its mean absolute coefficient error on matched terms was 0.024. We concluded
+that predicting coefficients in this form is not useful for the equation head,
+so only the skeleton-only variant is trained. The record is
+\path{experiments/canonicalization/07_train_30m_six_series.ipynb}.

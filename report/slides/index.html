@@ -403,6 +403,306 @@
   </div>
 </section>
 
+<!-- 14a. Chronos-2 modifications for explainability -->
+<section id="chronos-mods">
+  <div class="canvas">
+    <div class="kicker">Before the comparison &middot; Chronos-2 modifications for explainability</div>
+    <h2 style="margin-bottom:0.25em">Every step and every series becomes addressable</h2>
+    <svg viewBox="0 0 1200 484" width="1200" height="484" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, system-ui, Arial, sans-serif" style="display:block">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f2430"/></marker><marker id="ahO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/></marker><marker id="ahG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/></marker><marker id="ahB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/></marker><marker id="ahM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9a968a"/></marker></defs>
+<text x="0" y="16" font-size="17" fill="#c2410c" font-weight="700" text-anchor="start" >① Tokens: patch size 16 → 1</text>
+<text x="0" y="36" font-size="13" fill="#5b6475" font-weight="400" text-anchor="start" >Chronos-2 indexes patches, not steps</text>
+<text x="0" y="66" font-size="13" fill="#9a968a" font-weight="650" text-anchor="start" >Chronos-2 · P = 16</text>
+<rect x="0" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="9" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="18" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="27" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="36" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="45" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="54" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="63" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="72" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="81" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="90" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="99" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="108" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="117" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="126" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="135" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="144" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="153" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="162" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="171" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="180" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="189" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="198" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="207" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="216" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="225" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="234" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="243" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="252" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="261" y="76" width="7" height="16" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1"/>
+<rect x="270" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<rect x="279" y="76" width="7" height="16" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1"/>
+<path d="M0,97 v5 H142 v-5" fill="none" stroke="#9a968a" stroke-width="1.2"/>
+<line x1="71.0" y1="103" x2="71.0" y2="120" stroke="#9a968a" stroke-width="1.3" marker-end="url(#ahM)"/>
+<rect x="65.0" y="123" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="65.0" y="134" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="65.0" y="145" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="65.0" y="156" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="65.0" y="167" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<path d="M144,97 v5 H286 v-5" fill="none" stroke="#9a968a" stroke-width="1.2"/>
+<line x1="215.0" y1="103" x2="215.0" y2="120" stroke="#9a968a" stroke-width="1.3" marker-end="url(#ahM)"/>
+<rect x="209.0" y="123" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="209.0" y="134" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="209.0" y="145" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="209.0" y="156" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="209.0" y="167" width="12" height="9" rx="1.5" fill="#eceae2" stroke="#9a968a" stroke-width="1.2"/>
+<text x="264" y="71" font-size="11" fill="#c2410c" font-weight="650" text-anchor="middle" >t−3</text>
+<text x="0" y="194" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >1 token per 16 steps: t−3 is mixed inside it,</text>
+<text x="0" y="209" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >and RoPE positions only the patch</text>
+<text x="0" y="236" font-size="13" fill="#c2410c" font-weight="700" text-anchor="start" >Ours · P = 1</text>
+<text x="12" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−8</text>
+<rect x="2" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="12" y1="282" x2="12" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="6" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="6" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="6" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="6" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="6" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="50" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−7</text>
+<rect x="40" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="50" y1="282" x2="50" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="44" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="44" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="44" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="44" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="44" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="88" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−6</text>
+<rect x="78" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="88" y1="282" x2="88" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="82" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="82" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="82" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="82" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="82" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="126" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−5</text>
+<rect x="116" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="126" y1="282" x2="126" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="120" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="120" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="120" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="120" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="120" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="164" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−4</text>
+<rect x="154" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="164" y1="282" x2="164" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="158" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="158" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="158" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="158" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="158" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="202" y="258" font-size="11" fill="#c2410c" font-weight="650" text-anchor="middle" >t−3</text>
+<rect x="192" y="264" width="20" height="16" rx="2" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="202" y1="282" x2="202" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="196" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="196" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="196" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="196" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="196" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="240" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−2</text>
+<rect x="230" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="240" y1="282" x2="240" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="234" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="234" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="234" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="234" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="234" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="278" y="258" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−1</text>
+<rect x="268" y="264" width="20" height="16" rx="2" fill="#fff" stroke="#c2410c" stroke-width="1.2"/>
+<line x1="278" y1="282" x2="278" y2="298" stroke="#c2410c" stroke-width="1.2" marker-end="url(#ahO)"/>
+<rect x="272" y="301" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="272" y="312" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="272" y="323" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="272" y="334" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="272" y="345" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="0" y="376" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >one token per step: f_in(u_t, j_t, m_t)</text>
+<text x="0" y="392" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >RoPE position = step → every lag t−k,</text>
+<text x="0" y="408" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >and t−2k to confirm it, is addressable</text>
+<rect x="0" y="420" width="300" height="24" rx="6" fill="#fdebdc" stroke="#c2410c"/>
+<text x="150" y="437" font-size="12.5" fill="#c2410c" font-weight="650" text-anchor="middle" >cost: 13 → 193 tokens per series</text>
+<line x1="330" y1="10" x2="330" y2="440" stroke="#d9d6cc" stroke-width="1.5"/>
+<text x="355" y="16" font-size="17" fill="#c2410c" font-weight="700" text-anchor="start" >② Channel index embedding</text>
+<text x="355" y="36" font-size="13" fill="#5b6475" font-weight="400" text-anchor="start" >Chronos-2 group attention has no positions</text>
+<text x="355" y="66" font-size="13" fill="#1f2430" font-weight="650" text-anchor="start" >E ∈ ℝ^(6×d), learned</text>
+<text x="377" y="86" font-size="11.5" fill="#5b6475" font-weight="400" text-anchor="end" >c=0</text>
+<rect x="385" y="76" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="400" y="76" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="415" y="76" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="430" y="76" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="445" y="76" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<text x="377" y="105" font-size="11.5" fill="#5b6475" font-weight="400" text-anchor="end" >c=1</text>
+<rect x="385" y="95" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="400" y="95" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="415" y="95" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="430" y="95" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="445" y="95" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<text x="377" y="124" font-size="11.5" fill="#5b6475" font-weight="400" text-anchor="end" >c=2</text>
+<rect x="385" y="114" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="400" y="114" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="415" y="114" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="430" y="114" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="445" y="114" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<text x="377" y="143" font-size="11.5" fill="#c2410c" font-weight="650" text-anchor="end" >c=3</text>
+<rect x="385" y="133" width="13" height="11" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="400" y="133" width="13" height="11" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="415" y="133" width="13" height="11" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="430" y="133" width="13" height="11" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="445" y="133" width="13" height="11" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="381" y="130" width="83" height="17" rx="4" fill="none" stroke="#c2410c" stroke-width="1.8"/>
+<text x="377" y="162" font-size="11.5" fill="#5b6475" font-weight="400" text-anchor="end" >c=4</text>
+<rect x="385" y="152" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="400" y="152" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="415" y="152" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="430" y="152" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="445" y="152" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<text x="377" y="181" font-size="11.5" fill="#5b6475" font-weight="400" text-anchor="end" >c=5</text>
+<rect x="385" y="171" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="400" y="171" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="415" y="171" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="430" y="171" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<rect x="445" y="171" width="13" height="11" rx="1.5" fill="#fff" stroke="#9a968a" stroke-width="1.2"/>
+<text x="475" y="143" font-size="12" fill="#c2410c" font-weight="650" text-anchor="start" >← series 3 picks row 3</text>
+<rect x="385" y="200" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="385" y="211" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="385" y="222" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="385" y="233" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<rect x="385" y="244" width="12" height="9" rx="1.5" fill="#e3eafc" stroke="#1d4ed8" stroke-width="1.2"/>
+<text x="391" y="272" font-size="13" fill="#1d4ed8" font-weight="650" text-anchor="middle" >h₃,ₜ</text>
+<text x="391" y="288" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >input token</text>
+<text x="423" y="234" font-size="24" fill="#1f2430" font-weight="400" text-anchor="middle" >⊕</text>
+<rect x="447" y="200" width="12" height="9" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="447" y="211" width="12" height="9" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="447" y="222" width="12" height="9" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="447" y="233" width="12" height="9" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<rect x="447" y="244" width="12" height="9" rx="1.5" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="453" y="272" font-size="13" fill="#c2410c" font-weight="700" text-anchor="middle" >e₃</text>
+<text x="453" y="288" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >channel 3</text>
+<text x="485" y="234" font-size="22" fill="#1f2430" font-weight="400" text-anchor="middle" >=</text>
+<rect x="507" y="200" width="12" height="9" rx="1.5" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.2"/>
+<rect x="507" y="211" width="12" height="9" rx="1.5" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.2"/>
+<rect x="507" y="222" width="12" height="9" rx="1.5" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.2"/>
+<rect x="507" y="233" width="12" height="9" rx="1.5" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.2"/>
+<rect x="507" y="244" width="12" height="9" rx="1.5" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.2"/>
+<text x="513" y="272" font-size="13" fill="#6d5bd0" font-weight="700" text-anchor="middle" >z₃,ₜ</text>
+<text x="513" y="288" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >to encoder</text>
+<path d="M466,139 C495,150 490,185 458,197" fill="none" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ahO)"/>
+<text x="355" y="322" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >integer c → one-hot → row c of E:</text>
+<text x="355" y="338" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >a category, not a number on an axis</text>
+<text x="355" y="362" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >added to the input token, before the first</text>
+<text x="355" y="378" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >time and group attention (not to their</text>
+<text x="355" y="394" font-size="12" fill="#1f2430" font-weight="400" text-anchor="start" >outputs); the residual stream carries it on</text>
+<line x1="530" y1="226" x2="623" y2="226" stroke="#6d5bd0" stroke-width="1.6" marker-end="url(#ah)"/>
+<line x1="655" y1="10" x2="655" y2="440" stroke="#d9d6cc" stroke-width="1.5"/>
+<text x="680" y="16" font-size="17" fill="#1f2430" font-weight="700" text-anchor="start" >Where it acts in the encoder</text>
+<text x="680" y="36" font-size="13" fill="#5b6475" font-weight="400" text-anchor="start" >rows = channels, each with its own e · columns = steps</text>
+<text x="777.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−7</text>
+<text x="819.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−6</text>
+<text x="861.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−5</text>
+<text x="903.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−4</text>
+<text x="945.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−3</text>
+<text x="987.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−2</text>
+<text x="1029.0" y="66" font-size="11" fill="#5b6475" font-weight="400" text-anchor="middle" >t−1</text>
+<rect x="680" y="78" width="16" height="16" rx="3" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="688" y="90" font-size="10" fill="#c2410c" font-weight="700" text-anchor="middle" >e₀</text>
+<text x="704" y="91" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >ch 0</text>
+<rect x="760" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="802" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="844" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="886" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="928" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="970" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="1012" y="74" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="680" y="110" width="16" height="16" rx="3" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="688" y="122" font-size="10" fill="#c2410c" font-weight="700" text-anchor="middle" >e₁</text>
+<text x="704" y="123" font-size="12" fill="#1f2430" font-weight="650" text-anchor="start" >ch 1</text>
+<rect x="760" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="802" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="844" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="886" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="928" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="970" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="1012" y="106" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="680" y="142" width="16" height="16" rx="3" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="688" y="154" font-size="10" fill="#c2410c" font-weight="700" text-anchor="middle" >e₂</text>
+<text x="704" y="155" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >ch 2</text>
+<rect x="760" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="802" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="844" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="886" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="928" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="970" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="1012" y="138" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="680" y="174" width="16" height="16" rx="3" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="688" y="186" font-size="10" fill="#c2410c" font-weight="700" text-anchor="middle" >e₃</text>
+<text x="704" y="187" font-size="12" fill="#1f2430" font-weight="650" text-anchor="start" >ch 3</text>
+<rect x="760" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="802" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="844" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="886" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="928" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="970" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="1012" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#6d5bd0" stroke-width="1.8"/>
+<rect x="680" y="206" width="16" height="16" rx="3" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="688" y="218" font-size="10" fill="#c2410c" font-weight="700" text-anchor="middle" >e₄</text>
+<text x="704" y="219" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >ch 4</text>
+<rect x="760" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="802" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="844" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="886" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="928" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="970" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="1012" y="202" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="680" y="238" width="16" height="16" rx="3" fill="#fdebdc" stroke="#c2410c" stroke-width="1.2"/>
+<text x="688" y="250" font-size="10" fill="#c2410c" font-weight="700" text-anchor="middle" >e₅</text>
+<text x="704" y="251" font-size="12" fill="#5b6475" font-weight="400" text-anchor="start" >ch 5</text>
+<rect x="760" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="802" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="844" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="886" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="928" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="970" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="1012" y="234" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c9c2ef" stroke-width="1"/>
+<rect x="928" y="106" width="34" height="24" rx="4" fill="#fdebdc" stroke="#c2410c" stroke-width="2"/>
+<rect x="1012" y="170" width="34" height="24" rx="4" fill="#ede9fb" stroke="#c2410c" stroke-width="2.4"/>
+<path d="M945.0,105 C962,82 1012,82 1027.0,104" fill="none" stroke="#0f766e" stroke-width="2.2" marker-end="url(#ahG)"/>
+<text x="968" y="82" font-size="13" fill="#0f766e" font-weight="700" text-anchor="middle" >①</text>
+<rect x="1007" y="70" width="44" height="192" rx="7" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-dasharray="5 3"/>
+<path d="M1046,118.0 C1072,132 1072,166 1047,182.0" fill="none" stroke="#c2410c" stroke-width="2.2" marker-end="url(#ahO)"/>
+<text x="1076" y="154.0" font-size="13" fill="#c2410c" font-weight="700" text-anchor="middle" >②</text>
+<text x="680" y="284" font-size="12.5" fill="#0f766e" font-weight="650" text-anchor="start" >① time attention: ch 1 at t−1 reads ch 1 at t−3 (RoPE)</text>
+<text x="680" y="300" font-size="12.5" fill="#c2410c" font-weight="650" text-anchor="start" >② group attention: ch 3 at t−1 reads ch 1 at t−1, which carries e₁</text>
+<text x="680" y="316" font-size="12.5" fill="#1f2430" font-weight="650" text-anchor="start" >no direct link across both series and time: two hops per layer</text>
+<text x="1195" y="66" font-size="12" fill="#5b6475" font-weight="650" text-anchor="end" >× L layers</text>
+<rect x="680" y="338" width="235" height="62" rx="10" fill="#fff" stroke="#9a968a" stroke-width="1.5"/>
+<text x="797" y="362" font-size="14" fill="#1f2430" font-weight="650" text-anchor="middle" >Forecast head</text>
+<text x="797" y="382" font-size="12" fill="#5b6475" font-weight="400" text-anchor="middle" >quantiles · unchanged</text>
+<rect x="930" y="338" width="270" height="62" rx="10" fill="#fdebdc" stroke="#c2410c" stroke-width="1.8"/>
+<text x="1065" y="360" font-size="14" fill="#c2410c" font-weight="700" text-anchor="middle" >Equation head → ê₃</text>
+<text x="1065" y="380" font-size="12" fill="#1f2430" font-weight="400" text-anchor="middle" >≈ teacher( x₃ = a·x₃(t−1) + b·x₁(t−3) )</text>
+<text x="1065" y="394" font-size="10.5" fill="#5b6475" font-weight="400" text-anchor="middle" >absolute channels and lags; teacher trained on generator equations</text>
+<line x1="797" y1="324" x2="797" y2="336" stroke="#9a968a" stroke-width="1.4" marker-end="url(#ahM)"/>
+<line x1="1065" y1="324" x2="1065" y2="336" stroke="#c2410c" stroke-width="1.6" marker-end="url(#ahO)"/>
+<rect x="0" y="463" width="14" height="14" rx="3" fill="#eceae2" stroke="#9a968a"/>
+<text x="20" y="474" font-size="12.5" fill="#5b6475" font-weight="400" text-anchor="start" >unchanged Chronos-2</text>
+<rect x="170" y="463" width="14" height="14" rx="3" fill="#fdebdc" stroke="#c2410c"/>
+<text x="190" y="474" font-size="12.5" fill="#c2410c" font-weight="650" text-anchor="start" >our change, applied to every arm (LMC included)</text>
+</svg>
+    <div class="src">Chronos-2 patching, RoPE and group attention: Ansari et al., 2025, pp. 5&ndash;6. Patching benefits: Nie et al., 2023 (PatchTST).</div>
+  </div>
+</section>
+
 <!-- 14b. LMC-Synth: how the multivariate generator of TimePFN works -->
 <section id="lmc">
   <div class="canvas" style="height:660px">
@@ -450,7 +750,7 @@
       <tr><td>Bahia electricity system</td><td>357</td><td><b>1.2390</b></td><td>1/4</td></tr></tbody>
     </table>
     <p style="font-size:0.49em">Synthetic validation used 64 examples per stage; correlated metrics were last measured at update 445,000, before the final checkpoint at 445,433. No held-out synthetic test was run.</p>
-    <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/prior_lmc_study_a_20261118.md &middot; RTX 4070, VM02 &middot; config SHA-256 b18e5a49&hellip;</p>
+    <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/offline_experiments/prior_lmc_study_a_20261118.md &middot; RTX 4070, VM02 &middot; config SHA-256 b18e5a49&hellip;</p>
   </div>
 </section>
 
@@ -478,7 +778,7 @@
       <tr><td>Bahia electricity system</td><td>357</td><td><b>1.1800</b></td><td>2/4</td></tr></tbody>
     </table>
     <p style="font-size:0.49em">Synthetic validation used 64 examples per stage; correlated metrics were last measured at update 297,500, before the final checkpoint at 299,991. Batch wait is not a direct GPU-stall measure.</p>
-    <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/prior_lmc_study_b_20261118.md &middot; RTX 4070, VM03 &middot; config SHA-256 b18e5a49&hellip;</p>
+    <p style="font-size:0.43em">Record: experiments/generator_model_evaluation/online_techniques/prior_lmc_study_b_20261118.md &middot; RTX 4070, VM03 &middot; config SHA-256 b18e5a49&hellip;</p>
   </div>
 </section>
 

@@ -17,13 +17,101 @@ identifies which property of the synthetic mechanisms caused a difference. The
 controlled-corpus design follows \citet{nagpal2026mixdontpick}; budget-aware
 training follows \citet{kaddour2023notrainnogain}.
 
+\subsubsection{Modifications to Chronos-2 for explainability}
+\label{sec:chronos-explainability-modifications}
+The auxiliary equation head described below must recover, for every series,
+which lags and which other series its generating equation uses. The published
+Chronos-2 can address neither an individual time step nor an individual
+series. We therefore make two changes to the backbone. They apply identically
+to every arm, including LMC, so that all arms share one architecture.
+
+\paragraph{Time attention: one-step patches.}
+Chronos-2 splits each series into non-overlapping patches of $P$ steps, maps
+each patch to one embedding with a residual network, and applies rotary
+position embeddings (RoPE) in its time attention
+\citep[p.~5]{ansari2025chronos2}. Positions are therefore indexed patch by
+patch. Time attention distinguishes patches, but it cannot address one step
+inside a patch, such as $t-3$ or $t-7$, by its index; that information is
+present only implicitly in the patch embedding, and the equation head would
+have to learn to recover it. We set $P=1$ for both input and output patches,
+which the pinned implementation requires to be equal. Every time step then
+becomes its own token, and RoPE indexes the whole series step by step: a lag
+such as $t-16$, and the earlier steps needed to confirm it, such as $t-32$,
+become directly addressable. Patching reduces the cost of attention
+quadratically, keeps local semantic information in each embedding, and was
+reported to improve long-horizon forecasting accuracy
+\citep{nie2023patchtst}. One-step patches forgo these benefits and may lower
+forecasting accuracy. We accept that risk because $P=1$ is the only uniform
+patch size that exposes the entire series term by term. The sequence of each
+series grows from 13 tokens (6 context patches, 6 future patches, and one
+register token) to 193. A pilot measures the resulting time and memory per
+update; if the budgets below cannot be met, they are revised for all arms and
+frozen before the definitive runs.
+
+\paragraph{Group attention: channel index.}
+Group attention aggregates information across the series of one example at
+each token index. It omits positional embeddings because the series of a
+group lack a natural ordering \citep[p.~6]{ansari2025chronos2}. Its outputs
+are therefore equivariant to permutations of the channels: the model cannot
+distinguish channel 0 from channel 3. An equation target that names series by
+their channel index, such as $x_3(t-1)$, is then not learnable, because the
+same series placed in two positions produces the same representation but
+requires two different targets. We therefore add a learned embedding of the
+absolute channel index, $0,\ldots,5$, to every input token of the
+corresponding series, once, before the first encoder layer. This follows
+the original Transformer, which adds position information to the input
+embeddings at the bottom of the stack and reports nearly identical results
+for learned and fixed position embeddings \citep[Section~3.5 and Table~3,
+row~E]{vaswani2017attention}. Applying it to channel identity rather than
+token position is our adaptation. Two properties of the pinned architecture
+motivate the input placement. First, each sublayer adds its output to a
+residual stream, so the embedding added at the input remains present at the
+input of every group attention layer; group attention can then carry the
+identity of a source series in its values to the target series. Second,
+within one series every token receives the same embedding, so in time
+attention its query-only and constant terms cancel in the softmax and only a
+per-channel bias on the keys remains. Injecting a separate embedding before
+every group attention layer is a possible alternative; we do not adopt it
+without evidence that the input embedding is diluted across layers. As a
+check, linear probes on the final encoder states must recover the index of
+each series and of its source series; the alternative is considered only if
+they fail. We do not reuse RoPE here. RoPE encodes relative offsets, which suit lags but not
+series identities, whereas the target requires the absolute index of the
+series itself and of each source series. Channel order is random in the
+synthetic training data, so the index carries no information about the
+dynamics; on real data it is the order in which the channels are supplied.
+Because forecasts may now depend on that order, we report real-data forecasts
+under several permutations of the channels.
+
+\paragraph{Cost of the modifications.}
+The completed LMC runs of both studies used the unmodified backbone, with
+16-step patches and no channel index. We repeat both LMC runs with the
+modified backbone and an otherwise identical configuration
+(\path{configs/experiments/prior_baseline_lmc_indexed.json}). In Study~A the
+repeated run trains on the same prepared corpus, with the same seed, update
+count, and learning-rate schedule; the runner accepts a corpus whose
+data-defining protocol fields match, so both runs see the same windows in the
+same order and differ only in the backbone. This comparison isolates the
+effect of the architecture on forecasting. In Study~B both runs receive the
+same ten-hour active budget, so their difference also includes the slower
+updates of one-step patches and the resulting smaller number of examples.
+Both comparisons use the real-data origins, per-dataset relative MAE
+summaries, and paired temporal-block intervals of the main studies. With one
+seed they describe this pair of runs, not variability across initializations.
+The modified model is also evaluated under several permutations of the real
+channels. The update budget of the repeated Study~A run is fixed from the
+measured time per update before it starts.
+
+\subsubsection{Study design}
+
 \paragraph{Reference and shared backbone.}
 The LMC-Synth reference is the official TimePFN generator
 \citep{taga2025timepfn}, pinned to the revision recorded in the executed
 notebook. We use its
 independent KernelSynth stage before the correlated LMC stage. Both generator
-arms train the same randomly initialized Chronos-2 backbone
-\citep{ansari2025chronos2}, with six synthetic channels, 96 context steps,
+arms train the same randomly initialized, modified Chronos-2 backbone
+\citep{ansari2025chronos2}
+(Section~\ref{sec:chronos-explainability-modifications}), with six synthetic channels, 96 context steps,
 96 forecast steps, and an effective batch of 16 multivariate examples.
 Here an \emph{example}, or \emph{window}, means 192 consecutive generated time
 steps of one six-channel sample, with all channels aligned: the first
@@ -55,18 +143,90 @@ choices. The recorded source precedence is: this study's explicit
 Chronos-2/six-channel decisions; subsequent author guidance dated
 6 November 2025; the official code revision of 29 July 2025; then the
 original article. Where a numerical value is absent from those sources,
-it is our choice. No generator parameters may be selected using 2019 test
-errors. The proposed generator's parameter ranges and any tuning trials
+it is our choice. The 2019 outcomes already inspected during development
+cannot be treated as an untouched test after selecting a generator with them.
+The proposed generator's parameter ranges and any tuning trials
 must be recorded with their development-only selection data and compute
-cost; the two arms receive a declared, bounded tuning allowance. The
+cost. The LMC reference retains the published implementation and the authors'
+subsequent training guidance, with our six-channel Chronos-2 adaptation,
+without selecting its hyperparameters from these evaluation outcomes. For the
+proposed generator, the one declared development choice is between 25\% and
+50\% KernelSynth channels; the remaining generator settings are fixed. The
 reference generator comparison uses forecasting loss only. Two further
 interventions on our generator are evaluated below: an auxiliary equation
-head and an additional within-stage difficulty curriculum. The current
-example configuration selects the Shao--Wu treatment exclusively; the
-definitive configuration must pin this choice, not silently substitute a
-mixture of treatments.
+head and an additional within-stage difficulty curriculum. We denote the
+second arm the \emph{AST multiseries generator} (called \texttt{own} in the
+runner). Its treatment follows the sampled dependency topology: channels
+with an external source use Shao--Wu and at least one external lag, while
+self-only channels draw Jacobian or Heaps with equal probability. KernelSynth
+channels count as possible external sources. Under random topology with up to
+two external sources, the expected shares before hybrid-family effects are
+approximately two thirds Shao--Wu and one sixth each Jacobian and Heaps.
+Tree-based AST treatments use trees with one to six operators, maximum lag 16,
+maximum degree four, and
+parameter magnitudes between 0.05 and 1, matching the canonicalizer's AST complexity
+range. Each accepted trajectory generates exactly 192 recurrence steps,
+providing the 96-step context and 96-step target after discarding the
+initialization history. Initial histories are sampled independently for each
+channel from the declared random mixture of constant, white-noise, and cosine
+components. These settings define the AST component in the preliminary
+mixture study below; the completed LMC runs retain their original recorded
+configurations.
 
-\paragraph{Controlled-corpus study.}
+\paragraph{Preliminary KernelSynth-mixture selection.}
+Before Studies~A and~B, we select the channel composition of the proposed
+generator in a separate development study. For each of the six channels in
+each synthetic example, the hybrid generator independently chooses a
+univariate KernelSynth trajectory with probability
+$p\in\{0.25,0.50\}$; otherwise it generates that channel from an AST
+equation. An AST channel may depend on previous values of a KernelSynth
+channel or another AST channel. KernelSynth channels contribute to the
+forecasting loss but have no known AST skeleton or innovation-scale target
+from our equation generator; their auxiliary equation losses are masked in
+later head-bearing runs. The configured probability is recorded with the run,
+and the realized channel families are counted in the corpus manifest. The two
+candidates differ only in this channel-family probability.
+This channel-wise mixture differs from the LMC reference's KernelSynth-first
+then correlated-LMC training schedule.
+
+We train two randomly initialized Chronos-2 models, one per value of $p$,
+without an auxiliary equation head or additional within-stage curriculum.
+Both candidates draw every example with six active channels and the same
+AST complexity range, without difficulty strata or ordering. Thus the
+preliminary comparison changes only the KernelSynth probability.
+Each uses the same backbone, seed policy, 16-example six-channel 96/96
+windows, two-phase optimizer schedule, final
+checkpoint rule, and the Study~A budget of 445,433 updates split into
+346,996 first-phase and 98,437 second-phase updates. AST channels may have
+cross-series dependencies from the first update. Synthetic corpora are
+prepared offline and their generation costs reported separately. Apart from
+the KernelSynth choice, the AST mechanism distribution, initialization law,
+window rule, and other generator parameters are held fixed. Both candidates
+are evaluated on identical real-data development origins. A short feasibility
+pilot may assess generation failures,
+memory, and throughput, but cannot choose $p$ from forecasting outcomes or
+change the two declared candidate values.
+
+Ibirapuera and Bahia are development datasets for choosing $p$. To avoid
+averaging errors in different physical units, first compute each channel's
+MAE relative to its 24-hour seasonal-naive MAE, then take the geometric mean
+within each dataset. The prespecified selection score is the geometric mean
+of the two dataset-level relative errors, giving the datasets equal weight.
+The lowest score selects $p$; an exact tie selects the smaller $p$. We report
+both dataset-level summaries and every channel, including disagreements,
+alongside the realized mixture, data-generation cost, and synthetic validation
+curve. The existing 2019 results have already been inspected; if their origins
+are used for this selection, they are explicitly development evidence and
+cannot support an independent final claim. Separate eligible evaluation
+periods or regions for both datasets, with frozen origins and missing-data
+rules, must be identified before inspecting the selected models' outcomes.
+Until that confirmation is available, subsequent real-data comparisons are
+reported as exploratory. The selected $p$ and complete selection record are
+frozen before preparing the definitive AST/hybrid arms of Studies~A and~B.
+The unselected candidate remains a development result, not an extra
+confirmatory comparison with LMC.
+
+\paragraph{Study A: controlled corpus.}
 We prepare one offline sequence of batches per generator with equal numbers of
 multivariate examples, channel count, context, and horizon. Generation time is
 measured separately. LMC windows come from its fixed bank and window rule;
@@ -75,14 +235,19 @@ The study controls exposed examples, not unique trajectories or the window
 rule. Three Chronos-2 runs are planned: LMC without an equation head, our
 generator without a head, and our generator with a head. The equation-head
 run uses the same ordered forecasting windows as its no-head control; the
-offline corpus additionally stores the six equation targets and six
-innovation-scale targets per example, with teacher provenance and hashes.
+offline corpus additionally stores equation and innovation-scale targets for
+the AST channels, a six-channel applicability mask, teacher provenance, and
+hashes. KernelSynth channels remain in the forecasting loss and have their
+auxiliary losses masked.
 The three runs share
 the initialization policy, effective batch, optimizer, update count, and
 step-indexed learning-rate schedule. This controls exposure and deliberately
 does not measure the value of producing more examples per hour. The
 prespecified exposure budget is 445,433 updates, divided into 346,996
-independent and 98,437 correlated updates with 16 examples per update. These
+first-phase and 98,437 second-phase updates with 16 examples per update. For
+LMC these phases are independent and correlated, respectively; the runner
+uses the same two phase names for our arm, although both of its phases can
+contain cross-series dependencies. These
 counts follow the finite-window rules of the pinned TimePFN implementation:
 its independent and correlated banks supply 5,551,945 and 1,575,000 candidate
 windows, respectively. The final incomplete batches discard nine and eight
@@ -90,14 +255,17 @@ windows, leaving 7,126,928 exposed examples. Thus the controlled LMC run
 traverses each stage's available full batches once; our generator supplies
 the same number of examples from fresh trajectories. The configuration,
 seed list, and checkpoint rule are recorded before the definitive runs.
-The LMC's independent-to-correlated
-transition is mirrored as independent channels followed by cross-series
-dependencies in our generator. Both arms share a declared stage fraction
-and optimizer schedule. This matches the schedule, not trajectory diversity.
-The independent-to-correlated progression is common to all three runs; it is
-not the curriculum intervention evaluated below.
+The LMC reference changes its data distribution from independent KernelSynth
+to correlated LMC at the phase boundary. Our generator permits cross-series
+dependencies in both phases, including its first batch. It keeps the same
+update allocation and two-cycle learning-rate schedule for this comparison;
+those optimizer boundaries do not imply an independent-data phase for our
+generator. Study~A matches exposure and optimization schedules, but the
+generator families and their temporal ordering differ. Thus any forecast
+difference cannot be attributed to the mechanism family alone. The additional
+curriculum intervention below is distinct from LMC's stage progression.
 
-\paragraph{Complete-pipeline study.}
+\paragraph{Study B: complete pipeline.}
 The second study fixes one physical machine, including its RTX~4070, CPU,
 RAM, and storage, and a ten-hour active wall-clock budget before any arm is
 trained. Five runs execute sequentially on that machine: LMC without a head;
@@ -130,8 +298,10 @@ LMC stages are frozen beforehand. Indexing scheduler progress by active
 elapsed time has published precedent \citep{kaddour2023notrainnogain}, but
 its application to these pipelines is our adaptation. The fixed split
 of 0.7790082908091677 is the fraction of updates in the historical
-LMC run; reusing it to divide wall time is a local choice, not an author
-recommendation. All five runs use the same split. The LMC arm can revisit its
+LMC run; reusing it to divide wall time and our generator's learning-rate
+phases is a local choice, not an author recommendation. All five runs use the
+same optimizer-time split, although only LMC switches from independent to
+correlated data at that boundary. The LMC arm can revisit its
 finite window bank. Reaching a safety update limit before the deadline
 invalidates the run instead of ending it as if the budget were spent.
 The primary checkpoint is the last update started before the deadline;
@@ -141,8 +311,9 @@ serve resumption and diagnosis and are not selected using real test errors.
 Synthetic validation may diagnose training or select a separately labelled
 checkpoint, but the primary checkpoint remains the final-budget checkpoint;
 real datasets never select training checkpoints.
-The independent-stage terminal checkpoint is also retained to diagnose
-what the subsequent LMC stage adds; it is not the primary result. A
+The first-phase terminal checkpoint is also retained to diagnose training
+progress; for LMC specifically it helps assess the subsequent LMC stage. It
+is not the primary result. A
 controlled interruption saves weights, optimizer, scheduler, random state,
 stage, and accumulated active elapsed time. Time spent shut down does not
 consume the budget; startup and data work after resumption do. A run that
@@ -156,41 +327,60 @@ remains an exploratory reference, not a matched-time result. The exact
 configuration hash and seed list must be recorded before definitive runs.
 
 \paragraph{Auxiliary equation head.}
-For each of the six generated series, a frozen six-series,
+For each AST-generated series, a frozen six-series,
 \texttt{transformer\_skeleton} canonicalization encoder supplies one embedding
-of that series's equation. The target describes the skeleton, including
-cross-series references and lags, without requiring parameter prediction.
-The intended teacher is the 30-million-equation release; its exact repository,
-revision, checkpoint digest, vocabulary, and embedding normalization must be
-frozen in the run record before training. The teacher's weights do not receive
-gradients. A second auxiliary output predicts the innovation standard
+of that series's executed equation. The target describes the skeleton,
+including cross-series references by absolute channel index and lags, without
+requiring parameter prediction; the channel-index embedding of
+Section~\ref{sec:chronos-explainability-modifications} makes the absolute index
+learnable. The teacher is trained on equations drawn by the forecasting
+generator itself, one channel per sampled system, encoded as executed: Shao--Wu
+equations with their tanh factors and gain scale, Jacobian equations with their
+scale, and Heaps autoregressions
+(\path{configs/canonicalization_multiseries_six_series.json}). Its input
+capacity, \texttt{max\_nodes}${}=65$, covers the largest equation of each
+treatment (22 nodes for Shao--Wu, 15 for Jacobian, and 65 for a 16-lag Heaps
+autoregression), and its decoding length covers the longest canonical target.
+Its repository, revision, checkpoint digest, vocabulary, and embedding
+normalization are recorded with each run; the head compares L2-normalized
+embeddings. The teacher's weights do not receive gradients. An equation that
+still exceeded the teacher's capacity would have its skeleton target masked
+rather than truncated, and the corpus manifest counts covered and masked
+targets separately for each treatment. The head reads the backbone through a
+learned attention pooling over the context tokens of its series, initialized
+as their mean. A second auxiliary output predicts the innovation standard
 deviation for each series. Since the forecasting backbone normalizes each
-input series, this target must be expressed in the same per-series scale seen
-by the backbone: divide the innovation standard deviation in original units
-by the context scale used for that series, then use a declared positive floor
-and a log-scale loss. The precise Chronos-2 scaling convention and treatment
-of near-constant contexts must be verified in the pinned implementation and
-recorded before the definitive runs. Both auxiliary losses and their weights
-are fixed using development-only synthetic data and a declared, bounded tuning
-allowance, identical in principle to the allowance given to the reference
-arm. No weight or teacher checkpoint is chosen using real test errors. At
+input series, the loss uses the standard deviation divided by the per-series
+standardization scale, with a declared positive floor, on a log scale. The
+pinned Chronos-2 instance normalization uses the population standard deviation
+of the observed context, substituting $10^{-5}$ for an exactly zero scale, and
+then applies arcsinh; the ratio remains identifiable because arcsinh is a
+fixed invertible map. The head also reports the prediction in original units,
+multiplied back by the context scale, and validation records its relative
+error $|\hat\sigma/\sigma-1|$, which is the same in either unit. Both auxiliary losses and their weights
+are declared before the definitive head-bearing runs, using only synthetic
+development data to check numerical stability and target scale. They are not
+chosen using real test errors, and the LMC reference has no corresponding
+auxiliary head or loss. At
 real-data inference the auxiliary heads and teacher are unused; all variants
 forecast through the same Chronos-2 backbone and forecast head. We report
 embedding alignment and innovation-scale prediction on disjoint synthetic
 data as diagnostics, separately from real-data forecasting quality.
 
 \paragraph{Additional curriculum and paired controls.}
-All runs already follow the common independent-to-correlated two-stage
-schedule. Here ``additional curriculum'' means ordering examples by difficulty
-\emph{within} each of those stages. The planned difficulty factors are active
-channel count and expression complexity. Six-channel tensor shape is retained
-throughout: when only two or four channels are active, the others are masked.
-Within each stage, the curriculum and its control use the same predetermined
+All runs have two optimizer phases, but only LMC changes from independent to
+correlated data at their boundary. Here ``additional curriculum'' means
+ordering our generator's examples by difficulty \emph{within} each optimizer
+phase, while allowing cross-series dependencies throughout. The planned
+difficulty factor is expression complexity. Every example has six active
+channels throughout all three strata. The strata allow at most two, four,
+and six AST operators, respectively.
+Within each optimizer phase, the curriculum and its control use the same predetermined
 counts of examples from each difficulty stratum and, where feasible, the same
-indexed examples. The control interleaves the strata throughout the stage;
+indexed examples. The control interleaves the strata throughout the phase;
 the curriculum places them in a frozen easy-to-hard order. This compares
 ordering rather than changing the overall difficulty mixture. The difficulty
-levels, quotas, ordering, masking, and randomization are fixed before training.
+levels, quotas, ordering, and randomization are fixed before training.
 For a time-limited run, different generation costs can still change how many
 examples from each stratum are actually consumed before the deadline. We
 record those realized counts and treat the throughput difference as part of
@@ -199,8 +389,14 @@ exposure-controlled curriculum comparison would be needed to isolate ordering
 from this throughput effect.
 
 \paragraph{Planned contrasts and uncertainty.}
-There are eight prospective training runs per initialization seed: three in
-the controlled-corpus study and five in the complete-pipeline study. The
+The preliminary mixture study adds two development runs per initialization
+seed to the eight main-study runs: three in Study~A and five in Study~B. The
+two completed LMC runs used the unmodified backbone with 16-step patches.
+They are the reference of the cost comparison in
+Section~\ref{sec:chronos-explainability-modifications}, and both LMC arms are
+rerun with the modified backbone.
+The selected mixture is fixed for all proposed-generator arms in the main
+studies. The
 primary complete-pipeline decision remains LMC versus our generator without
 either additional intervention. For the equation-head question, the
 prespecified principal contrast is our generator with versus without the head,
