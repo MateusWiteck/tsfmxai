@@ -33,7 +33,5 @@
   "own_self_only_treatment_probs": {
     "jacobian": 0.5,
     "heaps": 0.5
-  },
-  "backbone_patch_size": 1,
-  "backbone_channel_embedding": true
+  }
 }

@@ -28,14 +28,14 @@ def test_channel_index_follows_contiguous_groups():
         channel_index_from_groups(torch.tensor([0, 1, 0]))
 
 
-def test_one_step_patches_give_one_token_per_step():
-    model = scratch_model(seed=1, tiny=True, patch_size=1, channel_index_embedding=6)
-    assert model.chronos_config.input_patch_size == model.chronos_config.output_patch_size == 1
+def test_indexed_model_keeps_sixteen_step_patches():
+    model = scratch_model(seed=1, tiny=True, channel_index_embedding=6)
+    assert model.chronos_config.input_patch_size == model.chronos_config.output_patch_size == 16
     captured = []
     model.encoder.register_forward_hook(lambda module, args, output: captured.append(output[0]))
     output = model(**_inputs(batch(), model, "cpu"))
-    # 96 context steps + register token + 96 future steps per series.
-    assert captured[0].shape[1] == 96 + 1 + 96
+    # 6 context patches + register token + 6 future patches per series.
+    assert captured[0].shape[1] == 6 + 1 + 6
     assert output.quantile_preds.shape[-1] == 96
     assert torch.isfinite(output.loss)
 
@@ -45,7 +45,7 @@ def test_channel_index_breaks_permutation_equivariance_only_when_enabled():
     order = torch.tensor([3, 1, 0, 2, 5, 4])
     shuffled = {key: value[:, :, order] for key, value in data.items()}
     for embedding, changes in ((6, True), (None, False)):
-        model = scratch_model(seed=1, tiny=True, patch_size=1, channel_index_embedding=embedding)
+        model = scratch_model(seed=1, tiny=True, channel_index_embedding=embedding)
         model.eval()
         with torch.no_grad():
             original = predictions(model, data)[:, order]
@@ -54,7 +54,7 @@ def test_channel_index_breaks_permutation_equivariance_only_when_enabled():
 
 
 def test_save_and_load_keep_architecture_and_predictions(tmp_path):
-    model = scratch_model(seed=1, tiny=True, patch_size=1, channel_index_embedding=6).eval()
+    model = scratch_model(seed=1, tiny=True, channel_index_embedding=6).eval()
     model.save_pretrained(tmp_path)
     loaded = load_backbone(tmp_path).eval()
     assert isinstance(loaded, IndexedChronos2Model)
@@ -71,6 +71,6 @@ def test_default_backbone_is_the_unmodified_architecture():
 
 
 def test_more_series_than_index_positions_is_rejected():
-    model = scratch_model(seed=1, tiny=True, patch_size=1, channel_index_embedding=6)
+    model = scratch_model(seed=1, tiny=True, channel_index_embedding=6)
     with pytest.raises(ValueError, match="more than 6"):
         model(**_inputs(batch(channels=7), model, "cpu"))

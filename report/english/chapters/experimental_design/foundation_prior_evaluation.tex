@@ -17,36 +17,33 @@ identifies which property of the synthetic mechanisms caused a difference. The
 controlled-corpus design follows \citet{nagpal2026mixdontpick}; budget-aware
 training follows \citet{kaddour2023notrainnogain}.
 
-\subsubsection{Modifications to Chronos-2 for explainability}
+\subsubsection{Chronos-2 for the equation head}
 \label{sec:chronos-explainability-modifications}
 The auxiliary equation head described below must recover, for every series,
 which lags and which other series its generating equation uses. The published
-Chronos-2 can address neither an individual time step nor an individual
-series. We therefore make two changes to the backbone. They apply identically
-to every arm, including LMC, so that all arms share one architecture.
+Chronos-2 represents individual time steps inside its patches, but it cannot
+distinguish the series of a group. We therefore keep its time patching and add
+one change, a channel-index embedding, only in the arms that train the
+equation head.
 
-\paragraph{Time attention: one-step patches.}
-Chronos-2 splits each series into non-overlapping patches of $P$ steps, maps
+\paragraph{Time attention: 16-step patches.}
+Chronos-2 splits each series into non-overlapping patches of 16 steps, maps
 each patch to one embedding with a residual network, and applies rotary
 position embeddings (RoPE) in its time attention
-\citep[p.~5]{ansari2025chronos2}. Positions are therefore indexed patch by
-patch. Time attention distinguishes patches, but it cannot address one step
-inside a patch, such as $t-3$ or $t-7$, by its index; that information is
-present only implicitly in the patch embedding, and the equation head would
-have to learn to recover it. We set $P=1$ for both input and output patches,
-which the pinned implementation requires to be equal. Every time step then
-becomes its own token, and RoPE indexes the whole series step by step: a lag
-such as $t-16$, and the earlier steps needed to confirm it, such as $t-32$,
-become directly addressable. Patching reduces the cost of attention
-quadratically, keeps local semantic information in each embedding, and was
-reported to improve long-horizon forecasting accuracy
-\citep{nie2023patchtst}. One-step patches forgo these benefits and may lower
-forecasting accuracy. We accept that risk because $P=1$ is the only uniform
-patch size that exposes the entire series term by term. The sequence of each
-series grows from 13 tokens (6 context patches, 6 future patches, and one
-register token) to 193. A pilot measures the resulting time and memory per
-update; if the budgets below cannot be met, they are revised for all arms and
-frozen before the definitive runs.
+\citep[p.~5]{ansari2025chronos2}. The residual network receives the 16 values
+in fixed input positions, so the step at lag $t-3$ and the step at lag $t-7$
+enter through different weights rather than being averaged. With a 96-step
+context, all lags up to 16 used by the generator lie in the last context patch,
+each at a fixed position, and the time attention relates patches. Recovering a
+specific lag therefore requires the backbone to learn it from the patch
+embedding instead of addressing the step directly; this is a difference of
+inductive bias, not an architectural impossibility. One-step patches would make
+every step addressable by RoPE, but they multiply the tokens per series from
+13 to 193 and, in our measurement on the RTX~4070, the time per update by about
+12.5. Patching also improves forecasting efficiency and accuracy
+\citep{nie2023patchtst}. We keep 16-step patches, and we use the head's lag
+recovery on synthetic data to check that the patch representation retains the
+lags.
 
 \paragraph{Group attention: channel index.}
 Group attention aggregates information across the series of one example at
@@ -80,27 +77,20 @@ series identities, whereas the target requires the absolute index of the
 series itself and of each source series. Channel order is random in the
 synthetic training data, so the index carries no information about the
 dynamics; on real data it is the order in which the channels are supplied.
-Because forecasts may now depend on that order, we report real-data forecasts
-under several permutations of the channels.
+Because forecasts of the head-bearing arms may depend on that order, we report
+their real-data forecasts under several permutations of the channels.
 
-\paragraph{Cost of the modifications.}
-The completed LMC runs of both studies used the unmodified backbone, with
-16-step patches and no channel index. We repeat both LMC runs with the
-modified backbone and an otherwise identical configuration
-(\path{configs/experiments/prior_baseline_lmc_indexed.json}). In Study~A the
-repeated run trains on the same prepared corpus, with the same seed, update
-count, and learning-rate schedule; the runner accepts a corpus whose
-data-defining protocol fields match, so both runs see the same windows in the
-same order and differ only in the backbone. This comparison isolates the
-effect of the architecture on forecasting. In Study~B both runs receive the
-same ten-hour active budget, so their difference also includes the slower
-updates of one-step patches and the resulting smaller number of examples.
-Both comparisons use the real-data origins, per-dataset relative MAE
-summaries, and paired temporal-block intervals of the main studies. With one
-seed they describe this pair of runs, not variability across initializations.
-The modified model is also evaluated under several permutations of the real
-channels. The update budget of the repeated Study~A run is fixed from the
-measured time per update before it starts.
+\paragraph{Which arms use the channel index.}
+Arms without an equation head, namely the preliminary KernelSynth candidates
+and our generator without a head in Studies~A and~B, use the unmodified
+Chronos-2, exactly as the completed LMC runs. The comparison between LMC and
+our generator therefore differs only in the generator, and the completed LMC
+runs serve as the LMC arms of both studies. Arms with an equation head use the
+channel-index embedding, which the head requires
+(\path{configs/experiments/prior_baseline_frozen_head.json}; the runner refuses
+an equation head without it). The embedding is part of the equation-head
+intervention: the contrast between our generator with and without the head
+measures the head and the channel index together.
 
 \subsubsection{Study design}
 
@@ -109,9 +99,10 @@ The LMC-Synth reference is the official TimePFN generator
 \citep{taga2025timepfn}, pinned to the revision recorded in the executed
 notebook. We use its
 independent KernelSynth stage before the correlated LMC stage. Both generator
-arms train the same randomly initialized, modified Chronos-2 backbone
-\citep{ansari2025chronos2}
-(Section~\ref{sec:chronos-explainability-modifications}), with six synthetic channels, 96 context steps,
+arms train the same randomly initialized Chronos-2 backbone
+\citep{ansari2025chronos2}, with the channel-index embedding added only in
+equation-head arms (Section~\ref{sec:chronos-explainability-modifications}),
+with six synthetic channels, 96 context steps,
 96 forecast steps, and an effective batch of 16 multivariate examples.
 Here an \emph{example}, or \emph{window}, means 192 consecutive generated time
 steps of one six-channel sample, with all channels aligned: the first
@@ -391,10 +382,8 @@ from this throughput effect.
 \paragraph{Planned contrasts and uncertainty.}
 The preliminary mixture study adds two development runs per initialization
 seed to the eight main-study runs: three in Study~A and five in Study~B. The
-two completed LMC runs used the unmodified backbone with 16-step patches.
-They are the reference of the cost comparison in
-Section~\ref{sec:chronos-explainability-modifications}, and both LMC arms are
-rerun with the modified backbone.
+two completed LMC runs, which use the same unmodified backbone as our arms
+without a head, are the LMC arms of both studies.
 The selected mixture is fixed for all proposed-generator arms in the main
 studies. The
 primary complete-pipeline decision remains LMC versus our generator without

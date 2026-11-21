@@ -21,14 +21,18 @@
   "weibull_shape": 2.0,
   "weibull_scale": 2.0,
   "own_min_operators": 1,
-  "own_max_operators": 3,
+  "own_max_operators": 6,
   "own_max_lag": 16,
-  "own_max_degree": 2,
-  "own_generated_steps": 256,
+  "own_max_degree": 4,
+  "own_generated_steps": 192,
   "own_noise_min": 0.01,
   "own_noise_max": 0.1,
-  "own_treatment": "shao_wu",
+  "own_min_parameter_magnitude": 0.05,
+  "own_max_parameter_magnitude": 1.0,
   "own_dependency": "random",
-  "backbone_patch_size": 1,
+  "own_self_only_treatment_probs": {
+    "jacobian": 0.5,
+    "heaps": 0.5
+  },
   "backbone_channel_embedding": true
 }

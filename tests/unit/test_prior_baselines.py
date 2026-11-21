@@ -81,7 +81,8 @@ def tiny_teacher(tmp_path, max_nodes=20):
 def test_equation_head_corpus_masks_kernel_channels_and_trains(tmp_path):
     source = tiny_teacher(tmp_path)
     values = small_protocol(tmp_path).__dict__
-    protocol = PriorProtocol(**{**values, "own_kernel_probability": .5})
+    protocol = PriorProtocol(**{**values, "own_kernel_probability": .5,
+                                "backbone_channel_embedding": True})
     corpus = tmp_path / "corpus"
     prepare_corpus(protocol, "own", None, corpus, equation_head=True,
                    teacher_source=str(source.parent))
@@ -285,7 +286,8 @@ def test_resume_environment_rejects_identity_change():
 
 def test_equation_head_time_study_records_mixture_and_coverage(tmp_path):
     source = tiny_teacher(tmp_path)
-    protocol = PriorProtocol(**{**small_protocol(tmp_path).__dict__, "own_kernel_probability": .5})
+    protocol = PriorProtocol(**{**small_protocol(tmp_path).__dict__, "own_kernel_probability": .5,
+                                "backbone_channel_embedding": True})
     result = run(protocol, "own", "time", None, tmp_path / "train", device="cpu", tiny=True,
                  equation_head=True, teacher_source=str(source.parent))
     assert result["updates"] >= 1
@@ -320,15 +322,15 @@ def test_teacher_targets_scale_noise_and_follow_example_channel_order(tmp_path):
         strict.targets(item)
 
 
-def test_indexed_lmc_rerun_reuses_the_historical_lmc_corpus():
+def test_head_arm_shares_the_corpus_of_the_arm_without_head():
     from tsfmxai.pipelines.prior_baselines import corpus_fields
+    plain = PriorProtocol.read(CONFIG.with_name("prior_baseline_frozen.json"))
+    head = PriorProtocol.read(CONFIG.with_name("prior_baseline_frozen_head.json"))
+    assert (plain.backbone_patch_size, plain.backbone_channel_embedding) == (16, False)
+    assert (head.backbone_patch_size, head.backbone_channel_embedding) == (16, True)
+    assert corpus_fields(plain, "own") == corpus_fields(head, "own")
     historical = json.loads(HISTORICAL.read_text(encoding="utf-8"))
-    rerun = PriorProtocol.read(HISTORICAL.with_name("prior_baseline_lmc_indexed.json"))
-    assert (rerun.backbone_patch_size, rerun.backbone_channel_embedding) == (1, True)
-    # The stored manifest of the completed run holds the historical protocol.
-    assert corpus_fields(historical, "lmc") == corpus_fields(rerun, "lmc")
-    changed = {**historical, "correlated_bank": historical["correlated_bank"] + 1}
-    assert corpus_fields(changed, "lmc") != corpus_fields(rerun, "lmc")
+    assert corpus_fields(historical, "lmc") == corpus_fields(plain, "lmc")
 
 
 def test_equation_head_requires_the_channel_index(tmp_path):

@@ -4,8 +4,8 @@ Runs optimizer updates on random 16 x 96 x 6 batches with 96-step horizons, for
 the configured patch size and channel-index embedding, and prints one JSON
 record. Use it on the training GPU before freezing the study budgets.
 
-    python scripts/pilot_backbone_cost.py --patch-size 1 --channel-embedding
-    python scripts/pilot_backbone_cost.py --patch-size 16            # completed LMC runs
+    python scripts/pilot_backbone_cost.py --channel-embedding        # current backbone
+    python scripts/pilot_backbone_cost.py                            # completed LMC runs
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from tsfmxai.pipelines.chronos2_lmc import _inputs, _sync, scratch_model  # noqa
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--patch-size", type=int, default=1)
+    parser.add_argument("--patch-size", type=int, default=16)
     parser.add_argument("--channel-embedding", action="store_true")
     parser.add_argument("--microbatch", type=int, default=16)
     parser.add_argument("--warmup", type=int, default=5)
