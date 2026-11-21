@@ -108,3 +108,43 @@ def test_parquet_corpus_contains_both_ast_variants(tmp_path):
     identity = lambda e: (e["sample_index"], e["protection_selected"],
                           e["skeleton"], e["target"])
     assert sorted(map(identity, examples)) == sorted(map(identity, other))
+
+
+def test_multiseries_source_encodes_executed_equations_of_the_forecasting_generator(tmp_path):
+    from tsfmxai.generators.multiseries import sample_multiseries_system
+    from tsfmxai.generators.random_expression import derive_sample_seed
+    from tsfmxai.symbolic_regression.canonical_data import (
+        multiseries_teacher_config, sample_multiseries_example)
+    generator = {"source": "multiseries", "num_series": 6, "minimum_operators": 1,
+                 "maximum_operators": 3, "minimum_lag": 1, "maximum_lag": 6, "max_degree": 4,
+                 "minimum_parameter_magnitude": .05, "maximum_parameter_magnitude": 1.,
+                 "dependency": "random", "max_external_sources": 2, "self_source_weight": 3.}
+    config = {"ast_count": 120, "shard_size": 40, "generation_workers": 1,
+              "data_seed": 23, "split_seed": 29, "max_decode_steps": 64,
+              "model": {"max_nodes": 64}, "generator": generator}
+    codec = generate_parquet(config, tmp_path, lambda *args, **kwargs: None)
+    summary = count_corpus(config, tmp_path, lambda *args, **kwargs: None)
+    assert sum(summary["rows_by_split"].values()) == 120
+    treatments = {}
+    for split_counts in summary["treatments_by_split"].values():
+        for name, count in split_counts.items():
+            treatments[name] = treatments.get(name, 0) + count
+    assert set(treatments) <= {"shao_wu", "jacobian", "heaps"} and "shao_wu" in treatments
+    example = sample_multiseries_example(config, codec, 5)
+    system = sample_multiseries_system(multiseries_teacher_config(generator),
+                                       seed=derive_sample_seed(23, 5))
+    assert example["skeleton"] in [codec.encode(e)["skeleton"] for e in system.equations]
+    with pytest.raises(ValueError, match="max_nodes"):
+        generate_parquet({**config, "model": {"max_nodes": 4}}, tmp_path / "small",
+                         lambda *args, **kwargs: None)
+
+
+def test_production_training_can_iterate_over_every_split(tmp_path):
+    config = {"ast_count": 120, "shard_size": 40, "generation_workers": 1,
+              "data_seed": 17, "split_seed": 19,
+              "generator": {"minimum_operators": 1, "maximum_operators": 3, "num_series": 2,
+                            "minimum_lag": 1, "maximum_lag": 3, "max_degree": 3}}
+    generate_parquet(config, tmp_path, lambda *args, **kwargs: None)
+    every = list(iter_shard_examples(tmp_path, ["train", "validation", "test"], seed=3))
+    assert len(every) == 120
+    assert len({example["sample_index"] for example in every}) == 120

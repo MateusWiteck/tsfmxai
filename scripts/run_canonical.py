@@ -81,11 +81,35 @@ def main():
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--release-dir", default=None,
                         help="after a completed run, also write the Hugging Face release here")
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="smoke tests only: run although code or configs differ from HEAD")
     args = parser.parse_args()
     config_path = (ROOT / args.config).resolve()
     run_dir = (ROOT / args.run_dir).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
     config = json.loads(config_path.read_text(encoding="utf-8"))
+    # The release exports source/ from the training commit, so the code that runs
+    # must be exactly that commit.
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", "src", "scripts", "configs",
+                            "pyproject.toml"], cwd=ROOT, text=True, capture_output=True)
+    if dirty.returncode != 0:
+        raise RuntimeError("Cannot read the git state of the repository.")
+    if dirty.stdout.strip() and not args.allow_dirty:
+        raise RuntimeError("Code or configs differ from HEAD; commit before training:\n" + dirty.stdout)
+    training_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    source = sorted({"scripts/run_canonical.py", args.config, "pyproject.toml",
+                     *(path.relative_to(ROOT).as_posix()
+                       for path in (ROOT / "src" / "tsfmxai").rglob("*.py")
+                       if "__pycache__" not in path.parts)})
+    source_sha256 = {name: sha256((ROOT / name).read_bytes()).hexdigest() for name in source}
+    if config.get("epochs_from_run"):
+        # The production teacher trains on every split for the best epoch count of
+        # the run with a skeleton-disjoint split.
+        source_manifest = json.loads((ROOT / config["epochs_from_run"] / "manifest.json")
+                                     .read_text(encoding="utf-8"))
+        best = source_manifest["results"]["transformer_skeleton"]["best_epoch"]
+        config = {**config, "epochs": int(best), "patience": int(best) + 1,
+                  "epochs_source": {"run": config["epochs_from_run"], "best_epoch": int(best)}}
     if args.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is unavailable.")
     device = "cuda:0" if args.device == "cuda" else "cpu"
@@ -110,6 +134,7 @@ def main():
     torch.use_deterministic_algorithms(True)
     started = time.perf_counter()
     status("preparing_data", started_at_utc=status_data.get("started_at_utc", utc_now()),
+           training_commit=training_commit, source_sha256=source_sha256, dirty=bool(dirty.stdout.strip()),
            command=f"{sys.executable} scripts/run_canonical.py --config {args.config} --run-dir {args.run_dir} --device {args.device}")
     try:
         if config.get("source_run_dir"):
@@ -136,22 +161,17 @@ def main():
             status("variant_completed", results=results)
             print("MODEL", name, json.dumps({k: result[k] for k in
                 ("count", "skeleton_exact", "term_f1", "joint_exact", "best_epoch")}), flush=True)
-        source = ["scripts/run_canonical.py", args.config,
-                  "src/tsfmxai/symbolic_regression/canonical_data.py",
-                  "src/tsfmxai/symbolic_regression/canonical_training.py",
-                  "src/tsfmxai/symbolic_regression/canonical_large_scale.py",
-                  "src/tsfmxai/symbolic_regression/canonical_models.py",
-                  "src/tsfmxai/generators/combinatorial_expression.py",
-                  "src/tsfmxai/generators/shao_wu.py",
-                  "src/tsfmxai/representations/canonical_polynomial.py"]
+        now_sha256 = {name: sha256((ROOT / name).read_bytes()).hexdigest() for name in source}
+        if now_sha256 != source_sha256:
+            raise RuntimeError("Source files changed while the run was in progress.")
         provenance = {"config": config, "config_sha256": config_sha,
-                      "training_commit": subprocess.check_output(
-                          ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+                      "training_commit": training_commit,
+                      "working_tree_dirty": bool(dirty.stdout.strip()),
                       "packages": {name: version(name) for name in
                                    ("numpy", "pyarrow", "safetensors", "torch")},
                       "gpu_name": torch.cuda.get_device_name(0) if args.device == "cuda" else None,
                       "cuda_version": torch.version.cuda,
-                      "source_sha256": {f: sha256((ROOT / f).read_bytes()).hexdigest() for f in source},
+                      "source_sha256": source_sha256,
                       "python": platform.python_version(), "torch": torch.__version__,
                       "device": device, "cpu_threads": config["cpu_threads"],
                       "generated_at_utc": utc_now(), "elapsed_seconds": time.perf_counter() - started}

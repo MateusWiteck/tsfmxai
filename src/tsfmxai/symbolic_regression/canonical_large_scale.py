@@ -19,7 +19,8 @@ import torch
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig, CombinatorialTreeSampler
 from tsfmxai.generators.random_expression import derive_sample_seed
 from tsfmxai.symbolic_regression.canonical_data import (
-    CanonicalCodec, select_canonical_mechanism, skeleton_digest,
+    CanonicalCodec, check_teacher_limits, multiseries_teacher_config,
+    sample_multiseries_example, select_canonical_mechanism, skeleton_digest,
 )
 from tsfmxai.symbolic_regression.canonical_models import CanonicalEncoderDecoder, collate_canonical, supervised_loss
 from tsfmxai.symbolic_regression.canonical_training import atomic_json, evaluate_greedy, evaluate_teacher, utc_now
@@ -31,7 +32,7 @@ SCHEMA = pa.schema([
     ("skeleton_json", pa.string()), ("formula", pa.string()),
     ("operator_count", pa.int16()), ("parameter_count", pa.int16()),
     ("tanh_count", pa.int16()), ("protection_selected", pa.bool_()),
-    ("degree", pa.int16()),
+    ("degree", pa.int16()), ("treatment", pa.string()),
     *[(name, pa.list_(pa.int16())) for name in
       ("prefix_ids", "tree_ids", "left_children", "right_children", "target")],
     *[(name, pa.list_(pa.float64())) for name in
@@ -54,7 +55,9 @@ def _row(example):
                 "operator_count", "parameter_count", "tanh_count", "protection_selected",
                 "degree", "prefix_ids", "tree_ids",
                 "left_children", "right_children", "target", "prefix_values", "tree_values",
-                "coefficient_targets", "coefficients")}}
+                "coefficient_targets", "coefficients")},
+            "treatment": example.get("treatment",
+                                     "tanh_protection" if example["protection_selected"] else "raw")}
 
 
 def _write_rows(path, rows):
@@ -121,8 +124,10 @@ def deduplicate_evaluation_in_place(run_dir, status):
 
 def _generate_shard(config, run_dir, shard):
     run_dir = Path(run_dir)
-    generator = CombinatorialTreeSampler(CombinatorialTreeConfig(**config["generator"]))
     g = config["generator"]
+    multiseries = (multiseries_teacher_config(g) if g.get("source") == "multiseries" else None)
+    generator = (None if multiseries else
+                 CombinatorialTreeSampler(CombinatorialTreeConfig(**g)))
     codec = CanonicalCodec(g["num_series"], g["minimum_lag"], g["maximum_lag"], g["max_degree"])
     size, shard_size = config["ast_count"], config["shard_size"]
     paths = {split: run_dir / "parquet" / split / f"part-{shard:05d}.parquet"
@@ -131,13 +136,17 @@ def _generate_shard(config, run_dir, shard):
         return shard, min(size, (shard + 1) * shard_size) - shard * shard_size
     rows = {split: [] for split in SPLITS}
     for index in range(shard * shard_size, min(size, (shard + 1) * shard_size)):
-        seed = derive_sample_seed(config["data_seed"], index)
-        sampled = generator.sample(seed=seed, sample_index=index)
-        mechanism, selected = select_canonical_mechanism(
-            sampled, probability=config.get("protection_probability", 0.5),
-            root_seed=config["data_seed"], sample_index=index)
-        example = codec.encode(mechanism)
-        example["protection_selected"] = selected
+        if multiseries is not None:
+            example = sample_multiseries_example(config, codec, index, multiseries)
+        else:
+            seed = derive_sample_seed(config["data_seed"], index)
+            sampled = generator.sample(seed=seed, sample_index=index)
+            mechanism, selected = select_canonical_mechanism(
+                sampled, probability=config.get("protection_probability", 0.5),
+                root_seed=config["data_seed"], sample_index=index)
+            example = codec.encode(mechanism)
+            example["protection_selected"] = selected
+        check_teacher_limits(example, config)
         rows[split_for_skeleton(example["skeleton"], config["split_seed"])].append(_row(example))
     for split in SPLITS:
         _write_rows(paths[split], rows[split])
@@ -172,11 +181,13 @@ def count_corpus(config, run_dir, status):
     frequencies = {split: defaultdict(int) for split in SPLITS}
     selected = {split: 0 for split in SPLITS}
     activated = {split: 0 for split in SPLITS}
+    treatments = {split: defaultdict(int) for split in SPLITS}
     for split in SPLITS:
         for file in _files(run_dir, split):
             fields = set(pq.read_schema(file).names)
             columns = ["skeleton_hash", "operator_count"]
-            columns += [name for name in ("protection_selected", "tanh_count") if name in fields]
+            columns += [name for name in ("protection_selected", "tanh_count", "treatment")
+                        if name in fields]
             table = pq.read_table(file, columns=columns)
             hashes = table["skeleton_hash"].to_pylist()
             operators = table["operator_count"].to_pylist()
@@ -188,6 +199,9 @@ def count_corpus(config, run_dir, status):
                 selected[split] += sum(table["protection_selected"].to_pylist())
             if "tanh_count" in fields:
                 activated[split] += sum(n > 0 for n in table["tanh_count"].to_pylist())
+            if "treatment" in fields:
+                for name in table["treatment"].to_pylist():
+                    treatments[split][name] += 1
         status("counting", counted_split=split, counted=sum(counts.values()))
     stored = sum(counts.values())
     expected = config.get("expected_rows")
@@ -209,6 +223,7 @@ def count_corpus(config, run_dir, status):
             "operator_counts_by_split": {k: dict(v) for k, v in frequencies.items()},
             "protection_selected_by_split": selected,
             "tanh_inserted_by_split": activated,
+            "treatments_by_split": {k: dict(v) for k, v in treatments.items()},
             "skeleton_overlap": 0, "parquet_root": str((Path(run_dir) / "parquet").resolve())}
 
 
@@ -220,7 +235,9 @@ def _example(row):
 
 
 def iter_shard_examples(run_dir, split, seed=None):
-    files = _files(run_dir, split)
+    """Rows of one split, or of several when ``split`` is a list (shuffled together)."""
+    splits = [split] if isinstance(split, str) else list(split)
+    files = [file for name in splits for file in _files(run_dir, name)]
     rng = random.Random(seed)
     if seed is not None:
         rng.shuffle(files)
@@ -343,7 +360,10 @@ def train_parquet_variant(config, run_dir, codec, variant, status, device="cpu")
             if steps % 500 == 0:
                 status("training", active_variant=name, epoch=epoch,
                        training_rows_seen=rows_seen, train_batches=steps)
-        for example in iter_shard_examples(run_dir, "train", seed=config["training_seed"] + epoch):
+        # The production teacher trains on every split for the epoch count fixed
+        # by a split run; the default trains on the training split only.
+        for example in iter_shard_examples(run_dir, config.get("train_splits", ["train"]),
+                                           seed=config["training_seed"] + epoch):
             batch.append(example)
             if len(batch) == config["batch_size"]:
                 train_batch(batch)

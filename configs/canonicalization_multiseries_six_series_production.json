@@ -1,0 +1,69 @@
+{
+  "experiment": "canonical_ast_multiseries_six_series_production",
+  "ast_count": 30000000,
+  "shard_size": 20000,
+  "generation_workers": 4,
+  "generator": {
+    "source": "multiseries",
+    "num_series": 6,
+    "minimum_operators": 1,
+    "maximum_operators": 6,
+    "minimum_lag": 1,
+    "maximum_lag": 16,
+    "max_degree": 4,
+    "minimum_parameter_magnitude": 0.05,
+    "maximum_parameter_magnitude": 1.0,
+    "dependency": "random",
+    "max_external_sources": 2,
+    "self_source_weight": 3.0,
+    "self_only_treatment_probs": {
+      "jacobian": 0.5,
+      "heaps": 0.5
+    }
+  },
+  "data_seed": 20261201,
+  "split_seed": 20261202,
+  "training_seed": 20261203,
+  "unique_eval_skeletons": true,
+  "split": {
+    "train": 0.7,
+    "validation": 0.1,
+    "test": 0.2
+  },
+  "batch_size": 256,
+  "epochs": 10,
+  "patience": 3,
+  "learning_rate": 0.0005,
+  "weight_decay": 0.0001,
+  "coefficient_weight": 2.0,
+  "gradient_clip": 1.0,
+  "min_delta": 0.0001,
+  "max_decode_steps": 64,
+  "validation_examples_per_epoch": 10000,
+  "validation_greedy_size": 2048,
+  "coefficient_atol": 0.01,
+  "coefficient_rtol": 0.01,
+  "cpu_threads": 4,
+  "model": {
+    "dimension": 96,
+    "heads": 4,
+    "encoder_layers": 2,
+    "dropout": 0.1,
+    "max_nodes": 65
+  },
+  "variants": [
+    {
+      "name": "transformer_skeleton",
+      "encoder": "transformer",
+      "coefficients": false
+    }
+  ],
+  "source_run_dir": "outputs/canonical_multiseries_six_series_split",
+  "epochs_from_run": "outputs/canonical_multiseries_six_series_split",
+  "train_splits": [
+    "train",
+    "validation",
+    "test"
+  ],
+  "note": "Production teacher for the equation head: same corpus as the split run, trained on every split for that run's best epoch count. Its test metrics are not held out."
+}

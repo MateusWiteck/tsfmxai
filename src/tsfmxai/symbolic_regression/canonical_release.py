@@ -46,6 +46,12 @@ PROTECTION_RULE = (
     "otherwise the tree keeps its raw products. The draw is per tree and deterministic: "
     "SHA-256 of 'protection|data_seed|sample_index'."
 )
+MULTISERIES_RULE = (
+    "Each sample index draws one six-channel system with "
+    "sample_multiseries_system(seed=derive_sample_seed(data_seed, sample_index)) and one "
+    "channel by SHA-256 of 'channel|data_seed|sample_index'; the executed equation of that "
+    "channel, including its treatment, is encoded."
+)
 SPLIT_RULE = (
     "A row goes to train, validation or test by SHA-256 of 'split_seed|skeleton digest' "
     "modulo 10000 (<7000 train, <8000 validation, otherwise test), so a canonical "
@@ -156,13 +162,35 @@ def _write_json(path: Path, value) -> None:
 def generator_metadata(config: dict) -> dict:
     """Generator parameters as configured and with every default resolved."""
     configured = dict(config["generator"])
-    resolved = asdict(CombinatorialTreeConfig(**configured))
+    if configured.get("source") == "multiseries":
+        from tsfmxai.symbolic_regression.canonical_data import multiseries_teacher_config
+        multiseries = multiseries_teacher_config(configured)
+        resolved = {**asdict(multiseries.ast_config), "num_series": configured["num_series"],
+                    "dependency": configured["dependency"],
+                    "max_external_sources": multiseries.max_external_sources,
+                    "self_source_weight": multiseries.self_source_weight,
+                    "self_only_treatment_probs": dict(multiseries.self_only_treatment_probs),
+                    "heaps_support_probs": dict(multiseries.heaps_support_probs),
+                    "target_gain": multiseries.target_gain,
+                    "safety_factor": multiseries.safety_factor}
+        sampler = "tsfmxai.generators.multiseries.sample_multiseries_system"
+        treatment = ("Each example is one channel of a system drawn by the forecasting "
+                     "generator, encoded as executed: a channel with an external source "
+                     "uses Shao-Wu, and a self-only channel uses Jacobian or Heaps.")
+        protection, rule = None, MULTISERIES_RULE
+    else:
+        resolved = asdict(CombinatorialTreeConfig(**configured))
+        sampler = "tsfmxai.generators.CombinatorialTreeSampler"
+        protection = config.get("protection_probability", 0.5)
+        treatment = f"Each tree is protected with probability {protection}."
+        rule = PROTECTION_RULE
     return {
-        "sampler": "tsfmxai.generators.CombinatorialTreeSampler",
+        "sampler": sampler,
         "configured": configured,
         "resolved": resolved,
-        "protection_probability": config.get("protection_probability", 0.5),
-        "protection_rule": PROTECTION_RULE,
+        "protection_probability": protection,
+        "treatment_description": treatment,
+        "protection_rule": rule,
         "data_seed": config["data_seed"],
         "split_seed": config["split_seed"],
         "sample_seed_rule": "derive_sample_seed(data_seed, sample_index)",
@@ -217,12 +245,12 @@ form term by term. Defined in `src/tsfmxai/symbolic_regression/canonical_models.
 
 ## Training data
 
-Random trees from `CombinatorialTreeSampler` with
+Random trees from `{config_json["generator"]["sampler"]}` with
 {g["minimum_operators"]}-{g["maximum_operators"]} binary operators, {g["num_series"]} series,
 lags {g["minimum_lag"]}-{g["maximum_lag"]}, degree at most {g["max_degree"]}, coefficient
 magnitude in [{g["minimum_parameter_magnitude"]}, {g["maximum_parameter_magnitude"]}].
-{config_json["generator"]["sampled_asts"]:,} trees were sampled; each one is protected
-with probability {config_json["generator"]["protection_probability"]}. All generator
+{config_json["generator"]["sampled_asts"]:,} trees were sampled.
+{config_json["generator"]["treatment_description"]} All generator
 parameters and seeds are in `config.json` (key `generator`). Validation and test keep
 one row per canonical skeleton, and no skeleton appears in two partitions.
 
@@ -325,7 +353,7 @@ python scripts/run_canonical.py --config /path/to/downloaded-dataset/source/trai
 ```
 
 `source/` holds a byte-exact copy of that code, so the generator stays available even if
-the repository moves. The generator itself is `tsfmxai.generators.CombinatorialTreeSampler`
+the repository moves. The generator itself is `{metadata["generator"]["sampler"]}`
 configured with `generator.resolved` of `metadata.json`.
 
 ## Generator parameters
@@ -333,8 +361,8 @@ configured with `generator.resolved` of `metadata.json`.
 - Operators per tree: {g["minimum_operators"]} to {g["maximum_operators"]}; series: {g["num_series"]};
   lags {g["minimum_lag"]} to {g["maximum_lag"]}; maximum degree {g["max_degree"]}.
 - Coefficient magnitude in [{g["minimum_parameter_magnitude"]}, {g["maximum_parameter_magnitude"]}].
-- Sampled trees: {metadata["generator"]["sampled_asts"]:,}; protection probability
-  {metadata["generator"]["protection_probability"]}.
+- Sampled trees: {metadata["generator"]["sampled_asts"]:,}.
+  {metadata["generator"]["treatment_description"]}
 - Seeds: data {metadata["generator"]["data_seed"]}, split {metadata["generator"]["split_seed"]}.
 - Protection: {metadata["generator"]["protection_rule"]}
 - Split: {metadata["generator"]["split_rule"]}

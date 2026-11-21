@@ -156,6 +156,71 @@ def select_canonical_mechanism(sampled, *, probability, root_seed, sample_index)
             if selected else sampled), selected
 
 
+MULTISERIES_GENERATOR_KEYS = {
+    "source", "num_series", "minimum_operators", "maximum_operators", "minimum_lag",
+    "maximum_lag", "max_degree", "minimum_parameter_magnitude", "maximum_parameter_magnitude",
+    "dependency", "max_external_sources", "self_source_weight", "self_only_treatment_probs",
+    "heaps_support_probs", "target_gain", "safety_factor",
+}
+
+
+def multiseries_teacher_config(generator):
+    """The forecasting generator configuration that the teacher must cover."""
+    from tsfmxai.generators.multiseries import (
+        DEFAULT_HEAPS_SUPPORT_PROBS, DEFAULT_SELF_ONLY_TREATMENT_PROBS, MultiseriesConfig)
+    unknown = set(generator) - MULTISERIES_GENERATOR_KEYS
+    if unknown:
+        raise ValueError(f"Unknown multiseries generator keys: {sorted(unknown)}")
+    return MultiseriesConfig(
+        ast_config=CombinatorialTreeConfig(
+            minimum_operators=generator["minimum_operators"],
+            maximum_operators=generator["maximum_operators"],
+            minimum_lag=generator["minimum_lag"], maximum_lag=generator["maximum_lag"],
+            max_degree=generator["max_degree"],
+            minimum_parameter_magnitude=generator["minimum_parameter_magnitude"],
+            maximum_parameter_magnitude=generator["maximum_parameter_magnitude"]),
+        channel_count_probs={generator["num_series"]: 1.0},
+        dependency_probs={generator["dependency"]: 1.0},
+        max_external_sources=generator["max_external_sources"],
+        self_source_weight=generator["self_source_weight"],
+        self_only_treatment_probs=generator.get(
+            "self_only_treatment_probs", dict(DEFAULT_SELF_ONLY_TREATMENT_PROBS)),
+        heaps_support_probs=generator.get("heaps_support_probs", dict(DEFAULT_HEAPS_SUPPORT_PROBS)),
+        target_gain=generator.get("target_gain", 0.8),
+        safety_factor=generator.get("safety_factor", 0.95))
+
+
+def sample_multiseries_example(config, codec, sample_index, multiseries=None):
+    """Encode one channel of one system drawn by the forecasting generator.
+
+    The system seed and the channel choice are deterministic functions of the
+    data seed and the sample index. The encoded equation is the executed one,
+    with its treatment (Shao-Wu tanh and scale, Jacobian scale, Heaps AR).
+    """
+    from tsfmxai.generators.multiseries import sample_multiseries_system
+    multiseries = multiseries or multiseries_teacher_config(config["generator"])
+    system = sample_multiseries_system(
+        multiseries, seed=derive_sample_seed(config["data_seed"], sample_index))
+    key = f"channel|{config['data_seed']}|{sample_index}".encode()
+    channel = int.from_bytes(sha256(key).digest()[:8], "big") % system.num_channels
+    example = codec.encode(system.equations[channel])
+    method = system.treatments[channel].method
+    example.update(sample_index=sample_index, treatment=method,
+                   protection_selected=method == "shao_wu")
+    return example
+
+
+def check_teacher_limits(example, config):
+    """The encoder and decoder must accept every generated equation in full."""
+    nodes, steps = len(example["prefix_ids"]), len(example["target"]) - 1
+    max_nodes = config.get("model", {}).get("max_nodes")
+    max_steps = config.get("max_decode_steps")
+    if max_nodes is not None and nodes > max_nodes:
+        raise ValueError(f"Equation with {nodes} nodes exceeds max_nodes {max_nodes}; increase it.")
+    if max_steps is not None and steps > max_steps:
+        raise ValueError(f"Target with {steps} steps exceeds max_decode_steps {max_steps}; increase it.")
+
+
 def generate_canonical_dataset(config):
     generator = CombinatorialTreeConfig(**config['generator'])
     sampler = CombinatorialTreeSampler(generator)
