@@ -10,7 +10,7 @@ notebook executado.
 
 ## Configuração e proveniência
 
-- Configuração completa: [`configs/experiments/prior_baseline_frozen.json`](../../configs/experiments/prior_baseline_frozen.json), SHA-256 `b18e5a493466307a33c516a9dd75fe00f7685b7572878b292ea9eda1912f60e4`.
+- Configuração executada: [`configs/experiments/prior_baseline_lmc_20261118.json`](../../../configs/experiments/prior_baseline_lmc_20261118.json), SHA-256 `b18e5a493466307a33c516a9dd75fe00f7685b7572878b292ea9eda1912f60e4`. Depois da execução, o arquivo de trabalho `prior_baseline_frozen.json` mudou apenas nos campos `own_*` do gerador concorrente (o hash do arquivo de trabalho continua mudando enquanto esses campos são revisados). O hash histórico não foi substituído. O leitor atual do protocolo aceita o antigo campo `own_treatment` para reproduzir o braço LMC.
 - Seed global `2021`; o runner deriva seeds de dados por estágio, split, trajetória e janela. Batch de 16 sistemas multivariados, seis canais por sistema, contexto 96 e horizonte 96. Chronos-2 iniciado com pesos aleatórios, 119.477.664 parâmetros, sem equation head.
 - LMC em dois estágios: KernelSynth independente, depois LMC correlacionado. Banco configurado com 20.000 trajetórias independentes e 15.000 correlacionadas; fração de updates `0.7790082908091677`. Total de 445.433 updates, dividido em 346.996 e 98.437. O corpus foi materializado antes do treino.
 - `tsfmxai` commit `1add431872e9a17316fe5ba75836ae35ead2da2b`; TimePFN `e11d5c2982b0e49b87873cbddcb7712641861268`; Chronos `10afa9ebe016e514f9d7dc1aa873f66af57e116b`.
@@ -79,10 +79,10 @@ Na revisão e ambiente acima, a partir da raiz do repositório:
 
 ```bash
 python scripts/run_prior_baseline.py prepare \
-  --config configs/experiments/prior_baseline_frozen.json --arm lmc \
+  --config configs/experiments/prior_baseline_lmc_20261118.json --arm lmc \
   --upstream experiments_local/TimePFN --corpus outputs/prior_a_lmc_corpus
 python scripts/run_prior_baseline.py train \
-  --config configs/experiments/prior_baseline_frozen.json \
+  --config configs/experiments/prior_baseline_lmc_20261118.json \
   --study controlled --arm lmc --upstream experiments_local/TimePFN \
   --corpus outputs/prior_a_lmc_corpus --output outputs/prior_a_lmc
 ```

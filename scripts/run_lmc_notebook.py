@@ -28,7 +28,7 @@ class Tee:
 def main():
     root = Path(__file__).resolve().parents[1]
     os.chdir(root)
-    source = root / "experiments/generator_model_evaluation/01_chronos2_lmc_synth.ipynb"
+    source = root / "experiments/generator_model_evaluation/offline_experiments/01_chronos2_lmc_synth.ipynb"
     notebook = nbformat.read(source, as_version=4)
     namespace = {"__name__": "__main__", "__file__": str(source)}
     for number, cell in enumerate(notebook.cells, 1):

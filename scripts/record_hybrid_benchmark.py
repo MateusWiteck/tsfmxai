@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("result", type=Path)
     parser.add_argument("--output", type=Path, default=ROOT / "experiments" /
-                        "generator_model_evaluation" / "kernel_synth_hybrid" /
+                        "generator_model_evaluation" / "generator_selection" / "kernel_synth_hybrid_assessment" /
                         "01_batch_generation_speed.ipynb")
     args = parser.parse_args()
     payload = json.loads(args.result.read_text(encoding="utf-8"))

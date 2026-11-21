@@ -10,7 +10,7 @@ experimento de treino por script, não um notebook executado.
 
 ## Configuração e proveniência
 
-- Configuração completa: [`configs/experiments/prior_baseline_frozen.json`](../../configs/experiments/prior_baseline_frozen.json), SHA-256 `b18e5a493466307a33c516a9dd75fe00f7685b7572878b292ea9eda1912f60e4`.
+- Configuração executada: [`configs/experiments/prior_baseline_lmc_20261118.json`](../../../configs/experiments/prior_baseline_lmc_20261118.json), SHA-256 `b18e5a493466307a33c516a9dd75fe00f7685b7572878b292ea9eda1912f60e4`. Depois da execução, o arquivo de trabalho `prior_baseline_frozen.json` mudou apenas nos campos `own_*` do gerador concorrente (o hash do arquivo de trabalho continua mudando enquanto esses campos são revisados). O hash histórico não foi substituído. O leitor atual do protocolo aceita o antigo campo `own_treatment` para reproduzir o braço LMC.
 - Seed global `2021`, com seeds derivadas pelo runner; batch 16, seis canais, contexto 96, horizonte 96. Chronos-2 iniciado com pesos aleatórios, 119.477.664 parâmetros e sem equation head.
 - Orçamento de **10 horas ativas**, incluindo geração/cache sob demanda, espera pelos dados, treino, validação e checkpoints. Estágios independente e correlacionado recebem, respectivamente, 77,9008% e 22,0992% do tempo. O banco LMC pode ser reutilizado, mas esta execução não repetiu janelas.
 - `tsfmxai` commit `1add431872e9a17316fe5ba75836ae35ead2da2b`; TimePFN `e11d5c2982b0e49b87873cbddcb7712641861268`; Chronos `10afa9ebe016e514f9d7dc1aa873f66af57e116b`.
@@ -79,7 +79,7 @@ Na revisão e ambiente acima, com cache novo e GPU livre, a partir da raiz:
 
 ```bash
 python scripts/run_prior_baseline.py train \
-  --config configs/experiments/prior_baseline_frozen.json \
+  --config configs/experiments/prior_baseline_lmc_20261118.json \
   --study time --arm lmc --upstream experiments_local/TimePFN \
   --output outputs/prior_b_lmc
 ```
