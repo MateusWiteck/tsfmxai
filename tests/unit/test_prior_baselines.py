@@ -171,6 +171,9 @@ def test_tiny_controlled_run_has_two_stage_checkpoints(tmp_path):
     result = run(protocol, "own", "controlled", None, tmp_path / "train",
                  corpus=corpus, device="cpu", tiny=True)
     assert result["updates"] == 2
+    manifest = json.loads((corpus / "manifest.json").read_text())
+    assert result["corpus_preparation_seconds"] == manifest["preparation_seconds"] > 0
+    assert result["first_batch_seconds"] >= 0
     assert (tmp_path / "train/independent_end").is_dir()
     assert (tmp_path / "train/model_final").is_dir()
     rows = [json.loads(line) for line in (tmp_path / "train/validation.jsonl").read_text().splitlines()]
@@ -197,6 +200,7 @@ def test_tiny_time_run_stops_by_clock_and_reuses_validation(tmp_path):
                                 "time_hours": 0.0002})
     result = run(protocol, "own", "time", None, tmp_path / "time", device="cpu", tiny=True)
     assert result["stop_reason"] == "budget_elapsed"
+    assert result["corpus_preparation_seconds"] is None
     assert (tmp_path / "time/validation_corpus/independent/complete").exists()
     assert result["environment"]["packages"]["torch"]
     assert result["environment"]["hostname"]
@@ -340,3 +344,36 @@ def test_equation_head_requires_the_channel_index(tmp_path):
     with pytest.raises(ValueError, match="backbone_channel_embedding"):
         run(protocol, "own", "time", None, tmp_path / "train", device="cpu", tiny=True,
             equation_head=True, teacher_source=str(source.parent))
+
+
+def test_resumed_corpus_matches_uninterrupted_corpus(tmp_path):
+    import shutil
+
+    import numpy as np
+
+    protocol = PriorProtocol(**{**small_protocol(tmp_path).__dict__, "controlled_updates": 6,
+                                "own_kernel_probability": 0.5})
+    whole = tmp_path / "whole"
+    expected = prepare_corpus(protocol, "own", None, whole)
+    interrupted = tmp_path / "interrupted"
+    (interrupted / "independent").mkdir(parents=True)
+    for index in range(2):
+        name = f"{index:08d}.npz"
+        shutil.copy(whole / "independent" / name, interrupted / "independent" / name)
+    (interrupted / "independent" / "00000002.tmp").write_bytes(b"partial")
+    with pytest.raises(FileExistsError, match="empty"):
+        prepare_corpus(protocol, "own", None, interrupted)
+    resumed = prepare_corpus(protocol, "own", None, interrupted, resume=True)
+    assert resumed["resumed"]["saved_batches"] == {"independent": 2, "correlated": 0}
+    assert resumed["channel_families"] == expected["channel_families"]
+    assert resumed["kernel_synth_fraction"] == expected["kernel_synth_fraction"]
+    for stage, count in zip(("independent", "correlated"), expected["counts"]):
+        assert len(list((interrupted / stage).iterdir())) == count
+        for index in range(count):
+            with np.load(whole / stage / f"{index:08d}.npz") as a, \
+                    np.load(interrupted / stage / f"{index:08d}.npz") as b:
+                assert a.files == b.files
+                for key in a.files:
+                    assert np.array_equal(a[key], b[key], equal_nan=True)
+    with pytest.raises(FileExistsError, match="complete"):
+        prepare_corpus(protocol, "own", None, interrupted, resume=True)

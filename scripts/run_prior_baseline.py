@@ -42,9 +42,10 @@ def main():
     if args.equation_head and not args.teacher_source:
         parser.error("--equation-head requires --teacher-source")
     if args.command == "prepare":
-        if args.corpus is None or args.study is not None or args.resume:
-            parser.error("prepare requires --corpus and no --study/--resume")
+        if args.corpus is None or args.study is not None:
+            parser.error("prepare requires --corpus and no --study")
         result = prepare_corpus(protocol, args.arm, args.upstream, args.corpus,
+                                resume=args.resume,
                                 equation_head=args.equation_head,
                                 teacher_source=args.teacher_source,
                                 teacher_revision=args.teacher_revision)

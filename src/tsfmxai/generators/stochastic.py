@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from tsfmxai.generators.trajectory import (
-    evaluate_bound_expression,
+    compile_bound_expression,
     required_multivariate_history_length,
 )
 from tsfmxai.representations.expression import ExpressionNode, MechanismBinding
@@ -42,14 +42,17 @@ def simulate_innovation_path(
     ):
         raise ValueError("stop_threshold must be finite and positive.")
     length = initial.shape[1]
-    histories = [list(row) for row in initial]
+    # Python floats keep the compiled equations bitwise equal to the recursive
+    # evaluator; tolist() preserves every value exactly.
+    histories = [row.tolist() for row in initial]
+    equations = [(target, compile_bound_expression(tree, binding), noise[target].tolist())
+                 for target, (tree, binding) in enumerate(zip(expressions, bindings))]
     result = np.empty_like(noise)
     with np.errstate(over="ignore", invalid="ignore"):
         for step in range(noise.shape[1]):
-            for target, (tree, binding) in enumerate(zip(expressions, bindings)):
-                result[target, step] = evaluate_bound_expression(
-                    tree, binding, time=length + step, histories=histories,
-                ) + noise[target, step]
+            time = length + step
+            for target, equation, innovation in equations:
+                result[target, step] = equation(histories, time) + innovation[step]
             column = result[:, step]
             if not np.all(np.isfinite(column)) or (
                 stop_threshold is not None and np.any(np.abs(column) > stop_threshold)

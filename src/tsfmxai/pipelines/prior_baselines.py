@@ -25,7 +25,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 
 from tsfmxai.datasets.lmc_synth import LMCSpec, TimePFNBatches, batch_loader, verify_timepfn
-from tsfmxai.datasets.online import CurriculumStage, OnlineBatchPlan, OnlineBatchDataset
+from tsfmxai.datasets.online import (CurriculumStage, OnlineBatchPlan, OnlineBatchDataset,
+                                     single_thread_worker)
 from tsfmxai.datasets.multiseries import TrainingFormat, TrajectoryConfig
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
 from tsfmxai.generators.initialization import RandomHistorySpec
@@ -226,7 +227,7 @@ def _loader(protocol, arm, dataset, device):
                   pin_memory=device.startswith("cuda"))
     if protocol.workers:
         kwargs.update(persistent_workers=True, prefetch_factor=2,
-                      multiprocessing_context="spawn")
+                      multiprocessing_context="spawn", worker_init_fn=single_thread_worker)
     return DataLoader(**kwargs)
 
 
@@ -265,12 +266,59 @@ def _count_families(rows, counts):
                 counts[family] = counts.get(family, 0) + 1
 
 
+def _saved_batches(root, stages):
+    """Count the contiguous complete batches of an interrupted preparation.
+
+    Batches are written to ``.tmp`` and renamed, so every ``.npz`` is complete;
+    a leftover ``.tmp`` is the batch being written when the run stopped.
+    """
+    saved = {}
+    for stage in stages:
+        folder = root / stage
+        if not folder.is_dir():
+            saved[stage] = 0
+            continue
+        for temporary in folder.glob("*.tmp"):
+            temporary.unlink()
+        indices = sorted(int(path.stem) for path in folder.glob("*.npz"))
+        if indices != list(range(len(indices))):
+            raise ValueError(f"{folder} does not hold contiguous batches from 00000000")
+        saved[stage] = len(indices)
+    return saved
+
+
+def _saved_families(folder, count):
+    """Channel-family counts of saved own-generator batches, from their masks."""
+    counts = {}
+    for index in range(count):
+        with np.load(folder / f"{index:08d}.npz") as batch:
+            kernel = batch["kernel_mask"]
+            real = batch["channel_mask"] if "channel_mask" in batch.files else np.ones_like(kernel)
+        for family, number in (("kernel_synth", int((kernel & real).sum())),
+                               ("ast", int((~kernel & real).sum()))):
+            if number:
+                counts[family] = counts.get(family, 0) + number
+    return counts
+
+
 def prepare_corpus(protocol, arm, upstream, root, *, equation_head=False,
-                   teacher_source=None, teacher_revision=None):
-    """Materialize exactly the same number of complete batches per arm."""
+                   teacher_source=None, teacher_revision=None, resume=False):
+    """Materialize exactly the same number of complete batches per arm.
+
+    With ``resume``, an interrupted preparation continues from the first
+    missing batch; batch ``i`` depends only on the seed and ``i``, so the
+    saved batches are kept. The manifest records where each stage resumed.
+    """
     root = Path(root)
+    saved = {}
     if root.exists() and any(root.iterdir()):
-        raise FileExistsError(f"Corpus directory must be empty: {root}")
+        if not resume:
+            raise FileExistsError(f"Corpus directory must be empty: {root}")
+        if (root / "manifest.json").exists():
+            raise FileExistsError(f"Corpus is already complete: {root}")
+        if equation_head:
+            raise ValueError("Resuming a corpus with equation-head targets is not supported")
+        saved = _saved_batches(root, ("independent", "correlated"))
     # np.savez is uncompressed: two float32 arrays of [16,96,6] per update.
     estimated_bytes = protocol.controlled_updates * protocol.batch_size * (
         protocol.context + protocol.horizon) * protocol.channels * 4
@@ -287,24 +335,48 @@ def prepare_corpus(protocol, arm, upstream, root, *, equation_head=False,
         estimated_bytes += (protocol.controlled_updates * protocol.batch_size *
                             protocol.channels * (teacher.dimension * 4 + 4 + 2))
     root.parent.mkdir(parents=True, exist_ok=True)
-    if shutil.disk_usage(root.parent).free < estimated_bytes * 1.2:
-        raise OSError(f"Need at least {estimated_bytes * 1.2 / 1e9:.1f} GB free for the controlled corpus")
-    root.mkdir(parents=True, exist_ok=True)
     counts = protocol.stage_updates()
+    remaining = 1 - sum(saved.values()) / sum(counts)
+    if shutil.disk_usage(root.parent).free < estimated_bytes * remaining * 1.2:
+        raise OSError(f"Need at least {estimated_bytes * remaining * 1.2 / 1e9:.1f} GB free "
+                      "for the controlled corpus")
+    root.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     manifest = {"arm": arm, "counts": counts, "seed": protocol.seed,
                 "estimated_batch_bytes": estimated_bytes,
                 "protocol": asdict(protocol), "equation_head": equation_head,
-                "teacher": teacher.provenance if teacher else None}
+                "teacher": teacher.provenance if teacher else None,
+                # Own-generator workers run single-threaded; BLAS thread counts
+                # change KernelSynth values in the last bits.
+                "own_worker_threads": 1 if arm == "own" and protocol.workers else None,
+                "logical_cores": os.cpu_count()}
+    if any(saved.values()):
+        first = min((root / stage / "00000000.npz" for stage, n in saved.items() if n),
+                    key=lambda path: path.stat().st_mtime)
+        last = max((root / stage / f"{n - 1:08d}.npz" for stage, n in saved.items() if n),
+                   key=lambda path: path.stat().st_mtime)
+        manifest["resumed"] = {
+            "saved_batches": saved,
+            "resumed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "earlier_seconds_from_file_times": last.stat().st_mtime - first.stat().st_mtime,
+            "note": "Saved batches come from an earlier preparation of the same protocol; "
+                    "if it ran its workers with library-default thread counts, their "
+                    "KernelSynth channels differ in the last bits from a single-threaded run."}
     if arm == "lmc":
         manifest["upstream_sha256"] = verify_timepfn(upstream)
     covered_equations = covered_noise = 0
     coverage, families = {}, {}
     for stage, count in zip(("independent", "correlated"), counts):
         folder = root / stage
-        folder.mkdir()
-        dataset = _dataset(protocol, arm, stage, upstream, root / "raw_cache", count)
-        for index, item in enumerate(_loader(protocol, arm, dataset, "cpu")):
+        folder.mkdir(exist_ok=True)
+        start = saved.get(stage, 0)
+        if arm == "own" and start:
+            for family, number in _saved_families(folder, start).items():
+                families[family] = families.get(family, 0) + number
+        if start == count:
+            continue
+        dataset = _dataset(protocol, arm, stage, upstream, root / "raw_cache", count, start=start)
+        for index, item in enumerate(_loader(protocol, arm, dataset, "cpu"), start=start):
             batch = _batch_tensors(item)
             if arm == "own":
                 rows = _channel_families(item, protocol.channels)
@@ -784,6 +856,7 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                         "noise_head": model.noise_head.state_dict()},
                        output / "model_final" / "auxiliary_heads.pt")
     stage_counts = {name: 0 for name in stage_names}
+    first_batch_seconds = None
     if completed:
         wait_seconds = 0.0
         with (output / "telemetry.jsonl").open(encoding="utf-8") as stream:
@@ -791,6 +864,12 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                 row = json.loads(line)
                 wait_seconds += row["batch_wait_seconds"]
                 stage_counts[row["stage"]] += 1
+                if row["update"] == 1:
+                    first_batch_seconds = row["batch_wait_seconds"]
+    # Startup cost outside the update loop: the controlled corpus is built
+    # before training; the first batch includes worker start-up and caches.
+    corpus_preparation_seconds = (json.loads((Path(corpus) / "manifest.json").read_text(
+        encoding="utf-8")).get("preparation_seconds") if study == "controlled" else None)
     cache_counts = {}
     if arm == "lmc":
         root = output / "cache" if study == "time" else Path(corpus) / "raw_cache"
@@ -801,6 +880,8 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                "elapsed_seconds": elapsed(), "batch_wait_seconds": wait_seconds,
                "stage_updates": stage_counts,
                "batch_wait_fraction": wait_seconds / elapsed() if elapsed() else None,
+               "first_batch_seconds": first_batch_seconds,
+               "corpus_preparation_seconds": corpus_preparation_seconds,
                "updates_per_active_hour": completed * 3600 / elapsed() if elapsed() else None,
                "stop_reason": reason, "signature": signature,
                "environment": environment,

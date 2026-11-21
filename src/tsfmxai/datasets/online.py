@@ -151,7 +151,19 @@ def worker_seed_init(worker_id: int) -> None:
     """Seed incidental worker RNG use; scientific randomness is keyed by batch ID."""
     seed = int(np.random.SeedSequence([torch_worker_seed(), worker_id]).generate_state(1)[0])
     np.random.seed(seed)
+    single_thread_worker(worker_id)
+
+
+def single_thread_worker(_worker_id: int = 0) -> None:
+    """Run each data worker on one thread in every numerical library.
+
+    Each worker otherwise starts BLAS/OpenMP pools as wide as the machine, so
+    N workers oversubscribe the CPU N-fold and spin in the kernel.
+    """
+    from threadpoolctl import threadpool_limits
     import torch
+
+    threadpool_limits(limits=1)
     torch.set_num_threads(1)
 
 

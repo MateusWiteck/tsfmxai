@@ -124,6 +124,33 @@ def evaluate_bound_expression(
     raise TypeError(type(expression))
 
 
+def compile_bound_expression(expression: ExpressionNode, binding: MechanismBinding):
+    """Return ``f(histories, time)`` equal to ``evaluate_bound_expression``.
+
+    The tree becomes one Python expression with the same operations in the same
+    order (parameters as exact float literals, ``float(np.tanh(.))`` for tanh),
+    so results are bitwise identical when histories hold Python floats. It
+    removes the per-node recursion that dominates the simulation loops.
+    """
+
+    def source(node: ExpressionNode) -> str:
+        if isinstance(node, Parameter):
+            return f"({float(binding.parameter_values[node.slot])!r})"
+        if isinstance(node, Lag):
+            return f"H[{int(node.variable)}][t - {int(binding.lag_values[node.slot])}]"
+        if isinstance(node, Tanh):
+            return f"float(_tanh({source(node.operand)}))"
+        if isinstance(node, Add):
+            return f"({source(node.left)} + {source(node.right)})"
+        if isinstance(node, Multiply):
+            return f"({source(node.left)} * {source(node.right)})"
+        raise TypeError(type(node))
+
+    validate_binding(expression, binding)
+    return eval(compile(f"lambda H, t: {source(expression)}", "<bound-expression>", "eval"),
+                {"__builtins__": {"float": float}, "_tanh": np.tanh})
+
+
 def generate_univariate_trajectory(
     expression: ExpressionNode,
     binding: MechanismBinding,

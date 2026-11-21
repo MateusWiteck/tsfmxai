@@ -15,7 +15,7 @@ from tsfmxai.generators.multiseries import (
     MultiseriesConfig, MultiseriesSystem, draw_choice, sample_multiseries_system,
     stream_seed, validate_probabilities,
 )
-from tsfmxai.generators.trajectory import evaluate_bound_expression
+from tsfmxai.generators.trajectory import compile_bound_expression
 
 
 CHANNEL_FAMILIES = ("ast", "kernel_synth")
@@ -107,18 +107,21 @@ def simulate_hybrid_path(system: HybridSystem, initial: np.ndarray,
                                         stream_seed(seed, channel))
             history[channel] = values[:length]
             exogenous[channel] = values[length:]
-    histories = [list(row) for row in history]
+    # Python floats keep the compiled equations bitwise equal to the recursive
+    # evaluator; tolist() preserves every value exactly.
+    histories = [row.tolist() for row in history]
+    channels = [(channel, exogenous[channel].tolist() if family == "kernel_synth" else None,
+                 None if family == "kernel_synth" else compile_bound_expression(
+                     system.expressions[channel], system.bindings[channel]),
+                 innovations[channel].tolist())
+                for channel, family in enumerate(system.channel_families)]
     result = np.empty((system.num_channels, steps), dtype=np.float64)
     with np.errstate(over="ignore", invalid="ignore"):
         for step in range(steps):
-            for channel, family in enumerate(system.channel_families):
-                if family == "kernel_synth":
-                    result[channel, step] = exogenous[channel][step]
-                else:
-                    result[channel, step] = evaluate_bound_expression(
-                        system.expressions[channel], system.bindings[channel],
-                        time=length + step, histories=histories,
-                    ) + innovations[channel, step]
+            time = length + step
+            for channel, external, equation, noise in channels:
+                result[channel, step] = (external[step] if equation is None
+                                         else equation(histories, time) + noise[step])
             column = result[:, step]
             if not np.isfinite(column).all():
                 return result[:, :step + 1], history
