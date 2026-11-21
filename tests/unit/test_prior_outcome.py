@@ -3,7 +3,21 @@ import pytest
 
 from tsfmxai.evaluation.prior_outcome import (seasonal_naive,
                                                per_dataset_relative_mae,
-                                               paired_block_interval)
+                                               paired_block_interval,
+                                               select_hybrid_probability)
+
+
+def test_hybrid_selection_uses_two_candidates_without_lmc():
+    target = np.ones((4, 2, 1))
+    domains = {name: {"target": target, "channels": (name,),
+                      "predictions": {"seasonal": np.zeros_like(target),
+                                      "p25": target + error25,
+                                      "p50": target + error50}}
+               for name, error25, error50 in (("air", .2, .4), ("energy", .6, .5))}
+    result = select_hybrid_probability(domains)
+    assert result["per_domain"]["air"]["relative_geomean"]["p25"] == pytest.approx(.2)
+    assert result["selected_probability"] == .25
+    assert result["equal_domain_geomean"]["p25"] == pytest.approx(np.sqrt(.12))
 
 
 def test_seasonal_repeats_past_day_and_fills_missing_from_previous_day():

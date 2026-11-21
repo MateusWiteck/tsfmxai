@@ -66,10 +66,10 @@ def main() -> None:
             )["per_channel"],
         }
 
-    from chronos.chronos2.model import Chronos2Model
+    from tsfmxai.models.chronos2_indexed import load_backbone
 
     for label, path in models.items():
-        model = Chronos2Model.from_pretrained(str(path)).to(args.device).eval()
+        model = load_backbone(path).to(args.device).eval()
         for name, item in windows.items():
             predictions = forecast_chronos2(
                 model, item, device=args.device, batch_size=args.batch_size

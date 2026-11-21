@@ -175,13 +175,23 @@ def observed_metrics(prediction: np.ndarray, target: np.ndarray,
 
 
 def forecast_chronos2(model, windows: WindowSet, *, device: str = "cpu",
-                      batch_size: int = 8) -> np.ndarray:
-    """Predict each window jointly with all its channels, using only past values."""
+                      batch_size: int = 8, channel_order=None) -> np.ndarray:
+    """Predict each window jointly with all its channels, using only past values.
+
+    ``channel_order`` feeds the channels to the model in another order and
+    returns predictions in the original order. With a channel-index embedding
+    the forecast can depend on this order, which the evaluation reports.
+    """
     import math
     import torch
 
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
+    n_total = windows.context.shape[2]
+    order = np.arange(n_total) if channel_order is None else np.asarray(channel_order, dtype=int)
+    if sorted(order.tolist()) != list(range(n_total)):
+        raise ValueError("channel_order must be a permutation of the channels")
+    inverse = np.argsort(order)
     horizon = windows.target.shape[1]
     patches = math.ceil(horizon / model.chronos_config.output_patch_size)
     quantiles = list(model.chronos_config.quantiles)
@@ -193,7 +203,7 @@ def forecast_chronos2(model, windows: WindowSet, *, device: str = "cpu",
     n_channels = windows.context.shape[2]
     with torch.inference_mode():
         for start in range(0, len(windows.context), batch_size):
-            block = windows.context[start:start+batch_size]
+            block = windows.context[start:start+batch_size][:, :, order]
             n_windows = len(block)
             rows = torch.as_tensor(block.transpose(0, 2, 1).reshape(-1, block.shape[1]).copy(), device=device)
             group = torch.arange(n_windows, dtype=torch.long, device=device).repeat_interleave(n_channels)
@@ -201,4 +211,4 @@ def forecast_chronos2(model, windows: WindowSet, *, device: str = "cpu",
             prediction = output.quantile_preds[:, median, :horizon].reshape(n_windows, n_channels, horizon)
             prediction = prediction.permute(0, 2, 1).cpu().numpy()
             predictions.append(prediction)
-    return np.concatenate(predictions)
+    return np.concatenate(predictions)[:, :, inverse]

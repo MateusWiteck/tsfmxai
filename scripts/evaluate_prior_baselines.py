@@ -36,9 +36,9 @@ def main():
                       "predictions": {"seasonal": seasonal_naive(item.context,
                                                                     item.target.shape[1])}}
                for name, item in windows.items()}
-    from chronos.chronos2.model import Chronos2Model
+    from tsfmxai.models.chronos2_indexed import load_backbone
     for arm, folder in (("lmc", args.lmc), ("own", args.own)):
-        model = Chronos2Model.from_pretrained(str(folder)).to(args.device)
+        model = load_backbone(folder).to(args.device)
         for name, item in windows.items():
             domains[name]["predictions"][arm] = forecast_chronos2(
                 model, item, device=args.device, batch_size=args.batch_size)

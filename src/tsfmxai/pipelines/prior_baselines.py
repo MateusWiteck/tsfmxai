@@ -6,7 +6,7 @@ generation, batch wait, optimization and periodic checkpoints to one clock.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 import math
@@ -28,9 +28,12 @@ from tsfmxai.datasets.lmc_synth import LMCSpec, TimePFNBatches, batch_loader, ve
 from tsfmxai.datasets.online import CurriculumStage, OnlineBatchPlan, OnlineBatchDataset
 from tsfmxai.datasets.multiseries import TrainingFormat, TrajectoryConfig
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
-from tsfmxai.generators.initialization import HistorySpec
+from tsfmxai.generators.initialization import RandomHistorySpec
+from tsfmxai.generators.hybrid import HybridConfig
 from tsfmxai.generators.multiseries import MultiseriesConfig, NoiseConfig
 from tsfmxai.pipelines.chronos2_lmc import _inputs, _sync, evaluate, scratch_model
+from tsfmxai.pipelines.equation_targets import EquationTargetTeacher
+from tsfmxai.models.chronos2_equation import Chronos2EquationModel, equation_training_loss
 
 
 @dataclass(frozen=True)
@@ -63,8 +66,17 @@ class PriorProtocol:
     own_generated_steps: int
     own_noise_min: float
     own_noise_max: float
-    own_treatment: str
+    own_self_only_treatment_probs: dict[str, float]
     own_dependency: str
+    own_kernel_probability: float = 0.0
+    # Defaults reproduce the historical LMC-era protocol; current configs set 0.05-1.0.
+    own_min_parameter_magnitude: float = 0.05
+    own_max_parameter_magnitude: float = 0.90
+    own_difficulty_policy: str = "none"
+    # Backbone: defaults reproduce the completed LMC runs (16-step patches, no
+    # channel index); current configs use one-step patches and the index.
+    backbone_patch_size: int = 16
+    backbone_channel_embedding: bool = False
 
     def __post_init__(self):
         if (self.batch_size, self.context, self.horizon, self.channels) != (16, 96, 96, 6):
@@ -81,11 +93,25 @@ class PriorProtocol:
         if not self.context + self.horizon <= self.own_generated_steps < self.context + 2 * self.horizon:
             raise ValueError("Own trajectory must yield exactly one window at stride=horizon")
         if self.own_dependency == "independent":
-            raise ValueError("The correlated stage must allow cross-series dependencies")
+            raise ValueError("The proposed generator must permit cross-series dependencies from the start")
+        if not 0 <= self.own_kernel_probability < 1:
+            raise ValueError("own_kernel_probability must be in [0, 1)")
+        if self.own_difficulty_policy not in ("none", "mixed", "curriculum"):
+            raise ValueError("Unknown own_difficulty_policy")
+        if type(self.backbone_patch_size) is not int or self.backbone_patch_size < 1:
+            raise ValueError("backbone_patch_size must be a positive integer")
+        if type(self.backbone_channel_embedding) is not bool:
+            raise ValueError("backbone_channel_embedding must be boolean")
 
     @classmethod
     def read(cls, path):
-        return cls(**json.loads(Path(path).read_text(encoding="utf-8")))
+        values = json.loads(Path(path).read_text(encoding="utf-8"))
+        # Historical LMC configs carry treatment fields for an own arm that was
+        # never run with them; the treatment rule is now fixed by dependency.
+        for legacy in ("own_treatment", "own_treatment_probs", "own_treatment_policy"):
+            values.pop(legacy, None)
+        values.setdefault("own_self_only_treatment_probs", {"jacobian": .5, "heaps": .5})
+        return cls(**values)
 
     def stage_updates(self):
         first = round(self.controlled_updates * self.independent_fraction)
@@ -102,25 +128,44 @@ def lmc_spec(protocol):
 
 
 def own_plan(protocol, stage, batches, *, split=0):
-    independent = stage == "independent"
     config = MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(
             minimum_operators=protocol.own_min_operators,
             maximum_operators=protocol.own_max_operators,
             minimum_lag=1, maximum_lag=protocol.own_max_lag,
-            max_degree=protocol.own_max_degree),
+            max_degree=protocol.own_max_degree,
+            minimum_parameter_magnitude=protocol.own_min_parameter_magnitude,
+            maximum_parameter_magnitude=protocol.own_max_parameter_magnitude),
         channel_count_probs={protocol.channels: 1.0},
-        dependency_probs={"independent" if independent else protocol.own_dependency: 1.0},
-        treatment_probs={protocol.own_treatment: 1.0},
-        max_external_sources=0 if independent else 2,
+        # The AST generator allows cross-series dependencies from the first
+        # update. The two runner phases retain the LMC budget/LR boundaries.
+        dependency_probs={protocol.own_dependency: 1.0},
+        self_only_treatment_probs=protocol.own_self_only_treatment_probs,
+        max_external_sources=2,
         noise=NoiseConfig(std_range=(protocol.own_noise_min, protocol.own_noise_max)))
-    return OnlineBatchPlan((CurriculumStage(0, config, protocol.batch_size),),
-                           batches, protocol.seed + (101 if independent else 202) + 10000 * split,
+    generator_config = (HybridConfig(config, {"ast": 1 - protocol.own_kernel_probability,
+                                               "kernel_synth": protocol.own_kernel_probability})
+                        if protocol.own_kernel_probability else config)
+    difficulty_configs = ()
+    if protocol.own_difficulty_policy != "none":
+        def operation_config(maximum_operators):
+            ast_tree = replace(config.ast_config,
+                               maximum_operators=min(protocol.own_max_operators,
+                                                     max(protocol.own_min_operators,
+                                                         maximum_operators)))
+            ast = replace(config, ast_config=ast_tree)
+            return (HybridConfig(ast, generator_config.family_probs)
+                    if isinstance(generator_config, HybridConfig) else ast)
+        difficulty_configs = tuple(operation_config(n) for n in (2, 4, 6))
+    return OnlineBatchPlan((CurriculumStage(0, generator_config, protocol.batch_size),),
+                           batches, protocol.seed + (101 if stage == "independent" else 202) + 10000 * split,
                            TrajectoryConfig(protocol.own_generated_steps,
-                                            HistorySpec("uniform", "uniform")),
+                                            RandomHistorySpec()),
                            TrainingFormat(protocol.context, protocol.horizon,
                                           protocol.horizon, protocol.batch_size,
-                                          dtype="float32"))
+                                          dtype="float32"),
+                           difficulty_policy=protocol.own_difficulty_policy,
+                           difficulty_configs=difficulty_configs)
 
 
 class SavedBatches(Dataset):
@@ -132,7 +177,7 @@ class SavedBatches(Dataset):
 
     def __getitem__(self, index):
         with np.load(self.folder / f"{index:08d}.npz", allow_pickle=False) as sample:
-            return {key: torch.from_numpy(sample[key].copy()) for key in ("context", "future")}
+            return {key: torch.from_numpy(sample[key].copy()) for key in sample.files}
 
 
 class RepeatedBatches(Dataset):
@@ -150,7 +195,16 @@ class RepeatedBatches(Dataset):
 
 
 def _batch_tensors(batch):
-    return {key: torch.as_tensor(batch[key], dtype=torch.float32) for key in ("context", "future")}
+    result = {key: torch.as_tensor(batch[key], dtype=torch.float32) for key in ("context", "future")}
+    if "channel_mask" in batch:
+        result["channel_mask"] = torch.as_tensor(batch["channel_mask"], dtype=torch.bool)
+    for key in ("teacher_embedding", "noise_std"):
+        if key in batch:
+            result[key] = torch.as_tensor(batch[key], dtype=torch.float32)
+    for key in ("equation_target_mask", "noise_mask"):
+        if key in batch:
+            result[key] = torch.as_tensor(batch[key], dtype=torch.bool)
+    return result
 
 
 def _dataset(protocol, arm, stage, upstream, cache, count, start=0, *, split=0):
@@ -176,7 +230,43 @@ def _loader(protocol, arm, dataset, device):
     return DataLoader(**kwargs)
 
 
-def prepare_corpus(protocol, arm, upstream, root):
+CORPUS_FIELDS = ("seed", "batch_size", "context", "horizon", "channels",
+                 "independent_fraction", "controlled_updates")
+LMC_CORPUS_FIELDS = ("independent_bank", "correlated_bank", "dirichlet_min", "dirichlet_max",
+                     "weibull_shape", "weibull_scale")
+
+
+def corpus_fields(protocol, arm):
+    """Protocol fields that determine an arm's prepared batches.
+
+    Backbone, optimizer and logging settings do not change the data, so a run
+    with a different backbone can reuse a corpus whose data fields match.
+    """
+    values = protocol if isinstance(protocol, dict) else asdict(protocol)
+    names = CORPUS_FIELDS + (LMC_CORPUS_FIELDS if arm == "lmc" else
+                             tuple(sorted(name for name in values if name.startswith("own_"))))
+    return {name: values.get(name) for name in names}
+
+
+def _channel_families(item, channels):
+    """Per-example channel families of an own-generator batch, padded to ``channels``."""
+    rows = []
+    for metadata in item.get("metadata", ()):
+        system = metadata["system"]
+        families = list(metadata.get("channel_families", ("ast",) * system.num_channels))
+        rows.append(families + ["padding"] * (channels - len(families)))
+    return rows
+
+
+def _count_families(rows, counts):
+    for families in rows:
+        for family in families:
+            if family != "padding":
+                counts[family] = counts.get(family, 0) + 1
+
+
+def prepare_corpus(protocol, arm, upstream, root, *, equation_head=False,
+                   teacher_source=None, teacher_revision=None):
     """Materialize exactly the same number of complete batches per arm."""
     root = Path(root)
     if root.exists() and any(root.iterdir()):
@@ -187,6 +277,15 @@ def prepare_corpus(protocol, arm, upstream, root):
     if arm == "lmc":
         estimated_bytes += (protocol.independent_bank + protocol.correlated_bank *
                             protocol.channels) * 1024 * 4
+    if equation_head and arm != "own":
+        raise ValueError("Equation head is defined only for the proposed generator")
+    teacher = (EquationTargetTeacher(teacher_source, teacher_revision or "",
+                                    channels=protocol.channels, max_lag=protocol.own_max_lag,
+                                    max_degree=protocol.own_max_degree)
+               if equation_head else None)
+    if teacher:
+        estimated_bytes += (protocol.controlled_updates * protocol.batch_size *
+                            protocol.channels * (teacher.dimension * 4 + 4 + 2))
     root.parent.mkdir(parents=True, exist_ok=True)
     if shutil.disk_usage(root.parent).free < estimated_bytes * 1.2:
         raise OSError(f"Need at least {estimated_bytes * 1.2 / 1e9:.1f} GB free for the controlled corpus")
@@ -195,20 +294,41 @@ def prepare_corpus(protocol, arm, upstream, root):
     started = time.perf_counter()
     manifest = {"arm": arm, "counts": counts, "seed": protocol.seed,
                 "estimated_batch_bytes": estimated_bytes,
-                "protocol": asdict(protocol)}
+                "protocol": asdict(protocol), "equation_head": equation_head,
+                "teacher": teacher.provenance if teacher else None}
     if arm == "lmc":
         manifest["upstream_sha256"] = verify_timepfn(upstream)
+    covered_equations = covered_noise = 0
+    coverage, families = {}, {}
     for stage, count in zip(("independent", "correlated"), counts):
         folder = root / stage
         folder.mkdir()
         dataset = _dataset(protocol, arm, stage, upstream, root / "raw_cache", count)
         for index, item in enumerate(_loader(protocol, arm, dataset, "cpu")):
             batch = _batch_tensors(item)
+            if arm == "own":
+                rows = _channel_families(item, protocol.channels)
+                _count_families(rows, families)
+                batch["kernel_mask"] = torch.as_tensor(
+                    [[family == "kernel_synth" for family in row] for row in rows])
+            if teacher:
+                batch.update({key: torch.as_tensor(value) for key, value in
+                              teacher.targets(item, coverage=coverage).items()})
+                covered_equations += int(batch["equation_target_mask"].sum())
+                covered_noise += int(batch["noise_mask"].sum())
             temporary = folder / f"{index:08d}.tmp"
             with temporary.open("wb") as stream:
                 np.savez(stream, **{key: tensor.numpy() for key, tensor in batch.items()})
             os.replace(temporary, folder / f"{index:08d}.npz")
     manifest["preparation_seconds"] = time.perf_counter() - started
+    if arm == "own":
+        total = sum(families.values())
+        manifest["channel_families"] = families
+        manifest["kernel_synth_fraction"] = families.get("kernel_synth", 0) / total if total else None
+    if teacher:
+        manifest["auxiliary_target_counts"] = {"skeleton": covered_equations,
+                                               "noise": covered_noise}
+        manifest["auxiliary_target_coverage"] = coverage
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
 
@@ -271,8 +391,11 @@ def _environment(device, output):
     for name in ("tsfmxai/pipelines/prior_baselines.py",
                  "tsfmxai/pipelines/chronos2_lmc.py",
                  "tsfmxai/datasets/lmc_synth.py", "tsfmxai/datasets/online.py",
-                 "tsfmxai/datasets/multiseries.py",
-                 "tsfmxai/generators/multiseries.py"):
+                 "tsfmxai/datasets/multiseries.py", "tsfmxai/datasets/hybrid.py",
+                 "tsfmxai/generators/multiseries.py", "tsfmxai/generators/hybrid.py",
+                 "tsfmxai/pipelines/equation_targets.py",
+                 "tsfmxai/models/chronos2_equation.py",
+                 "tsfmxai/models/chronos2_indexed.py"):
         code_hashes[name] = hashlib.sha256((source_root / name).read_bytes()).hexdigest()
     return {"repository_commit": commit, "packages": packages,
             "torch_cuda": torch.version.cuda, "gpu": gpu,
@@ -337,10 +460,19 @@ def _reconcile_log(path, completed):
 
 
 def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
-        device="cuda", tiny=False):
+        device="cuda", tiny=False, equation_head=False, teacher_source=None,
+        teacher_revision=None, embedding_weight=1.0, noise_weight=1.0):
     """Run one arm. A checkpoint contains the complete optimizer/clock state."""
     if arm not in ("lmc", "own") or study not in ("controlled", "time"):
         raise ValueError("arm must be lmc/own; study must be controlled/time")
+    if equation_head and arm != "own":
+        raise ValueError("Equation head is defined only for the proposed generator")
+    if equation_head and not protocol.backbone_channel_embedding:
+        # The skeleton target names series by absolute channel index, which the
+        # backbone can only represent with the channel-index embedding.
+        raise ValueError("The equation head requires backbone_channel_embedding=true")
+    if min(embedding_weight, noise_weight) < 0:
+        raise ValueError("Auxiliary loss weights must be nonnegative")
     if device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable")
     if study == "controlled" and corpus is None:
@@ -359,13 +491,22 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
         raise FileExistsError(output)
     output.mkdir(parents=True, exist_ok=True)
     signature = {"arm": arm, "study": study, "protocol": asdict(protocol),
-                 "upstream": provenance, "tiny": tiny}
+                 "upstream": provenance, "tiny": tiny, "equation_head": equation_head,
+                 "teacher_source": teacher_source if equation_head else None,
+                 "teacher_revision": teacher_revision if equation_head else None,
+                 "embedding_weight": embedding_weight if equation_head else None,
+                 "noise_weight": noise_weight if equation_head else None}
     environment = _environment(device, output)
     disk_free_at_start = shutil.disk_usage(output).free
     if study == "controlled":
         manifest = json.loads((Path(corpus) / "manifest.json").read_text(encoding="utf-8"))
-        if manifest["arm"] != arm or manifest["protocol"] != asdict(protocol):
+        if (manifest["arm"] != arm
+                or corpus_fields(manifest["protocol"], arm) != corpus_fields(protocol, arm)
+                or manifest.get("equation_head", False) != equation_head):
             raise ValueError("Corpus provenance does not match the run")
+        if equation_head and (manifest["teacher"]["source"] != teacher_source or
+                              manifest["teacher"]["revision"] != (teacher_revision or "")):
+            raise ValueError("Teacher provenance does not match the corpus")
         signature["corpus_manifest_sha256"] = hashlib.sha256(
             (Path(corpus) / "manifest.json").read_bytes()).hexdigest()
     elif (output / "cache").exists() and not resume:
@@ -373,10 +514,30 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
     random.seed(protocol.seed)
     np.random.seed(protocol.seed)
     torch.manual_seed(protocol.seed)
-    model = scratch_model(seed=protocol.seed, tiny=tiny).to(device)
+    forecaster = scratch_model(
+        seed=protocol.seed, tiny=tiny, patch_size=protocol.backbone_patch_size,
+        channel_index_embedding=protocol.channels if protocol.backbone_channel_embedding else None,
+        horizon=protocol.horizon).to(device)
+    if equation_head:
+        if not teacher_source:
+            raise ValueError("Equation head requires a pinned skeleton teacher")
+        teacher = EquationTargetTeacher(teacher_source, teacher_revision or "",
+                                        channels=protocol.channels, max_lag=protocol.own_max_lag,
+                                        max_degree=protocol.own_max_degree, device=device)
+        signature["teacher"] = teacher.provenance
+        if study == "controlled" and manifest["teacher"] != teacher.provenance:
+            raise ValueError("Teacher checkpoint digest differs from prepared corpus")
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(protocol.seed + 1)
+            model = Chronos2EquationModel(
+                forecaster, skeleton_dimension=teacher.dimension).to(device)
+    else:
+        teacher = None
+        model = forecaster
     optimizer = torch.optim.Adam(model.parameters(), lr=protocol.independent_lr,
                                  betas=(.95, .999), eps=1e-8)
     completed = 0
+    run_families, run_coverage = {}, {}
     active_before = 0.0
     stage = 0
     stage_update = 0
@@ -433,7 +594,11 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
             source = _dataset(protocol, arm, name, upstream, output / "validation_cache",
                               protocol.validation_batches, split=1)
             for index in range(protocol.validation_batches):
-                item = _batch_tensors(source[index])
+                raw = source[index]
+                item = _batch_tensors(raw)
+                if equation_head:
+                    item.update({key: torch.as_tensor(value) for key, value in
+                                 teacher.targets(raw).items()})
                 temporary = folder / f"{index:08d}.tmp"
                 with temporary.open("wb") as stream:
                     np.savez(stream, **{key: tensor.numpy() for key, tensor in item.items()})
@@ -441,7 +606,39 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
             (folder / "complete").write_text("fixed validation batches\n", encoding="utf-8")
         loader = DataLoader(SavedBatches(folder, protocol.validation_batches), batch_size=None,
                             num_workers=0, pin_memory=device.startswith("cuda"))
-        metrics = evaluate(model, loader, device, protocol.microbatch)
+        metrics = evaluate(forecaster, loader, device, protocol.microbatch)
+        if equation_head:
+            skeleton_sum = noise_sum = pieces = 0
+            relative_errors = []
+            model.eval()
+            with torch.no_grad():
+                for batch in loader:
+                    for offset in range(0, len(batch["context"]), protocol.microbatch):
+                        inputs = _inputs(batch, forecaster, device, offset,
+                                         offset + protocol.microbatch)
+                        for key in ("teacher_embedding", "equation_target_mask",
+                                    "noise_std", "noise_mask"):
+                            inputs[key] = batch[key][offset:offset + protocol.microbatch].reshape(
+                                -1, *batch[key].shape[2:]).to(device)
+                        head_output = model(inputs)
+                        _, terms = equation_training_loss(head_output, inputs,
+                                                          embedding_weight=embedding_weight,
+                                                          noise_weight=noise_weight)
+                        # |sigma_hat / sigma - 1| is the same in standardized and
+                        # original units, because both share the context scale.
+                        mask = inputs["noise_mask"].bool()
+                        if mask.any():
+                            ratio = (head_output["predicted_log_noise_std"].exp()[mask]
+                                     / inputs["noise_std"][mask])
+                            relative_errors.append((ratio - 1).abs().cpu())
+                        skeleton_sum += terms["skeleton_embedding"].item()
+                        noise_sum += terms["innovation_log_std"].item()
+                        pieces += 1
+            metrics["skeleton_embedding_loss"] = skeleton_sum / pieces
+            metrics["innovation_log_std_loss"] = noise_sum / pieces
+            if relative_errors:
+                metrics["innovation_std_relative_error"] = float(torch.cat(relative_errors).mean())
+            model.train()
         with (output / "validation.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"stage": name, "update": completed,
                                      "elapsed_seconds": elapsed(), **metrics}) + "\n")
@@ -489,7 +686,17 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                     break
                 _sync(device)
                 waiting = time.perf_counter()
-                batch = _batch_tensors(next(iterator))
+                item = next(iterator)
+                batch = _batch_tensors(item)
+                if arm == "own" and study == "time":
+                    _count_families(_channel_families(item, protocol.channels), run_families)
+                if equation_head and study == "time":
+                    batch.update({key: torch.as_tensor(value) for key, value in
+                                  teacher.targets(item, coverage=run_coverage).items()})
+                if equation_head and any(key not in batch for key in
+                                         ("teacher_embedding", "equation_target_mask",
+                                          "noise_std", "noise_mask")):
+                    raise ValueError("Equation-head batch is missing teacher targets")
                 ready = time.perf_counter()
                 wait_seconds += ready - waiting
                 if study == "time" and elapsed() >= stage_limit:
@@ -506,13 +713,25 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                 optimizer.zero_grad(set_to_none=True)
                 loss = 0.0
                 for offset in range(0, protocol.batch_size, protocol.microbatch):
-                    inputs = _inputs(batch, model, device, offset, offset + protocol.microbatch)
-                    result = model(**inputs)
-                    if not torch.isfinite(result.loss):
-                        raise FloatingPointError("Nonfinite forecasting loss")
+                    inputs = _inputs(batch, forecaster, device, offset,
+                                     offset + protocol.microbatch)
+                    if equation_head:
+                        for key in ("teacher_embedding", "equation_target_mask",
+                                    "noise_std", "noise_mask"):
+                            inputs[key] = batch[key][offset:offset + protocol.microbatch].reshape(
+                                -1, *batch[key].shape[2:]).to(device, non_blocking=True)
+                        result = model(inputs)
+                        step_loss, _ = equation_training_loss(
+                            result, inputs, embedding_weight=embedding_weight,
+                            noise_weight=noise_weight)
+                    else:
+                        result = model(**inputs)
+                        step_loss = result.loss
+                    if not torch.isfinite(step_loss):
+                        raise FloatingPointError("Nonfinite training loss")
                     weight = protocol.microbatch / protocol.batch_size
-                    (result.loss * weight).backward()
-                    loss += result.loss.detach().item() * weight
+                    (step_loss * weight).backward()
+                    loss += step_loss.detach().item() * weight
                 optimizer.step()
                 _sync(device)
                 completed += 1
@@ -520,6 +739,11 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                 row = {"stage": name, "update": completed, "stage_update": stage_update,
                        "elapsed_seconds": elapsed(), "batch_wait_seconds": ready-waiting,
                        "lr": lr, "loss": loss, "windows_seen": completed * protocol.batch_size}
+                if equation_head:
+                    row["skeleton_targets"] = int(batch["equation_target_mask"].sum())
+                    row["noise_targets"] = int(batch["noise_mask"].sum())
+                if "channel_mask" in batch:
+                    row["active_channels"] = int(batch["channel_mask"].sum())
                 if study == "time" and arm == "lmc":
                     row["window_reuses_stage"] = max(0, stage_update - bank_updates) * protocol.batch_size
                 row["estimated_remaining_hours"] = (
@@ -540,7 +764,11 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
             if stage == 0:
                 # Retain the measured boundary, including its weight state.
                 validate(name)
-                model.save_pretrained(output / "independent_end")
+                forecaster.save_pretrained(output / "independent_end")
+                if equation_head:
+                    torch.save({"skeleton_head": model.skeleton_head.state_dict(),
+                                "noise_head": model.noise_head.state_dict()},
+                               output / "independent_end" / "auxiliary_heads.pt")
                 stage = 1
                 stage_update = 0
                 save()
@@ -550,7 +778,11 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
         reason = "interrupted"
     save()
     if not interrupted:
-        model.save_pretrained(output / "model_final")
+        forecaster.save_pretrained(output / "model_final")
+        if equation_head:
+            torch.save({"skeleton_head": model.skeleton_head.state_dict(),
+                        "noise_head": model.noise_head.state_dict()},
+                       output / "model_final" / "auxiliary_heads.pt")
     stage_counts = {name: 0 for name in stage_names}
     if completed:
         wait_seconds = 0.0
@@ -579,6 +811,10 @@ def run(protocol, arm, study, upstream, output, *, corpus=None, resume=False,
                    "independent" if name == "independent" else "lmc")) * protocol.batch_size
                    for name in stage_names) if arm == "lmc" and study == "time" else None),
                "own_accepted_trajectories": completed * protocol.batch_size if arm == "own" else None,
+               # Counted since the last start; the controlled corpus manifest holds
+               # the complete counts for that study.
+               "channel_families": run_families if arm == "own" and study == "time" else None,
+               "auxiliary_target_coverage": run_coverage if equation_head and study == "time" else None,
                "gpu": _gpu_sample(device),
                "parameters": sum(p.numel() for p in model.parameters())}
     (output / "result.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

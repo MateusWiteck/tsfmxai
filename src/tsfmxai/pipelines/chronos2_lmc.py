@@ -45,22 +45,39 @@ class TrainingSpec:
             raise ValueError("steps_per_stage must be positive")
 
 
-def scratch_model(seed=2021, *, tiny=False):
-    """Download architecture configuration only. Never load pretrained weights."""
+def scratch_model(seed=2021, *, tiny=False, patch_size=16, channel_index_embedding=None,
+                  horizon=96):
+    """Build a randomly initialized Chronos-2; never load pretrained weights.
+
+    ``patch_size`` sets the input and output patch (Chronos-2 requires them to
+    be equal). ``channel_index_embedding`` adds the absolute channel-index
+    embedding of ``IndexedChronos2Model``. The defaults give the unmodified
+    architecture used by the completed LMC runs.
+    """
     from chronos.chronos2.config import Chronos2CoreConfig
-    from chronos.chronos2.model import Chronos2Model
+    from tsfmxai.models.chronos2_indexed import IndexedChronos2Model
+    if type(patch_size) is not int or patch_size < 1:
+        raise ValueError("patch_size must be a positive integer")
+    patches = math.ceil(horizon / patch_size)
     if tiny:
         config = Chronos2CoreConfig(
             d_model=16, d_kv=8, d_ff=32, num_layers=1, num_heads=2, dropout_rate=0.,
-            chronos_config=dict(context_length=96, input_patch_size=16,
-                               output_patch_size=16, input_patch_stride=16,
-                               quantiles=[0.1, 0.5, 0.9], max_output_patches=6,
+            chronos_config=dict(context_length=96, input_patch_size=patch_size,
+                               output_patch_size=patch_size, input_patch_stride=patch_size,
+                               quantiles=[0.1, 0.5, 0.9], max_output_patches=patches,
                                use_reg_token=True))
     else:
         config = Chronos2CoreConfig.from_pretrained("amazon/chronos-2", revision=CONFIG_REVISION)
+        if patch_size != config.chronos_config["input_patch_size"]:
+            config.chronos_config.update(
+                input_patch_size=patch_size, output_patch_size=patch_size,
+                input_patch_stride=patch_size,
+                max_output_patches=max(patches, config.chronos_config["max_output_patches"]))
+    if channel_index_embedding:
+        config.channel_index_embedding = channel_index_embedding
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(seed)
-        return Chronos2Model(config)
+        return IndexedChronos2Model(config)
 
 
 def _inputs(batch, model, device, start=0, stop=None):
@@ -70,6 +87,9 @@ def _inputs(batch, model, device, start=0, stop=None):
     result = {key: adapted[key].to(device, non_blocking=True)
               for key in ("context", "future_target", "future_covariates", "group_ids")}
     result["num_output_patches"] = math.ceil(future.shape[1] / model.chronos_config.output_patch_size)
+    if "channel_mask" in batch:
+        active = batch["channel_mask"][start:stop].reshape(-1).to(device)
+        result["future_target_mask"] = active[:, None].expand(-1, future.shape[1])
     return result
 
 
@@ -85,9 +105,11 @@ def evaluate(model, loader, device, microbatch):
             output = model(**inputs)
             target = inputs["future_target"]
             error = output.quantile_preds[:, median, :target.shape[1]] - target
-            squared += error.square().sum().item()
-            absolute += error.abs().sum().item()
-            elements += error.numel()
+            mask = inputs.get("future_target_mask")
+            selected = error[mask] if mask is not None else error.reshape(-1)
+            squared += selected.square().sum().item()
+            absolute += selected.abs().sum().item()
+            elements += selected.numel()
             n = min(microbatch, len(batch["context"]) - start)
             loss_sum += output.loss.item() * n
             examples += n

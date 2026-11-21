@@ -13,6 +13,8 @@ class Chronos2EquationModel(nn.Module):
         dimension=int(chronos_model.model_dim)
         self.skeleton_head=nn.Sequential(nn.LayerNorm(dimension),nn.Linear(dimension,skeleton_dimension))
         self.noise_head=nn.Sequential(nn.LayerNorm(dimension),nn.Linear(dimension,1))
+        # Attention pooling over context tokens; a zero query starts as the mean.
+        self.pool_query=nn.Parameter(torch.zeros(dimension))
         if freeze_forecaster:
             for parameter in self.chronos.parameters(): parameter.requires_grad_(False)
 
@@ -39,7 +41,8 @@ class Chronos2EquationModel(nn.Module):
         handle = encoder.register_forward_hook(capture_encoder_output)
         try:
             forecast=self.chronos(context=batch['context'],group_ids=batch['group_ids'],
-                future_covariates=covariates,num_output_patches=int(batch['num_output_patches']),future_target=target)
+                future_covariates=covariates,num_output_patches=int(batch['num_output_patches']),
+                future_target=target,future_target_mask=batch.get('future_target_mask'))
         finally:
             handle.remove()
         if len(hidden_states) != 1:
@@ -50,10 +53,27 @@ class Chronos2EquationModel(nn.Module):
         n_context = hidden.shape[1] - num_future_patches - num_reg_tokens
         if n_context < 1:
             raise RuntimeError('Chronos encoder output has no context patches')
-        features=hidden[:,:n_context].mean(dim=1)
+        tokens=hidden[:,:n_context]
+        weights=torch.softmax(tokens@self.pool_query/tokens.shape[-1]**.5,dim=1)
+        features=(weights.unsqueeze(-1)*tokens).sum(dim=1)
+        log_std=self.noise_head(features).squeeze(-1)
         return {'forecast_loss':forecast.loss,'quantile_preds':forecast.quantile_preds,
-            'channel_features':features,'skeleton_embedding':self.skeleton_head(features),
-            'predicted_log_noise_std':self.noise_head(features).squeeze(-1)}
+            'channel_features':features,'pooling_weights':weights,
+            'skeleton_embedding':self.skeleton_head(features),
+            'predicted_log_noise_std':log_std,
+            # Readable output: the standardized prediction times the context scale.
+            'predicted_noise_std':log_std.exp()*context_scale(batch['context'])}
+
+
+def context_scale(context, floor=1e-5):
+    """Population std of the observed context per row, as Chronos-2 normalizes it."""
+    observed=torch.isfinite(context)
+    count=observed.sum(dim=-1).clamp_min(1)
+    values=torch.where(observed,context,torch.zeros_like(context))
+    mean=values.sum(dim=-1)/count
+    variance=(torch.where(observed,context-mean.unsqueeze(-1),torch.zeros_like(context))**2).sum(dim=-1)/count
+    scale=variance.sqrt()
+    return torch.where(scale==0,torch.full_like(scale,floor),scale)
 
 def equation_training_loss(output,batch,*,embedding_weight=1.0,noise_weight=1.0,normalize_teacher=True):
     """Combine native Chronos quantile loss with skeleton-embedding and log-std losses."""

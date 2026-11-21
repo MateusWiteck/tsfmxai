@@ -67,6 +67,37 @@ def per_dataset_relative_mae(domains):
     return {"per_domain": details}
 
 
+def select_hybrid_probability(domains):
+    """Select p=0.25 or 0.50 by equal-domain-weight relative MAE on development data."""
+    if not domains:
+        raise ValueError("At least one development dataset is required")
+    candidates = (("p25", 0.25), ("p50", 0.50))
+    per_domain = {}
+    for domain, item in domains.items():
+        predictions = item["predictions"]
+        if set(predictions) != {"seasonal", "p25", "p50"}:
+            raise ValueError("Need seasonal, p25, and p50 predictions")
+        metrics = {name: observed_metrics(values, item["target"], item["channels"])["per_channel"]
+                   for name, values in predictions.items()}
+        scores = {}
+        for name, _ in candidates:
+            ratios = []
+            for channel in item["channels"]:
+                denominator = metrics["seasonal"][channel]["mae"]
+                if not np.isfinite(denominator) or denominator <= 0:
+                    raise ValueError(f"Seasonal MAE is zero/undefined for {domain}/{channel}")
+                numerator = metrics[name][channel]["mae"]
+                ratios.append(max(numerator, np.finfo(float).tiny) / denominator)
+            scores[name] = math.exp(float(np.mean(np.log(ratios))))
+        per_domain[domain] = {"relative_geomean": scores, "per_channel": metrics}
+    combined = {name: math.exp(float(np.mean([
+        math.log(item["relative_geomean"][name]) for item in per_domain.values()
+    ]))) for name, _ in candidates}
+    selected = min(candidates, key=lambda pair: (combined[pair[0]], pair[1]))
+    return {"per_domain": per_domain, "equal_domain_geomean": combined,
+            "selected_probability": selected[1], "selected_arm": selected[0]}
+
+
 def paired_block_interval(domains, *, block_windows=7, replicates=1000, seed=2021,
                           alpha=0.05):
     """Resample contiguous origin blocks, keeping models paired in each domain."""

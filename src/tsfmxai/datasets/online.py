@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace
+import math
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -45,6 +47,8 @@ class OnlineBatchPlan:
     root_seed: int
     trajectory: TrajectoryConfig
     training: TrainingFormat
+    difficulty_policy: str = "none"
+    difficulty_configs: tuple[MultiseriesConfig | HybridConfig, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.stages or self.stages[0].first_batch != 0:
@@ -57,6 +61,22 @@ class OnlineBatchPlan:
             raise ValueError("total_batches must be positive")
         if type(self.root_seed) is not int or self.root_seed < 0:
             raise ValueError("root_seed must be non-negative")
+        if self.difficulty_policy not in ("none", "mixed", "curriculum"):
+            raise ValueError("Unknown difficulty policy")
+        if self.difficulty_policy != "none" and len(self.difficulty_configs) != 3:
+            raise ValueError("Difficulty policy requires three operation strata")
+
+    def _rank(self, batch_id):
+        if self.difficulty_policy == "none":
+            return batch_id
+        if self.difficulty_policy == "curriculum":
+            return batch_id
+        # A bijection of batch IDs: both policies see the identical indexed
+        # examples and difficulty quotas, but mixed order interleaves strata.
+        stride = max(2, self.total_batches // 3 + 1)
+        while math.gcd(stride, self.total_batches) != 1:
+            stride += 1
+        return (stride * batch_id + self.root_seed) % self.total_batches
 
     def stage_for(self, batch_id: int) -> CurriculumStage:
         if type(batch_id) is not int or not 0 <= batch_id < self.total_batches:
@@ -71,7 +91,11 @@ class OnlineBatchPlan:
     def generate(self, batch_id: int) -> TrainingBatch:
         """Generate exactly one batch; output depends on its global ID, not worker."""
         stage = self.stage_for(batch_id)
-        seed = stream_seed(self.root_seed, 701, batch_id)
+        rank = self._rank(batch_id)
+        if self.difficulty_policy != "none":
+            bucket = min(2, rank * 3 // self.total_batches)
+            stage = replace(stage, config=self.difficulty_configs[bucket])
+        seed = stream_seed(self.root_seed, 701, rank)
         if isinstance(stage.config, HybridConfig):
             from tsfmxai.datasets.hybrid import generate_hybrid_training_batches
             generator = generate_hybrid_training_batches
