@@ -44,6 +44,34 @@ def test_multivariate_covariance_matches_independent_lyapunov_solution():
     np.testing.assert_allclose(prediction, direct)
 
 
+def test_period_spaced_heaps_keeps_stationarity_and_sparse_lags():
+    rng = np.random.default_rng(47)
+    u = rng.normal(0, .2, size=(3, 2, 2))
+    sigma = np.diag([.02, .04])
+    base = build_heaps_var_mechanism(u, sigma)
+    seasonal = build_heaps_var_mechanism(u, sigma, lag_spacing=4)
+    coefficients = np.asarray(seasonal.coefficients)
+    assert seasonal.order == 12
+    assert seasonal.certificate.holds
+    np.testing.assert_allclose(coefficients[3::4], base.coefficients)
+    np.testing.assert_array_equal(coefficients[[i for i in range(12) if i % 4 != 3]], 0)
+    for binding in seasonal.bindings:
+        assert set(binding.lag_values.values()) == {4, 8, 12}
+    companion = var_companion_matrix(coefficients)
+    innovation = np.zeros_like(companion)
+    innovation[:2, :2] = sigma
+    np.testing.assert_allclose(
+        seasonal.stationary_state_covariance,
+        solve_stationary_covariance(companion, innovation), atol=1e-11)
+
+
+def test_invalid_heaps_period_is_rejected():
+    with pytest.raises(ValueError, match="lag_spacing"):
+        HeapsVARConfig(lag_spacing=0)
+    with pytest.raises(ValueError, match="lag_spacing"):
+        build_heaps_var_mechanism(np.zeros((1, 1, 1)), np.eye(1), lag_spacing=0)
+
+
 def test_symmetric_mapping_preserves_orthogonal_change_of_coordinates():
     rng = np.random.default_rng(19)
     u = rng.normal(0, .25, (3, 2, 2))

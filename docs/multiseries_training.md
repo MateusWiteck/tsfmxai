@@ -1,5 +1,9 @@
 # Multiseries training batches
 
+The default `TrainingFormat()` follows the prospective Chronos-2 comparison:
+96 context steps, 96 forecast steps, stride 96, and 16 multivariate examples
+per batch.
+
 ## Hybrid AST and KernelSynth channels (experimental)
 
 `HybridConfig(ast=..., family_probs={"ast": 0.75, "kernel_synth": 0.25})`
@@ -17,12 +21,25 @@ target storage is padding, not ground truth. The equation loss and innovation
 scale loss must use these masks; the forecast loss includes every channel.
 KernelSynth's GP scale is not an AST innovation standard deviation.
 
-The current compatibility implementation samples a base AST system for all
-channels, including those later assigned to KernelSynth. Its unused ASTs have
-no training targets; their sampling and certification time is included in
-batch-generation benchmarks. This is overhead that a later native family
-sampler can remove. The family choice is kept distinct so another channel
-generator can be added without treating it as an AST postprocessing method.
+Families are drawn before any tree. KernelSynth channels receive a zero
+placeholder equation instead of a sampled AST, so no unused tree is sampled or
+certified, and replacement statistics count AST equations only. AST channels
+are identical to those of the plain multiseries sampler with the same seed.
+Each KernelSynth path, including the prefix used as lag history, is drawn
+before the AST recurrence runs. The family choice is kept distinct so another
+channel generator can be added without treating it as an AST postprocessing
+method. The batch-speed record in
+`experiments/generator_model_evaluation/generator_selection/kernel_synth_hybrid_assessment/` predates this
+change and includes the former unused-tree overhead.
+
+AST treatments are not adjusted for KernelSynth inputs. This is deliberate:
+KernelSynth paths are standardized GP draws and are assumed stable enough as
+exogenous drivers. A Shao-Wu channel's sensitivity bound therefore does not
+certify the response to these inputs; non-finite paths are still rejected and
+retried by the stream.
+
+In `noise_targets['family']`, −1 means "no family target". It marks both padded
+and KernelSynth channels; `channel_mask` separates the two.
 
 An experimental timing runner is `scripts/benchmark_hybrid_batches.py`. It
 reports delivered-batch latency with fixed workers and records the realized
@@ -56,15 +73,13 @@ config = MultiseriesConfig(
         minimum_operators=0, maximum_operators=3,
         minimum_lag=1, maximum_lag=16, max_degree=2,
     ),
-    channel_count_probs={1: .25, 2: .25, 4: .5},
+    channel_count_probs={6: 1.0},
     dependency_probs={
         "independent": .25, "linked_chain": .25,
         "previous_chain": .25, "random": .25,
     },
-    treatment_probs={"original": .5, "shao_wu": .5},
     max_external_sources=2,
     self_source_weight=3.,
-    allow_no_lags=True,
     noise=NoiseConfig(std_range=(.01, .1)),
 )
 stream = generate_training_batches(
@@ -83,9 +98,10 @@ for batch in stream:
 print(stream.stats)
 ```
 
-Changing `channel_count_probs` between calls supports curriculum learning. A fixed
-channel count is `{count: 1.0}`. Probabilities must sum to one; draws do not enforce
-exact dataset proportions. All windows/trajectories of a system should stay in the
+The prospective model-training protocol fixes six active channels in every
+example. Its optional curriculum varies AST operation count only. The library
+can express other channel counts for separate generator studies, but those do
+not enter this comparison. All windows/trajectories of a system should stay in the
 same evaluation split when testing generalization to new mechanisms. This API
 does not create train/test splits automatically.
 
@@ -103,9 +119,9 @@ The existing combinatorial sampler draws a scalar-source AST structure. Each lag
 occurrence is then assigned a source from its allowed set: self has relative
 weight `self_source_weight`, each external source weight one. This is deliberately
 not uniform sampling over all multivariate labelled ASTs. `ast_config.num_series`
-is overridden by this two-stage procedure. `allow_no_lags` controls the sampler's
-`require_lag`, permitting constant-plus-noise mechanisms. It does not prescribe a
-probability of such mechanisms or guarantee that memory is absent.
+is overridden by this two-stage procedure. Every sampled tree requires at least one lag: a Shao-Wu channel must read an
+external source, and a Jacobian channel needs a lag for its certificate. Heaps
+channels draw no tree.
 
 ## Explicit systems and treatment semantics
 
@@ -252,17 +268,44 @@ when persisting a corpus; this API does not write datasets or sidecar artifacts.
 
 ### Four-family sampling
 
-The current default per-channel prior is original 0, Shao-Wu 0.5, Jacobian
-1/6, and Heaps 1/3. These probabilities are local choices, not fitted from
-the forecasting test sets. Jacobian and Heaps currently use self-only sources;
-original and Shao-Wu retain the sampled topology. There is no joint mixed-system
+The prospective treatment policy follows the sampled dependency topology:
+a channel with at least one permitted external source uses Shao-Wu and assigns
+at least one lag occurrence to an external channel. Otherwise it draws
+Jacobian or Heaps with equal probability. An exogenous KernelSynth channel
+counts as an external source. For six channels, random topology, and at most
+two external sources, the expected treatment shares are approximately
+two thirds Shao-Wu and one sixth each Jacobian and Heaps; realized shares
+depend on topology and hybrid family draws. Jacobian and
+Heaps use self-only sources. There is no joint mixed-system
 stability certificate. Jacobian retains its bounded-domain certificate (radius
 3 by default), uses uniform innovations with the requested standard deviation,
 and rejects incompatible initial histories without clipping. Heaps constructs
 a stable scalar AR via the existing Heaps reverse map, using a unit reference
 covariance to determine coefficients; its actual innovations use the sampled
 Gaussian standard deviation. Random startup does not imply stationarity.
-Heaps can introduce intermediate lags down to 1.
+Heaps samples its lag support directly, without building a preliminary
+AST. Conditional on choosing a Heaps channel, the default support-class
+probabilities are 40% consecutive (`1..p`), 20% isolated (`{s}` for
+`s=2..16`), and 40% periodic with at least two lags (`{s,2s,...,ps}` for
+`p>=2`, `s>=2`, and `p*s<=16`). Within a class, the feasible `(p,s)` pairs
+are equiprobable. At maximum lag 16, the classes contain 16, 15, and 19
+pairs, respectively: 50 disjoint support patterns. This allocates explicit
+probability to single-lag cases such as `{8}` and `{9}`, without calling
+them recurring seasonal patterns. The code records class, order, and period
+in the channel treatment. `original_equations` contains a marked placeholder
+for a Heaps channel, not an unused sampled AST; the executed equation in
+`equations` is the only valid skeleton target.
+
+The reconstructed scalar AR has additive lag terms, so it has no
+multiplicative lag interactions or cross-channel dependencies. The standalone
+Heaps VAR implementation can represent linear cross-channel dependencies,
+but this mixed-channel sampler does not use that coupled form or its joint
+stationary initializer. The standalone constructor accepts a fixed
+`lag_spacing` and builds the stationary lag-state covariance for its
+expanded order. In a 100-system, six-channel stability sweep with 96/96
+windows, all 600 Heaps channel certificates held and all generated windows
+were finite; this is an empirical numerical check, not a bound on Gaussian
+sample amplitudes.
 
 After the initial history attempt and three retries, an exhausted trajectory
 causes the whole config-sampled system to be replaced, including its accepted
@@ -272,16 +315,3 @@ equations in discarded systems, and `resampled_original_equations` counts the
 original subset. `replacement_records` retains discarded seeds and reasons.
 These counters include numerical output-conversion failures as well as
 nonfinite recurrence outputs; consult failure reasons for the distinction.
-
-### Topology-aware sampling of terminal nodes
-
-For original channels, `lag_sampling`
-sets the probability of drawing a lag when a terminal is constructed.
-Given normalized source weights q and m = 1/sum(q**2), this probability is
-minimum + (maximum-minimum)*(m-1)/(m-1+tau). Defaults are .25, .75 and 1,
-applying a reduction of 25 percentage points to the previous probability curve.
-The sampler draws operator count from the original size distribution, then
-uses weighted completion counts at that size. Lag labels divide the lag mass
-equally. Degree limits and mandatory-lag settings condition the final tree
-distribution. None selects the unweighted combinatorial sampler.
-Historical retention experiment records describe the superseded post-sampling replacement method.

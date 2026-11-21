@@ -1,4 +1,4 @@
-\subsection{Multivariate generation and topology-aware terminal sampling}
+\subsection{Multivariate generation}
 \label{sec:multivariate-generation}
 
 The multivariate training generator retains one executable equation per channel:
@@ -12,11 +12,26 @@ sources are capped by configuration. Each lag occurrence selects a source with
 weight three for the target channel and weight one for each external source.
 All equations evaluate the same past before the current time step is appended.
 
-The default per-channel mixture assigns zero probability to original ASTs,
-50\% to Shao--Wu, one sixth to Jacobian treatment, and one third to Heaps. In this
-implementation, Jacobian and Heaps channels use self-only sources: the latter
-constructs a scalar AR through the existing Heaps parameterization. Thus these
-channels do not implement a coupled VAR block. Jacobian innovations are bounded
+The treatment of each channel follows the sampled topology. A channel
+with at least one permitted external source uses Shao--Wu and assigns at
+least one lag occurrence to an external source; an external KernelSynth
+channel counts. A channel without external sources draws Jacobian or Heaps
+with equal probability. Under six channels, random topology, and a cap of two
+external sources, this yields approximately two thirds Shao--Wu and one sixth
+each Jacobian and Heaps before hybrid-family effects. Jacobian and Heaps
+channels therefore read only their own past: Heaps constructs a scalar AR
+through the Heaps parameterization, not a coupled VAR block. Every sampled
+tree contains at least one lag, which Shao--Wu needs to read an external source
+and Jacobian needs for its certificate. Heaps samples its lag support
+directly, without a tree. Conditional on choosing Heaps,
+the support-class probabilities are 40\% consecutive lags $1,\ldots,p$,
+20\% one isolated lag $s\in\{2,\ldots,16\}$, and 40\% periodic lags
+$s,2s,\ldots,ps$ with $p,s\geq2$ and $ps\leq16$. Pairs are uniform within
+each class. These classes contain 16, 15, and 19 disjoint support patterns,
+respectively, at the current $L_{\max}=16$.
+The stable AR has additive lag terms and no multiplicative lag interactions.
+Its reconstructed equation, rather than the raw placeholder, is the valid
+explanation target. Jacobian innovations are bounded
 uniform draws, whereas the other channels use Gaussian innovations. Individual
 certificates do not provide a joint certificate for the mixed system.
 
@@ -30,35 +45,3 @@ and conversion to the output dtype. After an initial attempt and three new
 histories, an exhausted trajectory causes the entire configuration-sampled
 system to be replaced. Accepted trajectories from that discarded system are
 also discarded. Explicitly supplied systems cannot be replaced.
-
-To regulate the original AST prior across curriculum stages, let $q_{ij}$ be
-the normalized source-selection weights and define
-\begin{equation}
- m_i^{\mathrm{eff}}=\frac{1}{\sum_{j\in S_i}q_{ij}^2},\qquad
- r_i=r_{\min}+(r_{\max}-r_{\min})
- \frac{m_i^{\mathrm{eff}}-1}{m_i^{\mathrm{eff}}-1+\tau}.
-\end{equation}
-The design increases the terminal lag probability when a channel can consult
-its own past and additional series. The purpose is to create more opportunities
-for cross-series interactions as the permitted source set grows. Drawing more
-lag terminals makes multiple temporal inputs available to product nodes.
-Source selection and sampled operators determine whether an actual cross-series
-interaction appears. The effective source count accounts for unequal weights
-and follows the allowed sources for each channel across curriculum stages.
-
-The probability $r_i$ weights lag terminals during AST construction. Parameter
-terminals receive complementary mass and lag labels share their mass equally.
-Operator count follows the original combinatorial size prior. Weighted completion
-counts condition the resulting tree on the degree limit and mandatory-lag setting.
-The defaults are $r_{\min}=0.25$, $r_{\max}=0.75$, and $\tau=1$.
-For zero, one and two external sources, these give respectively 25\%, 43.75\%
-and 53\% before structural conditioning. This policy applies to original channels.
-
-The corrected comparison uses 500 accepted six-channel systems per topology,
-two trajectories of 128 steps, at most four operators, lags 1--16 and degree four.
-Context, prediction length and stride are 64, 16 and 16. The explicit diagnostic
-mixture includes 40\% originals, 30\% Shao--Wu, 10\% Jacobian and 20\% Heaps
-so that the effect of the sampling correction is observable. The seed is 314159.
-The experiment record is under
-\texttt{experiments/}\allowbreak\texttt{multivariate\_generation/}\allowbreak
-\texttt{04\_terminal\_sampling\_correction/}.

@@ -16,8 +16,7 @@ class Capture:
 
 def small_system(**overrides):
     request = {"seed": 7, "channels": 3, "maximum_operators": 3, "maximum_lag": 4,
-               "max_degree": 2, "shao_wu_probability": 1.0,
-               "jacobian_probability": 0., "heaps_probability": 0., **overrides}
+               "max_degree": 2, "kernel_synth_probability": 0.0, **overrides}
     return request, sample_studio_multiseries(request)
 
 
@@ -43,7 +42,9 @@ def test_system_payload_describes_every_channel(dependency, channels) -> None:
     assert payload["num_channels"] == channels == len(payload["equations"])
     assert np.asarray(payload["dependency_lags"], dtype=object).shape[:2] == (channels, channels)
     for equation in payload["equations"]:
-        assert equation["treatment"]["method"] == "shao_wu"
+        external = set(equation["allowed_sources"]) - {equation["target"]}
+        expected = {"shao_wu"} if external else {"jacobian", "heaps"}
+        assert equation["treatment"]["method"] in expected
         assert set(equation["effective_sources"]) <= set(equation["allowed_sources"])
         assert equation["tree"]["type"]
     if dependency == "independent":
@@ -72,8 +73,8 @@ def test_trajectories_are_reproducible_and_have_context_plus_horizon_steps() -> 
 
 
 @pytest.mark.parametrize("bad", [
-    {"channels": 0}, {"channels": 99}, {"dependency": "nope"}, {"shao_wu_probability": 2},
-    {"channels": 2.5}, {"allow_no_lags": 1}, {"noise_minimum": 1, "noise_maximum": 0.5},
+    {"channels": 0}, {"channels": 99}, {"dependency": "nope"}, {"jacobian_share": 2},
+    {"channels": 2.5}, {"jacobian_share": -0.1}, {"noise_minimum": 1, "noise_maximum": 0.5},
 ])
 def test_invalid_system_requests_are_rejected(bad) -> None:
     with pytest.raises(ValueError):
@@ -92,8 +93,7 @@ def test_invalid_trajectory_requests_are_rejected(bad) -> None:
 
 def test_http_handlers_round_trip_through_the_store() -> None:
     handler = Capture()
-    FrontendHandler._sample_system(handler, {"seed": 3, "channels": 2, "maximum_lag": 3,
-                                             "shao_wu_probability": 1.0, "jacobian_probability": 0., "heaps_probability": 0.})
+    FrontendHandler._sample_system(handler, {"seed": 3, "channels": 2, "maximum_lag": 3})
     system_id = handler.payload["id"]
     assert len(handler.payload["equations"]) == 2
     FrontendHandler._sample_trajectories(handler, {"system_id": system_id, "trajectory_count": 2,
@@ -114,7 +114,7 @@ def test_studio_replaces_an_exploding_system_and_reports_the_accepted_one(monkey
         return actual(*args, **kwargs)
     monkeypatch.setattr(generation, "simulate_innovation_path", fail_start)
     request = {"seed": 5, "channels": 3, "maximum_operators": 4, "maximum_lag": 4, "max_degree": 3,
-               "shao_wu_probability": 0.0}
+               "kernel_synth_probability": 0.0}
     system = sample_studio_multiseries(request)
     trajectories = {"trajectory_count": 3, "context_length": 20, "prediction_length": 10, "seed": 5,
                     "initialization": "uniform"}
@@ -129,7 +129,7 @@ def test_studio_replaces_an_exploding_system_and_reports_the_accepted_one(monkey
 
 
 def test_studio_defaults_to_random_families_and_reports_components() -> None:
-    system = sample_studio_multiseries({"channels": 3, "maximum_lag": 6, "shao_wu_probability": 1.0, "jacobian_probability": 0., "heaps_probability": 0.})
+    system = sample_studio_multiseries({"channels": 3, "maximum_lag": 6})
     payload, _ = sample_studio_trajectories(system, {"trajectory_count": 4, "context_length": 12,
                                                      "prediction_length": 4})
     assert payload["initialization"] == "random"
@@ -141,3 +141,29 @@ def test_studio_defaults_to_random_families_and_reports_components() -> None:
     assert fixed["initialization_components"] == [None, None]
     with pytest.raises(ValueError, match="famílias"):
         sample_studio_trajectories(system, {"constant_minimum": 2.0, "constant_maximum": 1.0})
+
+
+def test_kernel_synth_channels_are_shown_with_their_kernel() -> None:
+    from tsfmxai.generators.hybrid import HybridConfig, sample_hybrid_system
+
+    request = {"seed": 3, "channels": 6, "kernel_synth_probability": 0.5}
+    system = sample_studio_multiseries(request)
+    config, seed = build_system_config(request)
+    assert system == sample_hybrid_system(
+        HybridConfig(config, {"ast": .5, "kernel_synth": .5}), seed=seed)
+    payload = system_payload(system, "k")
+    json.dumps(payload, allow_nan=False)
+    kernel = [e for e in payload["equations"] if e["family"] == "kernel_synth"]
+    assert kernel and payload["summary"]["kernel_synth_channels"] == len(kernel)
+    for equation in kernel:
+        assert equation["treatment"]["method"] == "kernel_synth"
+        assert equation["kernel_formula"] and equation["canonical_terms"] == 0
+    trajectories, final = sample_studio_trajectories(
+        system, {"trajectory_count": 2, "context_length": 12, "prediction_length": 4})
+    assert final is system
+    assert np.asarray(trajectories["trajectories"]).shape[1:] == (6, 16)
+
+
+def test_invalid_kernel_synth_probability_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        sample_studio_multiseries({"kernel_synth_probability": 1.0})

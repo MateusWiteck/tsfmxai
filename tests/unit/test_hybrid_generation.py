@@ -1,6 +1,7 @@
 """KernelSynth channels remain forecast targets without invented equations."""
 
 import numpy as np
+import pytest
 
 from tsfmxai.datasets.hybrid import generate_hybrid_training_batches
 from tsfmxai.datasets.multiseries import TrainingFormat, TrajectoryConfig
@@ -14,7 +15,6 @@ def test_hybrid_targets_and_replay():
     base = MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(maximum_operators=2, maximum_lag=2),
         channel_count_probs={3: 1.}, dependency_probs={"linked_chain": 1.},
-        treatment_probs={"shao_wu": 1.},
     )
     config = HybridConfig(base, {"ast": .5, "kernel_synth": .5})
     def batch():
@@ -36,6 +36,41 @@ def test_hybrid_targets_and_replay():
     np.testing.assert_array_equal(adapted["noise_mask"].numpy(),
                                   first.noise_targets["mask"].reshape(-1))
     assert sample_hybrid_system(config, seed=3).channel_families == sample_hybrid_system(config, seed=3).channel_families
+
+
+def test_kernel_channels_skip_ast_sampling_without_changing_ast_channels():
+    from tsfmxai.generators.multiseries import sample_multiseries_system
+    from tsfmxai.representations.expression import Lag, Parameter, walk
+
+    base = MultiseriesConfig(
+        ast_config=CombinatorialTreeConfig(maximum_operators=3, maximum_lag=8),
+        channel_count_probs={4: .5, 6: .5}, dependency_probs={"random": 1.},
+    )
+    config = HybridConfig(base, {"ast": .5, "kernel_synth": .5})
+    seen_kernel = seen_kernel_source = False
+    for seed in range(40):
+        hybrid = sample_hybrid_system(config, seed=seed)
+        plain = sample_multiseries_system(base, seed=seed)
+        assert hybrid.num_channels == plain.num_channels
+        kernel = {c for c, f in enumerate(hybrid.channel_families) if f == "kernel_synth"}
+        for channel, family in enumerate(hybrid.channel_families):
+            if family == "ast":
+                ours, theirs = hybrid.equations[channel], plain.equations[channel]
+                assert ours.expression == theirs.expression
+                assert ours.binding.lag_values == theirs.binding.lag_values
+                # The Shao-Wu bound sums over the system history, whose length
+                # depends on the other channels, so allow last-bit rounding.
+                assert ours.binding.parameter_values.keys() == theirs.binding.parameter_values.keys()
+                for key, value in ours.binding.parameter_values.items():
+                    assert value == pytest.approx(theirs.binding.parameter_values[key], rel=1e-12)
+                used = {n.variable for n in walk(hybrid.expressions[channel]) if isinstance(n, Lag)}
+                seen_kernel_source |= bool(used & kernel)
+            else:
+                seen_kernel = True
+                assert isinstance(hybrid.equations[channel].expression, Parameter)
+                assert hybrid.treatments[channel].method == "original"
+                assert hybrid.innovations[channel].std == 0.
+    assert seen_kernel and seen_kernel_source
 
 
 def test_auxiliary_losses_ignore_kernel_channels():

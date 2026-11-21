@@ -63,10 +63,10 @@ class TrajectoryConfig:
 
 @dataclass(frozen=True)
 class TrainingFormat:
-    context_length: int
-    prediction_length: int
-    stride: int
-    batch_size: int = 32
+    context_length: int = 96
+    prediction_length: int = 96
+    stride: int = 96
+    batch_size: int = 16
     dtype: str = "float32"
     layout: str = "batch_time_channel"
     noise_target: str = "scale_and_family"
@@ -152,7 +152,9 @@ def _collate(windows, training, codec):
     if any(hasattr(window["system"], "channel_families") for window in windows):
         noise["mask"] = equation_mask.any(axis=2)
     if training.noise_target == "scale_and_family":
-        noise["family"] = family  # 0 Gaussian, 1 uniform, -1 padded channel
+        # 0 Gaussian, 1 uniform, -1 no family target (padded or exogenous channel;
+        # channel_mask separates the two).
+        noise["family"] = family
     return TrainingBatch(context, future, channel_mask, equations, equation_mask, noise, tuple(metadata))
 
 
@@ -181,7 +183,7 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
             self.num_systems = num_systems
             channels = max(c for c, p in config.channel_count_probs.items() if p > 0)
             minimum_lag, maximum_lag = config.ast_config.minimum_lag, config.ast_config.maximum_lag
-            if config.treatment_probs.get("heaps", 0) > 0:
+            if config.self_only_treatment_probs.get("heaps", 0) > 0:
                 minimum_lag = 1
             degree = config.ast_config.max_degree
         else:
@@ -308,12 +310,15 @@ by system/trajectory/attempt, so skips and batch-size changes do not shift RNGs.
                         f"No finite system after {budget} replacements: {failure}")
                 # Every initialization of some trajectory failed: draw a new system.
                 self.stats.replaced_systems += 1
-                self.stats.resampled_equations += system.num_channels
-                originals = sum(t.method == "original" for t in system.treatments)
+                # Count only sampled AST equations, not exogenous placeholders.
+                ast_channels = [i for i, family in enumerate(getattr(
+                    system, "channel_families", ("ast",) * system.num_channels)) if family == "ast"]
+                self.stats.resampled_equations += len(ast_channels)
+                originals = sum(system.treatments[i].method == "original" for i in ast_channels)
                 self.stats.resampled_original_equations += originals
                 self.stats.replacement_records.append(dict(
                     system_index=system_index, replacement=replacement + 1,
-                    discarded_seed=system.seed, equations=system.num_channels,
+                    discarded_seed=system.seed, equations=len(ast_channels),
                     original_equations=originals, reason=failure))
                 self.stats.discarded_trajectories += (
                     self.stats.accepted_trajectories - accepted_before)

@@ -33,6 +33,8 @@ def main():
     parser.add_argument("--warmup", type=int, default=16)
     parser.add_argument("--measured", type=int, default=64)
     args = parser.parse_args()
+    # The executed record used the removed independent treatment draw; rerun the
+    # record's git_head to reproduce it. This script now uses the dependency rule.
     base = MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(maximum_operators=3, maximum_lag=16),
         channel_count_probs={6: 1.}, dependency_probs={"random": 1.},
@@ -79,7 +81,7 @@ def main():
     args.output.write_text(json.dumps(dict(
         config=dict(workers=args.workers, warmup=args.warmup, measured=args.measured,
                     seed=20261119, batch_size=16, channels=6, context=96, horizon=96,
-                    generated_steps=192, ast_treatment_probs=dict(base.treatment_probs),
+                    generated_steps=192, self_only_treatment_probs=dict(base.self_only_treatment_probs),
                     dependency="random", kernel_composition="1 to 5 official-bank kernels",
                     factor_cache_size=64, blas_threads=1,
                     base_multiseries=asdict(base), trajectory=asdict(trajectory),

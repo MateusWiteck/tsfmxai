@@ -18,7 +18,9 @@ import numpy as np
 from tsfmxai.datasets.multiseries import (
     TrainingBatchStream, TrainingFormat, TrajectoryConfig, generate_training_batches,
 )
+from tsfmxai.datasets.hybrid import generate_hybrid_training_batches
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
+from tsfmxai.generators.hybrid import HybridConfig, HybridSystem, kernel_formula, sample_hybrid_system
 from tsfmxai.generators.initialization import HistorySpec, RandomHistorySpec
 from tsfmxai.generators.multiseries import (
     DEPENDENCIES, MultiseriesConfig, MultiseriesSystem, NoiseConfig,
@@ -40,10 +42,8 @@ SYSTEM_DEFAULTS: dict[str, Any] = {
     "dependency": "random",
     "max_external_sources": 2,
     "self_source_weight": 3.0,
-    "allow_no_lags": True,
-    "shao_wu_probability": 0.5,
-    "jacobian_probability": 1. / 6.,
-    "heaps_probability": 1. / 3.,
+    "jacobian_share": 0.5,
+    "kernel_synth_probability": 0.25,
     "target_gain": 0.8,
     "safety_factor": 0.95,
     "noise_minimum": 0.01,
@@ -54,14 +54,14 @@ SYSTEM_DEFAULTS: dict[str, Any] = {
     "maximum_lag": 16,
     "max_degree": 4,
     "minimum_parameter_magnitude": 0.05,
-    "maximum_parameter_magnitude": 0.9,
+    "maximum_parameter_magnitude": 1.0,
 }
 
 TRAJECTORY_DEFAULTS: dict[str, Any] = {
     "seed": 314159,
     "trajectory_count": 8,
     "context_length": 96,
-    "prediction_length": 24,
+    "prediction_length": 96,
     "initialization": "random",
     "constant_probability": 0.5,
     "constant_minimum": 0.0,
@@ -109,13 +109,11 @@ def build_system_config(data: Mapping[str, Any]) -> tuple[MultiseriesConfig, int
     dependency = data.get("dependency", d["dependency"])
     if dependency not in DEPENDENCIES:
         raise ValueError(f"Topologia desconhecida; use {', '.join(DEPENDENCIES)}.")
-    shao_wu = _number(data, d, "shao_wu_probability", float)
-    if not 0 <= shao_wu <= 1:
-        raise ValueError("A fração Shao–Wu deve estar em [0, 1].")
-    jacobian = _number(data, d, "jacobian_probability", float)
-    heaps = _number(data, d, "heaps_probability", float)
-    if min(jacobian, heaps) < 0 or shao_wu + jacobian + heaps > 1:
-        raise ValueError("Treatment probabilities must be nonnegative and sum to at most one.")
+    # Channels with an external source always use Shao-Wu; this share splits
+    # the self-only channels between Jacobian and Heaps.
+    jacobian = _number(data, d, "jacobian_share", float)
+    if not 0 <= jacobian <= 1:
+        raise ValueError("A fração Jacobiano deve estar em [0, 1].")
     low, high = _number(data, d, "noise_minimum", float), _number(data, d, "noise_maximum", float)
     ast = CombinatorialTreeConfig(
         minimum_operators=_number(data, d, "minimum_operators", int),
@@ -131,11 +129,9 @@ def build_system_config(data: Mapping[str, Any]) -> tuple[MultiseriesConfig, int
         ast_config=ast,
         channel_count_probs={channels: 1.0},
         dependency_probs={dependency: 1.0},
-        treatment_probs={"original": 1.0 - shao_wu - jacobian - heaps,
-                         "shao_wu": shao_wu, "jacobian": jacobian, "heaps": heaps},
+        self_only_treatment_probs={"jacobian": jacobian, "heaps": 1.0 - jacobian},
         max_external_sources=_number(data, d, "max_external_sources", int),
         self_source_weight=_number(data, d, "self_source_weight", float),
-        allow_no_lags=_number(data, d, "allow_no_lags", bool),
         noise=NoiseConfig(std_range=(low, high)),
         target_gain=_number(data, d, "target_gain", float),
         safety_factor=_number(data, d, "safety_factor", float),
@@ -146,9 +142,20 @@ def build_system_config(data: Mapping[str, Any]) -> tuple[MultiseriesConfig, int
     return config, seed
 
 
-def sample_studio_multiseries(data: Mapping[str, Any]) -> MultiseriesSystem:
+def sample_studio_multiseries(data: Mapping[str, Any]) -> MultiseriesSystem | HybridSystem:
+    """Sample with the training generator; KernelSynth channels use the hybrid one."""
     config, seed = build_system_config(data)
-    return sample_multiseries_system(config, seed=seed)
+    probability = _number(data, SYSTEM_DEFAULTS, "kernel_synth_probability", float)
+    if not 0 <= probability < 1:
+        raise ValueError("A probabilidade KernelSynth deve estar em [0, 1).")
+    if probability == 0:
+        return sample_multiseries_system(config, seed=seed)
+    hybrid = HybridConfig(config, {"ast": 1.0 - probability, "kernel_synth": probability})
+    return sample_hybrid_system(hybrid, seed=seed)
+
+
+def _families(system) -> tuple[str, ...]:
+    return getattr(system, "channel_families", ("ast",) * system.num_channels)
 
 
 def _node_payload(node: ExpressionNode, binding: Any) -> dict[str, Any]:
@@ -165,7 +172,32 @@ def _node_payload(node: ExpressionNode, binding: Any) -> dict[str, Any]:
             "children": [_node_payload(child, binding) for child in children(node)]}
 
 
+def _kernel_payload(system, target: int) -> dict[str, Any]:
+    """A KernelSynth channel has no equation: describe its Gaussian-process kernel."""
+    formula = kernel_formula(system.kernel_specs[target])
+    return {
+        "target": target,
+        "family": "kernel_synth",
+        "kernel_formula": formula,
+        "original_formula": formula,
+        "executed_formula": f"KernelSynth[{formula}]",
+        "skeleton_formula": "",
+        "canonical_formula": "sem equação: série de processo gaussiano (KernelSynth)",
+        "canonical_terms": 0,
+        "tree": {"type": "PARAMETER", "slot": "KERNEL_SYNTH", "value": 0.0, "children": []},
+        "binding": {"parameters": {}, "lags": {}},
+        "treatment": {"method": "kernel_synth", "scale": 1.0},
+        "innovation": {"family": "none", "std": 0.0},
+        "allowed_sources": [target],
+        "effective_sources": [],
+        "lags_by_source": {},
+        "summary": {"operators": 0, "leaves": 0, "nodes": 0, "depth": 0, "degree": 0},
+    }
+
+
 def _equation_payload(system: MultiseriesSystem, target: int) -> dict[str, Any]:
+    if _families(system)[target] == "kernel_synth":
+        return _kernel_payload(system, target)
     equation, original = system.equations[target], system.original_equations[target]
     lags: dict[int, set[int]] = {}
     for node in walk(equation.expression):
@@ -175,6 +207,7 @@ def _equation_payload(system: MultiseriesSystem, target: int) -> dict[str, Any]:
     treatment, innovation = system.treatments[target], system.innovations[target]
     return {
         "target": target,
+        "family": "ast",
         "original_formula": original.formula,
         "executed_formula": equation.formula,
         "skeleton_formula": equation.skeleton_formula,
@@ -220,6 +253,7 @@ def system_payload(system: MultiseriesSystem, system_id: str) -> dict[str, Any]:
             "allowed_edges": sum(len(s) - 1 for s in system.allowed_sources),
             "effective_edges": effective_edges,
             "shao_wu_channels": sum(t.method == "shao_wu" for t in system.treatments),
+            "kernel_synth_channels": sum(f == "kernel_synth" for f in _families(system)),
             "history_length": system.history_length,
         },
     }
@@ -325,8 +359,13 @@ def sample_studio_stream(system: MultiseriesSystem, request: TrajectoryRequest) 
     """
 
     width = request.context_length + request.prediction_length
-    return generate_training_batches(
-        config=system.sampling_config, num_systems=1, system_seeds=[system.seed],
+    hybrid = getattr(system, "config", None) if isinstance(system, HybridSystem) else None
+    if hybrid is not None:
+        generator, config = generate_hybrid_training_batches, {"config": hybrid}
+    else:
+        generator, config = generate_training_batches, {"config": system.sampling_config}
+    return generator(
+        **config, num_systems=1, system_seeds=[system.seed],
         trajectories_per_system=request.count, seed=request.seed,
         trajectory=TrajectoryConfig(
             generated_steps=width, initialization=request.history,
@@ -377,4 +416,6 @@ def sample_studio_trajectories(
                "initialization_attempts": stats.initialization_attempts,
                "failure_reasons": reasons},
     )
-    return payload, final_system
+    # The stream re-samples the displayed system from its seed; only a real
+    # replacement should be reported as a different system.
+    return payload, (system if stats.replaced_systems == 0 else final_system)

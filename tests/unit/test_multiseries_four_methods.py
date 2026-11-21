@@ -5,9 +5,13 @@ import numpy as np
 import pytest
 
 from tsfmxai.generators.combinatorial_expression import CombinatorialTreeConfig
-from tsfmxai.generators.multiseries import MultiseriesConfig, sample_multiseries_system
+from tsfmxai.generators.multiseries import (
+    MultiseriesConfig, draw_heaps_lag_support, heaps_lag_supports,
+    sample_multiseries_system,
+)
 from tsfmxai.generators.initialization import RandomHistorySpec
 from tsfmxai.datasets.multiseries import TrajectoryConfig, TrainingFormat, generate_training_batches
+from tsfmxai.representations.expression import Lag, walk
 
 
 def config():
@@ -17,21 +21,53 @@ def config():
 
 
 def test_requested_prior():
-    assert config().treatment_probs == {
-        "original": 0., "shao_wu": .5, "jacobian": 1./6., "heaps": 1./3.}
+    assert config().self_only_treatment_probs == {"jacobian": .5, "heaps": .5}
 
 
-def test_effective_source_retention_scales_without_channel_count_limit():
-    from tsfmxai.generators.multiseries import LagSamplingConfig
-    rule = LagSamplingConfig()
-    assert rule.probability([1.]) == .25
-    assert rule.probability([3., 1.]) == pytest.approx(.6875 - .25)
-    assert rule.probability([1.] * 100) == pytest.approx(.995 - .25)
-    assert rule.probability([3., 1.]) < rule.probability([1., 1.])
+def test_dependency_policy_matches_topology_and_uses_external_source():
+    cfg = replace(config(), channel_count_probs={6: 1.})
+    for seed in range(30):
+        system = sample_multiseries_system(cfg, seed=seed)
+        for target, (sources, treatment, equation) in enumerate(zip(
+                system.allowed_sources, system.treatments, system.original_equations)):
+            if len(sources) > 1:
+                assert treatment.method == "shao_wu"
+                assert any(isinstance(node, Lag) and node.variable != target
+                           for node in walk(equation.expression))
+                assert set(system.effective_sources[target]) - {target}
+            else:
+                assert treatment.method in ("jacobian", "heaps")
+
+
+def test_independent_topology_has_no_shao_wu():
+    cfg = replace(config(), channel_count_probs={6: 1.},
+                  dependency_probs={"independent": 1.})
+    for seed in range(12):
+        system = sample_multiseries_system(cfg, seed=seed)
+        assert all(t.method in ("jacobian", "heaps") for t in system.treatments)
+
+
+def test_external_kernel_channel_counts_as_dependency():
+    from tsfmxai.generators.hybrid import HybridConfig, sample_hybrid_system
+
+    cfg = HybridConfig(replace(config(), channel_count_probs={6: 1.}),
+                       {"ast": .5, "kernel_synth": .5})
+    checked = 0
+    for seed in range(30):
+        system = sample_hybrid_system(cfg, seed=seed)
+        for target, sources in enumerate(system.allowed_sources):
+            if system.channel_families[target] != "ast":
+                continue
+            if any(source != target and system.channel_families[source] == "kernel_synth"
+                   for source in sources):
+                assert system.treatments[target].method == "shao_wu"
+                assert set(system.effective_sources[target]) - {target}
+                checked += 1
+    assert checked > 0
 
 
 def test_retention_preserves_required_memory_and_replay():
-    cfg = replace(config(), treatment_probs={"original": 1.}, allow_no_lags=False)
+    cfg = config()
     for seed in range(20):
         system = sample_multiseries_system(cfg, seed=seed)
         assert system == sample_multiseries_system(cfg, seed=seed)
@@ -40,7 +76,8 @@ def test_retention_preserves_required_memory_and_replay():
 
 @pytest.mark.parametrize("method,family", [("jacobian", "uniform"), ("heaps", "gaussian")])
 def test_certified_channels_and_random_history(method, family):
-    cfg = replace(config(), treatment_probs={method: 1.})
+    cfg = replace(config(), dependency_probs={"independent": 1.},
+                  self_only_treatment_probs={method: 1.})
     system = sample_multiseries_system(cfg, seed=31)
     assert system.allowed_sources == ((0,), (1,), (2,))
     assert all(c.holds for c in system.channel_certificates)
@@ -56,6 +93,53 @@ def test_certified_channels_and_random_history(method, family):
     assert stream.stats.resampled_equations == 0
 
 
+def test_heaps_support_combinatorics_and_declared_probabilities():
+    supports = heaps_lag_supports(16)
+    assert {name: len(pairs) for name, pairs in supports.items()} == {
+        "consecutive": 16, "isolated": 15, "periodic": 19}
+    assert len(set().union(*(set(pairs) for pairs in supports.values()))) == 50
+    rng = np.random.default_rng(234)
+    draws = [draw_heaps_lag_support(rng, 16)[0] for _ in range(20_000)]
+    for name, expected in (("consecutive", .4), ("isolated", .2), ("periodic", .4)):
+        assert draws.count(name) / len(draws) == pytest.approx(expected, abs=.015)
+
+
+def test_heaps_direct_support_sampling_and_replay():
+    cfg = replace(config(), channel_count_probs={1: 1.},
+                  self_only_treatment_probs={"heaps": 1.})
+    seen = set()
+    for seed in range(35):
+        system = sample_multiseries_system(cfg, seed=seed)
+        assert system == sample_multiseries_system(cfg, seed=seed)
+        assert not system.original_equations[0].binding.lag_values
+        treatment = system.treatments[0]
+        expected, period = treatment.heaps_order, treatment.heaps_period
+        assert (expected, period) in heaps_lag_supports(4)[treatment.heaps_support]
+        assert system.equations[0].binding.lag_values
+        assert max(system.equations[0].binding.lag_values.values()) == expected * period
+        assert set(system.equations[0].binding.lag_values.values()) == {
+            period * index for index in range(1, expected + 1)}
+        seen.add(treatment.heaps_support)
+    assert seen == {"consecutive", "isolated", "periodic"}
+
+
+def test_heaps_support_stability_sweep_with_full_training_windows():
+    cfg = replace(config(),
+                  ast_config=CombinatorialTreeConfig(maximum_operators=6,
+                                                     maximum_lag=16),
+                  channel_count_probs={6: 1.}, dependency_probs={"independent": 1.},
+                  self_only_treatment_probs={"heaps": 1.})
+    for seed in range(100):
+        system = sample_multiseries_system(cfg, seed=seed)
+        assert all(certificate.holds for certificate in system.channel_certificates)
+        stream = generate_training_batches(
+            systems=[system], trajectory=TrajectoryConfig(192, RandomHistorySpec()),
+            training=TrainingFormat(96, 96, 192, batch_size=1), seed=seed)
+        batch = next(stream)
+        assert np.isfinite(batch.context).all()
+        assert np.isfinite(batch.future).all()
+
+
 def test_exhausted_histories_count_discarded_trees(monkeypatch):
     import tsfmxai.datasets.multiseries as module
 
@@ -69,7 +153,7 @@ def test_exhausted_histories_count_discarded_trees(monkeypatch):
         return actual(*args, **kwargs)
 
     monkeypatch.setattr(module, "simulate_innovation_path", fail_first_system)
-    cfg = replace(config(), treatment_probs={"original": 1.})
+    cfg = config()
     stream = generate_training_batches(
         config=cfg, num_systems=1,
         trajectory=TrajectoryConfig(2, RandomHistorySpec()),
@@ -78,7 +162,7 @@ def test_exhausted_histories_count_discarded_trees(monkeypatch):
     assert stream.stats.initialization_attempts == 5
     assert stream.stats.replaced_systems == 1
     assert stream.stats.resampled_equations == 3
-    assert stream.stats.resampled_original_equations == 3
+    assert stream.stats.resampled_original_equations == 0
     assert len(stream.stats.replacement_records) == 1
 
 

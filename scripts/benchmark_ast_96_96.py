@@ -36,6 +36,8 @@ def main():
     args = parser.parse_args()
     if min(args.warmup, args.measured) < 1:
         raise ValueError("Warmup and measured batch counts must be positive")
+    # The executed record used the removed independent treatment draw; rerun the
+    # record's git_head to reproduce it. This script now uses the dependency rule.
     config = MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(maximum_operators=3, maximum_lag=16),
         channel_count_probs={6: 1.}, dependency_probs={"random": 1.},

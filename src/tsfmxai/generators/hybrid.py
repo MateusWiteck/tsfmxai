@@ -35,20 +35,22 @@ class HybridSystem:
     base: MultiseriesSystem
     channel_families: tuple[str, ...]
     kernel_specs: tuple[tuple[tuple[int, ...], tuple[str, ...]] | None, ...]
+    config: HybridConfig | None = None
 
     def __getattr__(self, name):
         return getattr(object.__getattribute__(self, "base"), name)
 
 
 def sample_hybrid_system(config: HybridConfig, *, seed: int) -> HybridSystem:
-    """Draw family identities independently of the legacy AST random streams.
+    """Draw channel families first, then sample ASTs only for AST channels.
 
-    The current AST builder still samples an unused tree for KernelSynth channels.
-    This compatibility cost is deliberately included in measured batch timing.
+    Family draws use their own per-channel streams, so they do not depend on
+    the channel count. KernelSynth channels receive a zero placeholder instead
+    of a tree; AST channels are identical to the plain multiseries sampler.
     """
-    base = sample_multiseries_system(config.ast, seed=seed)
+    max_channels = max(c for c, p in config.ast.channel_count_probs.items() if p > 0)
     families, specs = [], []
-    for channel in range(base.num_channels):
+    for channel in range(max_channels):
         rng = np.random.default_rng(stream_seed(seed, 91, channel))
         family = draw_choice(rng, config.family_probs)
         families.append(family)
@@ -59,7 +61,20 @@ def sample_hybrid_system(config: HybridConfig, *, seed: int) -> HybridSystem:
             specs.append((indices, operators))
         else:
             specs.append(None)
-    return HybridSystem(base, tuple(families), tuple(specs))
+    exogenous = frozenset(c for c, family in enumerate(families) if family == "kernel_synth")
+    base = sample_multiseries_system(config.ast, seed=seed, exogenous_channels=exogenous)
+    n = base.num_channels
+    return HybridSystem(base, tuple(families[:n]), tuple(specs[:n]), config)
+
+
+def kernel_formula(spec: tuple[tuple[int, ...], tuple[str, ...]]) -> str:
+    """Readable KernelSynth composition using the official bank identifiers."""
+    bank = official_kernel_bank()
+    indices, operators = spec
+    parts = [bank[indices[0]]["id"]]
+    for operator, index in zip(operators, indices[1:]):
+        parts.extend((operator, bank[index]["id"]))
+    return " ".join(parts)
 
 
 @lru_cache(maxsize=64)

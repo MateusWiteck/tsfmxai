@@ -53,8 +53,6 @@ const GROUPS = [
         tip: "Regra que decide quais canais podem servir de fonte para cada equação. Uma ordem aleatória dos canais é sorteada para cadeias." },
       { key: "self_source_weight", label: "Peso do próprio canal", type: "number", min: 0.1, max: 20, step: 0.5,
         tip: "Peso relativo de sortear o próprio canal como fonte de cada lag, contra peso 1 para cada fonte externa. Valores altos deixam os canais mais autorregressivos." },
-      { key: "allow_no_lags", label: "Permitir equação sem lag", type: "checkbox",
-        tip: "Se ligado, uma equação pode ser só constante mais ruído. Se desligado, toda equação precisa ter ao menos um lag." },
     ],
   },
   {
@@ -79,12 +77,10 @@ const GROUPS = [
   {
     scope: "s", step: "03", title: "Tratamento e ruído", open: false,
     fields: [
-      { key: "jacobian_probability", label: "Probabilidade Jacobiano", type: "range", min: 0, max: 1, step: 0.05, wide: true, percent: true,
-        tip: "Canal independente com ruido uniforme limitado. Original recebe a probabilidade restante." },
-      { key: "heaps_probability", label: "Probabilidade Heaps", type: "range", min: 0, max: 1, step: 0.05, wide: true, percent: true,
-        tip: "Canal AR independente. A soma das probabilidades de tratamentos deve ser no maximo 1." },
-      { key: "shao_wu_probability", label: "Fração de canais Shao–Wu", type: "range", min: 0, max: 1, step: 0.05, wide: true, percent: true,
-        tip: "Probabilidade de cada canal receber o tratamento Shao–Wu: fatores dos produtos de lags passam por tanh e a equação é multiplicada por uma escala que limita o ganho. Reduz explosões, mas não há certificado conjunto para o sistema misto." },
+      { key: "kernel_synth_probability", label: "Probabilidade de canal KernelSynth", type: "range", min: 0, max: 0.95, step: 0.05, wide: true, percent: true,
+        tip: "Cada canal é sorteado, independentemente, como série KernelSynth (processo gaussiano, sem equação) com esta probabilidade; os demais vêm de equações. Canais de equação podem ler canais KernelSynth como fonte externa." },
+      { key: "jacobian_share", label: "Fração Jacobiano nos canais sem dependência", type: "range", min: 0, max: 1, step: 0.05, wide: true, percent: true,
+        tip: "O tratamento segue a topologia: canal que pode ler outra série usa Shao–Wu (tanh nos produtos de lags e escala que limita o ganho) e lê ao menos uma série externa. Canal sem fonte externa usa Jacobiano com esta probabilidade e Heaps com o restante." },
       { key: "target_gain", label: "Ganho-alvo", type: "number", min: 0.05, max: 0.99, step: 0.05,
         tip: "Ganho desejado da equação tratada (entre 0 e 1). A escala aplicada é fator de segurança × min(1, ganho-alvo / g), em que g soma as cotas de derivada da equação." },
       { key: "safety_factor", label: "Fator de segurança", type: "number", min: 0.05, max: 0.99, step: 0.05,
@@ -156,9 +152,9 @@ const PRESETS = [
     tip: "Os valores padrão usados pelo treinamento canônico de 6 séries." },
   { label: "Didático (3 canais)", tip: "Poucos canais, lags curtos e árvores pequenas: fácil de ler e conferir.",
     values: { s: { channels: 3, dependency: "previous_chain", minimum_operators: 1, maximum_operators: 3, maximum_lag: 4,
-                   max_degree: 2, shao_wu_probability: 0.5 }, t: { context_length: 64, prediction_length: 16 } } },
-  { label: "Estável (Shao–Wu em tudo)", tip: "Todos os canais com saturação Shao–Wu: quase sem explosões.",
-    values: { s: { shao_wu_probability: 1, jacobian_probability: 0, heaps_probability: 0 }, t: {} } },
+                   max_degree: 2 }, t: { context_length: 64, prediction_length: 16 } } },
+  { label: "Cadeia ligada", tip: "Cada canal lê o anterior na ordem sorteada: todos, menos o primeiro, usam Shao–Wu.",
+    values: { s: { dependency: "linked_chain" }, t: {} } },
   { label: "Univariado", tip: "Um único canal, sem dependências externas.",
     values: { s: { channels: 1, dependency: "independent" }, t: {} } },
 ];
@@ -370,7 +366,7 @@ function updateAvailability() {
     disabled.add("s-self_source_weight");
   }
   if (system.channels <= 1) disabled.add("s-dependency");
-  if (system.shao_wu_probability === 0) {
+  if (system.channels <= 1 || system.dependency === "independent") {
     disabled.add("s-target_gain");
     disabled.add("s-safety_factor");
   }
@@ -490,7 +486,7 @@ function prettyFormula(text) {
     .replace(/\*/g, "×");
 }
 
-const TREATMENT_LABEL = { jacobian: "Jacobiano", heaps: "Heaps", original: "Original", shao_wu: "Shao–Wu" };
+const TREATMENT_LABEL = { jacobian: "Jacobiano", heaps: "Heaps", original: "Original", shao_wu: "Shao–Wu", kernel_synth: "KernelSynth" };
 const DEPENDENCY_LABEL = Object.fromEntries(DEPENDENCIES.map((item) => [item.value, item.label]));
 
 /* ------------------------------------------------------------------ *
@@ -517,6 +513,7 @@ function renderKpis(system) {
     [s.nodes, "nós", "Total de nós (operadores, lags e coeficientes) nas árvores executadas."],
     [`${s.effective_edges} / ${s.allowed_edges}`, "arestas usadas", "Dependências entre canais que de fato aparecem nas equações, sobre as permitidas pela topologia."],
     [`${s.shao_wu_channels} / ${s.channels}`, "canais Shao–Wu", "Quantos canais receberam saturação com tanh e escala de ganho."],
+    [`${s.kernel_synth_channels ?? 0} / ${s.channels}`, "canais KernelSynth", "Quantos canais são séries KernelSynth (processo gaussiano), sem equação."],
     [s.history_length, "histórico exigido", "Maior lag consultado por qualquer equação: quantos valores iniciais são necessários para começar."],
   ];
   $("kpis").replaceChildren(...items.map(([value, label, tip]) => {
@@ -664,6 +661,8 @@ function renderEquationCards(system) {
       `${TREATMENT_LABEL[equation.treatment.method]}${["shao_wu", "jacobian"].includes(equation.treatment.method) ? ` - escala ${equation.treatment.scale.toPrecision(3)}` : ""}`);
     treatment.dataset.tip = equation.treatment.method === "jacobian"
       ? "Contracao Jacobiana no dominio certificado, com inovacao uniforme limitada."
+      : equation.treatment.method === "kernel_synth"
+      ? `Série KernelSynth: amostra de processo gaussiano com kernel ${equation.kernel_formula}. Não tem equação nem alvo da cabeça.`
       : equation.treatment.method === "heaps"
       ? "AR est?vel constru?do pela parametriza??o Heaps, com inova??o gaussiana."
       : shao
@@ -671,8 +670,8 @@ function renderEquationCards(system) {
       : "Equação executada exatamente como sorteada, sem saturação nem escala.";
     const sigma = el("span", "pill sigma", `σ ${equation.innovation.std.toPrecision(2)}`);
     sigma.dataset.tip = `Inovacao ${equation.innovation.family}: desvio padrao por passo.`;
-    const sources = el("span", "pill sigma",
-      `lê ${equation.effective_sources.length ? equation.effective_sources.map(channelName).join(", ") : "nenhum lag"}`);
+    const sources = el("span", "pill sigma", equation.family === "kernel_synth" ? "série gerada, sem lags"
+      : `lê ${equation.effective_sources.length ? equation.effective_sources.map(channelName).join(", ") : "nenhum lag"}`);
     sources.dataset.tip = "Canais cujos lags realmente aparecem nesta equação.";
     heading.append(treatment, sigma, sources);
     card.append(heading);

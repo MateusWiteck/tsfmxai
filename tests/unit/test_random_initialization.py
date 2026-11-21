@@ -81,8 +81,7 @@ def test_make_initial_history_accepts_the_random_spec():
 def _stream(initialization, seed=8):
     cfg = MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(maximum_operators=3, maximum_lag=6, max_degree=2),
-        channel_count_probs={3: 1.}, dependency_probs={"random": 1.},
-        treatment_probs={"shao_wu": 1.})
+        channel_count_probs={3: 1.}, dependency_probs={"random": 1.})
     return generate_training_batches(
         config=cfg, num_systems=3, trajectories_per_system=2, seed=seed,
         trajectory=TrajectoryConfig(30, initialization),

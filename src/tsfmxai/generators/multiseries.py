@@ -24,28 +24,33 @@ from tsfmxai.representations.expression import (
 
 DEPENDENCIES = ("independent", "linked_chain", "previous_chain", "random")
 TREATMENTS = ("original", "shao_wu", "jacobian", "heaps")
-DEFAULT_TREATMENT_PROBS = {"original": 0., "shao_wu": .5, "jacobian": 1./6., "heaps": 1./3.}
+DEFAULT_SELF_ONLY_TREATMENT_PROBS = {"jacobian": .5, "heaps": .5}
+DEFAULT_HEAPS_SUPPORT_PROBS = {"consecutive": .4, "isolated": .2, "periodic": .4}
 
 
-@dataclass(frozen=True)
-class LagSamplingConfig:
-    """Terminal lag probability in original ASTs, conditional on tree constraints."""
+@lru_cache(maxsize=32)
+def heaps_lag_supports(maximum_lag: int) -> dict[str, tuple[tuple[int, int], ...]]:
+    """Feasible (AR order, lag spacing) pairs, with disjoint support classes."""
+    positive_integer(maximum_lag, "maximum_lag")
+    return {
+        "consecutive": tuple((p, 1) for p in range(1, maximum_lag + 1)),
+        "isolated": tuple((1, s) for s in range(2, maximum_lag + 1)),
+        "periodic": tuple((p, s) for p in range(2, maximum_lag + 1)
+                          for s in range(2, maximum_lag // p + 1)),
+    }
 
-    minimum: float = .25
-    maximum: float = .75
-    tau: float = 1.
 
-    def __post_init__(self):
-        if not np.isfinite([self.minimum, self.maximum, self.tau]).all():
-            raise ValueError("Lag sampling settings must be finite.")
-        if not 0 < self.minimum <= self.maximum <= 1 or self.tau <= 0:
-            raise ValueError("Require 0 < minimum <= maximum <= 1 and tau > 0.")
-
-    def probability(self, weights):
-        q = np.asarray(weights, dtype=float)
-        q = q / q.sum()
-        effective = max(1., float(1. / np.sum(q * q)))
-        return self.minimum + (self.maximum - self.minimum) * (effective - 1.) / (effective - 1. + self.tau)
+def draw_heaps_lag_support(rng, maximum_lag: int, probabilities=DEFAULT_HEAPS_SUPPORT_PROBS):
+    """Draw a support class, then a pair uniformly within that class."""
+    validate_probabilities(probabilities, choices=DEFAULT_HEAPS_SUPPORT_PROBS)
+    options = heaps_lag_supports(maximum_lag)
+    available = {name: weight for name, weight in probabilities.items()
+                 if weight > 0 and options[name]}
+    if not available:
+        raise ValueError("No feasible Heaps lag supports have positive probability.")
+    family = draw_choice(rng, available)
+    pairs = options[family]
+    return family, pairs[int(rng.integers(len(pairs)))]
 
 
 def positive_integer(value, name, *, minimum=1):
@@ -108,12 +113,20 @@ class TreatmentSpec:
     target_gain: float = 0.8
     safety_factor: float = 0.95
     domain_radius: float = 3.0
+    heaps_period: int = 1
+    heaps_order: int | None = None
+    heaps_support: str | None = None
 
     def __post_init__(self):
         if not np.isfinite(self.domain_radius) or self.domain_radius <= 0:
             raise ValueError("domain_radius must be finite and positive.")
         if self.method not in TREATMENTS:
             raise ValueError("Unknown channel treatment.")
+        positive_integer(self.heaps_period, "heaps_period")
+        if self.heaps_order is not None:
+            positive_integer(self.heaps_order, "heaps_order")
+        if self.heaps_support is not None and self.heaps_support not in DEFAULT_HEAPS_SUPPORT_PROBS:
+            raise ValueError("Unknown Heaps support class.")
         if not 0 < self.target_gain < 1 or not 0 < self.safety_factor < 1:
             raise ValueError("Treatment gains must lie strictly between zero and one.")
 
@@ -124,29 +137,27 @@ class MultiseriesConfig:
     ast_config: CombinatorialTreeConfig
     channel_count_probs: Mapping[int, float]
     dependency_probs: Mapping[str, float]
-    treatment_probs: Mapping[str, float] = field(default_factory=lambda: dict(DEFAULT_TREATMENT_PROBS))
+    # Channels with an external source use Shao-Wu; self-only channels draw here.
+    self_only_treatment_probs: Mapping[str, float] = field(
+        default_factory=lambda: dict(DEFAULT_SELF_ONLY_TREATMENT_PROBS))
+    heaps_support_probs: Mapping[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAPS_SUPPORT_PROBS))
     max_external_sources: int = 2
     self_source_weight: float = 3.
-    allow_no_lags: bool = True
     noise: NoiseConfig = field(default_factory=NoiseConfig)
     target_gain: float = 0.8
     safety_factor: float = 0.95
-    lag_sampling: LagSamplingConfig | None = field(default_factory=LagSamplingConfig)
 
     def __post_init__(self):
         validate_probabilities(self.channel_count_probs)
         for count in self.channel_count_probs:
             positive_integer(count, "channel count")
         validate_probabilities(self.dependency_probs, choices=DEPENDENCIES)
-        validate_probabilities(self.treatment_probs, choices=TREATMENTS)
+        validate_probabilities(self.self_only_treatment_probs, choices=("jacobian", "heaps"))
+        validate_probabilities(self.heaps_support_probs, choices=DEFAULT_HEAPS_SUPPORT_PROBS)
         positive_integer(self.max_external_sources, "max_external_sources", minimum=0)
         if not np.isfinite(self.self_source_weight) or self.self_source_weight <= 0:
             raise ValueError("self_source_weight must be finite and positive.")
-        if type(self.allow_no_lags) is not bool:
-            raise ValueError("allow_no_lags must be boolean.")
         TreatmentSpec("shao_wu", self.target_gain, self.safety_factor)
-        if self.lag_sampling is not None and not isinstance(self.lag_sampling, LagSamplingConfig):
-            raise ValueError("lag_sampling must be LagSamplingConfig or None.")
 
 
 @dataclass(frozen=True)
@@ -232,12 +243,18 @@ is a conservative row sensitivity budget, NOT a joint mixed-system certificate.
                 binding, scale, certificate = mechanism.binding, mechanism.scale, mechanism.certificate
             else:
                 from tsfmxai.generators.heaps import build_heaps_var_mechanism
-                # Heaps maps unconstrained coefficients to a stable AR. Missing
-                # intermediate lags can become nonzero under the reverse map.
-                lag_order = max(binding.lag_values.values(), default=1)
                 rng = np.random.default_rng(equation.seed)
+                if treatment.heaps_order is None:
+                    # Explicit legacy systems may still supply an AST-derived order.
+                    candidate_lags = sorted(set(binding.lag_values.values()))
+                    if not candidate_lags:
+                        raise ValueError("Heaps requires heaps_order or a sampled lag.")
+                    lag_order = int(rng.choice(candidate_lags))
+                else:
+                    lag_order = treatment.heaps_order
                 mechanism = build_heaps_var_mechanism(
-                    rng.normal(0., .45, (lag_order, 1, 1)), np.eye(1), seed=equation.seed)
+                    rng.normal(0., .45, (lag_order, 1, 1)), np.eye(1),
+                    seed=equation.seed, lag_spacing=treatment.heaps_period)
                 if innovations[i].family != "gaussian":
                     raise ValueError("Heaps channels require Gaussian innovations.")
                 expression = _assign_sources(mechanism.expressions[0], [i], [1.], rng)
@@ -264,8 +281,8 @@ is a conservative row sensitivity budget, NOT a joint mixed-system certificate.
 
 
 @lru_cache(maxsize=32)
-def _sampler(config, lag_probability=None):
-    return CombinatorialTreeSampler(config, lag_probability=lag_probability)
+def _sampler(config):
+    return CombinatorialTreeSampler(config)
 
 
 def _assign_sources(node, sources, weights, rng):
@@ -279,13 +296,44 @@ def _assign_sources(node, sources, weights, rng):
     return node
 
 
-def sample_multiseries_system(config: MultiseriesConfig, *, seed: int):
+def _assign_sources_requiring_external(node, sources, weights, target, rng):
+    """Assign sources while forcing one sampled lag to use an external channel."""
+    external = [source for source in sources if source != target]
+    lag_count = sum(isinstance(part, Lag) for part in walk(node))
+    if not external or not lag_count:
+        raise ValueError("Cross-series Shao-Wu needs an external source and a lag")
+    required_index = int(rng.integers(lag_count))
+    seen = 0
+
+    def visit(part):
+        nonlocal seen
+        if isinstance(part, Lag):
+            index = seen
+            seen += 1
+            source = (int(rng.choice(external)) if index == required_index else
+                      int(rng.choice(sources, p=weights)))
+            return Lag(source, part.slot)
+        if isinstance(part, (Add, Multiply)):
+            return type(part)(visit(part.left), visit(part.right))
+        if isinstance(part, Tanh):
+            return Tanh(visit(part.operand))
+        return part
+
+    return visit(node)
+
+
+def sample_multiseries_system(config: MultiseriesConfig, *, seed: int,
+                              exogenous_channels: frozenset[int] = frozenset()):
     """Sample topology, ASTs and channel treatments using independent local streams.
 
 AST structure is sampled with one placeholder source, then each lag occurrence
 receives a permitted source with self preference. This is not uniform sampling
 over all multivariate labelled ASTs. External subsets have uniformly sampled
 cardinality from zero to the configured cap (linked chains allow the predecessor).
+
+Channels in ``exogenous_channels`` get no sampled tree: they hold a zero
+placeholder whose values another generator supplies. Other channels may still
+use them as sources. Per-channel streams keep every other channel unchanged.
 """
     rng = np.random.default_rng(stream_seed(seed, 0))
     n = draw_choice(rng, config.channel_count_probs)
@@ -300,38 +348,49 @@ cardinality from zero to the configured cap (linked chains allow the predecessor
         count = cap if dependency == "linked_chain" else int(rng.integers(cap + 1))
         external = rng.choice(candidates, size=count, replace=False).tolist() if count else []
         allowed[target] = sorted([target, *external])
-    tree_config = replace(config.ast_config, num_series=1, require_lag=not config.allow_no_lags)
+    # Shao-Wu needs a lag to read an external source; Jacobian needs one for its
+    # certificate. Heaps channels draw no tree.
+    tree_config = replace(config.ast_config, num_series=1, require_lag=True)
     sampler = _sampler(tree_config)
     equations, treatments, innovations = [], [], []
     for target in range(n):
         channel_seed = stream_seed(seed, 1, target)
         channel_rng = np.random.default_rng(stream_seed(seed, 2, target))
-        method = draw_choice(channel_rng, config.treatment_probs)
-        channel_sampler = (_sampler(replace(tree_config, require_lag=True))
-                           if method == "jacobian" else sampler)
+        if target in exogenous_channels:
+            allowed[target] = [target]
+            equations.append(SampledMechanism(
+                Parameter("EXOGENOUS"), MechanismBinding({"EXOGENOUS": 0.}, {}),
+                channel_seed, target))
+            treatments.append(TreatmentSpec("original", config.target_gain, config.safety_factor))
+            innovations.append(InnovationSpec("gaussian", 0.))
+            continue
+        method = ("shao_wu" if len(allowed[target]) > 1 else
+                  draw_choice(channel_rng, config.self_only_treatment_probs))
         if method in ("jacobian", "heaps"):
             allowed[target] = [target]
         sources = allowed[target]
         weights = np.array([config.self_source_weight if i == target else 1. for i in sources])
         weights /= weights.sum()
-        if method == "original" and config.lag_sampling is not None:
-            # Keep the existing operator-count prior, then draw a weighted tree
-            # of that size. This avoids bias toward larger trees from label masses.
-            import random
-            sizes = sampler.size_counts()
-            size = random.Random(stream_seed(seed, 3, target)).randrange(sum(sizes.values()))
-            for operators, count in sizes.items():
-                if size < count:
-                    break
-                size -= count
-            fixed = replace(tree_config, minimum_operators=operators, maximum_operators=operators)
-            channel_sampler = _sampler(fixed, config.lag_sampling.probability(weights))
-        equation = channel_sampler.sample(seed=channel_seed, sample_index=target)
-        expression = _assign_sources(equation.expression, sources, weights, channel_rng)
-        equation = replace(equation, expression=expression)
+        if method == "heaps":
+            support, (heaps_order, heaps_period) = draw_heaps_lag_support(
+                channel_rng, config.ast_config.maximum_lag, config.heaps_support_probs)
+            equation = SampledMechanism(
+                Parameter("HEAPS_PLACEHOLDER"),
+                MechanismBinding({"HEAPS_PLACEHOLDER": 0.}, {}),
+                channel_seed, target)
+        else:
+            equation = sampler.sample(seed=channel_seed, sample_index=target)
+            expression = (_assign_sources_requiring_external(
+                equation.expression, sources, weights, target, channel_rng)
+                if method == "shao_wu"
+                else _assign_sources(equation.expression, sources, weights, channel_rng))
+            equation = replace(equation, expression=expression)
         equations.append(equation)
         treatments.append(TreatmentSpec(method,
-                                        config.target_gain, config.safety_factor))
+                                        config.target_gain, config.safety_factor,
+                                        heaps_period=heaps_period if method == "heaps" else 1,
+                                        heaps_order=heaps_order if method == "heaps" else None,
+                                        heaps_support=support if method == "heaps" else None))
         innovations.append(InnovationSpec("uniform" if method == "jacobian" else "gaussian",
                                           float(channel_rng.uniform(*config.noise.std_range))))
     system = build_multiseries_system(equations=equations, allowed_sources=allowed,

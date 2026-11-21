@@ -92,6 +92,29 @@ Equation~\eqref{eq:implemented-heaps-lyapunov}, divided by the Frobenius norm
 of $\mathbf V$. It checks reconstruction accuracy in floating-point
 arithmetic. A mechanism failing these checks raises an error.
 
+\paragraph{Project extension: period-spaced lags.}
+After reconstructing a stable dense VAR($p$), our implementation can place its
+coefficient matrices at lags $s,2s,\ldots,ps$, leaving the other lag matrices
+zero. This spacing is our extension of the implemented generator, not a
+sampling rule attributed to \citet{heaps2023stationarity}. The recurrence
+separates into $s$ interleaved residue classes, each obeying the original
+stable VAR($p$). Therefore its stability is preserved; the expanded
+companion matrix and its stationary covariance are checked by the same
+numerical certificate. A seasonal lag-state covariance is assembled from the
+base autocovariances at separations divisible by $s$, with zero covariance
+between residue classes. The 16-lag ceiling permits
+$\sum_{p=1}^{16}\lfloor16/p\rfloor=50$ order--spacing pairs: 16 consecutive
+supports ($s=1$), 15 isolated nonconsecutive lags ($p=1,s\geq2$), and 19
+periodic supports with at least two lags ($p,s\geq2$). In the mixed sampler,
+we assign these classes probabilities 0.4, 0.2, and 0.4, then draw a pair
+uniformly within the chosen class. Thus each individual consecutive support
+has probability $0.4/16$, each isolated support $0.2/15$, and each periodic
+support $0.4/19$, conditional on choosing Heaps. This explicitly balances
+ordinary dense ARs, isolated delayed effects, and recurring seasonal effects;
+it is a declared project prior, not fitted to forecasting outcomes. The pair $(p,s)=(3,7)$
+would give lags $7,14,21$, but requires a maximum lag of at least 21 and is
+therefore outside the current 16-lag training vocabulary.
+
 \paragraph{Step 4: draw a compatible history and simulate.}
 The entire initial lag history is drawn jointly from the corresponding
 Gaussian stationary distribution, using a Cholesky factor of $\mathbf V$.
@@ -116,3 +139,26 @@ have unbounded support, so stationary trajectories can still cross a finite
 amplitude threshold. The explosion diagnostic measures these realized
 events, and the low-amplitude diagnostic separately measures paths that
 remain small within the observed window.
+
+\subsubsection{Limitations of the Mixed-Generator Integration}
+The standalone Heaps implementation is a linear multivariate VAR and can
+represent additive cross-series effects. The mixed-channel training generator
+currently instantiates it as a separate scalar AR for each Heaps channel.
+Thus a Heaps channel cannot read another channel, although other channel
+families may read its past. This restriction is specific to our integration;
+the absence of products between lags follows from the linear VAR family
+itself. Nonlinear multiplicative interactions require a separate stability
+construction and are represented by other families in the mixture.
+
+An earlier mixed-sampler implementation constructed a preliminary
+combinatorial AST for convenience, used only its lag values, and discarded its
+operators and coefficients when building Heaps. That extra tree was never the
+equation generating the trajectory. The current sampler removes that path:
+it draws the lag support directly, stores a placeholder in the raw-equation
+field, and retains only the reconstructed Heaps equation as a valid teacher
+target. This change also makes the combinatorial prior explicit. In a
+100-system, six-channel numerical sweep after the change, all 600 Heaps
+certificates held and all 96/96 generated windows were finite. The maximum
+observed companion spectral radius was 0.99991. These checks support the
+implementation's stability certificate; Gaussian innovations remain
+unbounded, so no finite amplitude threshold is guaranteed never to be crossed.

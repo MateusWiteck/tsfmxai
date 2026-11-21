@@ -16,6 +16,11 @@ from tsfmxai.representations import Add, Multiply, Parameter, Lag, MechanismBind
 from tsfmxai.datasets.multiseries import TrajectoryConfig, TrainingFormat, generate_training_batches
 
 
+def test_default_training_window_matches_frozen_forecasting_contract():
+    fmt = TrainingFormat()
+    assert (fmt.context_length, fmt.prediction_length, fmt.stride, fmt.batch_size) == (96, 96, 96, 16)
+
+
 def equation(expression, parameters=None, lags=None):
     return SampledMechanism(expression, MechanismBinding(parameters or {}, lags or {}), 0, 0)
 
@@ -31,8 +36,7 @@ def explicit(equations, *, noise=0., family="gaussian", methods=None):
 def config(dependency="random"):
     return MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(maximum_operators=3, maximum_lag=4, max_degree=2),
-        channel_count_probs={4: 1.}, dependency_probs={dependency: 1.},
-        treatment_probs={"original": .5, "shao_wu": .5})
+        channel_count_probs={4: 1.}, dependency_probs={dependency: 1.})
 
 
 def stream(system, *, steps=12, dtype="float64", history=None, batch_size=2):
@@ -62,20 +66,16 @@ def test_topology_permissions_and_reproducible_sampling(dependency):
     assert first.joint_certificate is None
 
 
-def test_self_preference_is_not_a_mandatory_lag_and_no_lags_allowed():
-    # Source assignment statistics use single-lag trees to isolate the policy.
-    cfg = replace(config("linked_chain"), channel_count_probs={2: 1.},
-                  ast_config=CombinatorialTreeConfig(minimum_operators=0, maximum_operators=0,
-                                                    maximum_lag=1, max_degree=1),
-                  allow_no_lags=False, treatment_probs={"original": 1.}, self_source_weight=3.)
-    own = 0
-    for seed in range(200):
-        system = sample_multiseries_system(cfg, seed=seed)
-        target = system.channel_order[1]
-        own += system.effective_sources[target] == (target,)
-    assert 120 < own < 180
-    cfg = replace(cfg, allow_no_lags=True, ast_config=replace(cfg.ast_config, max_degree=0, require_lag=False))
-    assert all(not s for s in sample_multiseries_system(cfg, seed=1).effective_sources)
+def test_self_preference_weights_and_required_external_lag():
+    from tsfmxai.generators.multiseries import (
+        _assign_sources, _assign_sources_requiring_external)
+    rng = np.random.default_rng(0)
+    node, weights = Lag(0, "L"), np.array([.75, .25])
+    own = sum(_assign_sources(node, [0, 1], weights, rng).variable == 0 for _ in range(400))
+    assert 260 < own < 340
+    # A Shao-Wu channel must read an external source even with one lag.
+    assert all(_assign_sources_requiring_external(node, [0, 1], weights, 0, rng).variable == 1
+               for _ in range(50))
 
 
 def test_synchronous_execution_matches_manual_recurrence_and_keeps_noise_targets():
@@ -174,7 +174,7 @@ def test_padding_noise_laws_and_batch_size_do_not_change_examples():
 
 
 def test_sampling_stream_vocabulary_and_scale_only_layout():
-    cfg = replace(config(), channel_count_probs={1: .5, 3: .5}, treatment_probs={"shao_wu": 1.})
+    cfg = replace(config(), channel_count_probs={1: .5, 3: .5})
     data = generate_training_batches(config=cfg, num_systems=4, seed=9,
         trajectory=TrajectoryConfig(8, HistorySpec("uniform", "uniform")),
         training=TrainingFormat(3, 2, 2, 3, layout="batch_channel_time", noise_target="scale"))
@@ -186,7 +186,7 @@ def test_sampling_stream_vocabulary_and_scale_only_layout():
 
 
 @pytest.mark.parametrize("kwargs", [dict(channel_count_probs={0: 1.}),
-    dict(dependency_probs={"random": -.5}), dict(treatment_probs={"unsupported": 1.}),
+    dict(dependency_probs={"random": -.5}), dict(self_only_treatment_probs={"original": 1.}),
     dict(self_source_weight=0.), dict(max_external_sources=-1)])
 def test_bad_configs_fail_early(kwargs):
     with pytest.raises(ValueError):
@@ -251,26 +251,33 @@ def test_codec_handles_cancelled_lags_and_zero_equation():
 def _replacement_stream(seed, count=3):
     cfg = MultiseriesConfig(
         ast_config=CombinatorialTreeConfig(maximum_operators=4, maximum_lag=4, max_degree=3),
-        channel_count_probs={3: 1.}, dependency_probs={"random": 1.},
-        treatment_probs={"original": 1.}, lag_sampling=None)
+        channel_count_probs={3: 1.}, dependency_probs={"random": 1.})
     return generate_training_batches(
         config=cfg, num_systems=1, trajectories_per_system=count, seed=seed,
         trajectory=TrajectoryConfig(40, HistorySpec("uniform", "uniform")),
         training=TrainingFormat(20, 10, 10, 64))
 
 
-def test_system_is_replaced_when_every_initialization_fails():
-    # Seed 5: the first original system explodes in all three trajectories.
+def test_system_is_replaced_when_every_initialization_fails(monkeypatch):
+    import tsfmxai.datasets.multiseries as module
+    actual, calls = module.simulate_innovation_path, []
+
+    def fail_first_system(*args, **kwargs):
+        calls.append(1)
+        return np.full_like(args[3], np.nan) if len(calls) <= 4 else actual(*args, **kwargs)
+
+    monkeypatch.setattr(module, "simulate_innovation_path", fail_first_system)
     stream = _replacement_stream(5)
     batches = list(stream)
     assert sum(b.context.shape[0] for b in batches) == 6
     assert stream.stats.skipped_trajectories == 0
     assert stream.stats.replaced_systems >= 1
     assert stream.stats.resampled_equations == 3 * stream.stats.replaced_systems
-    assert stream.stats.resampled_original_equations == stream.stats.resampled_equations
+    assert stream.stats.resampled_original_equations == 0
     assert stream.stats.accepted_trajectories == 3
     assert all(m["system_replacements"] == stream.stats.replaced_systems for b in batches for m in b.metadata)
     assert len({m["system"].seed for b in batches for m in b.metadata}) == 1
+    calls.clear()
     again = list(_replacement_stream(5))
     np.testing.assert_array_equal(batches[0].context, again[0].context)
 

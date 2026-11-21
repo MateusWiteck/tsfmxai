@@ -298,7 +298,7 @@
     const desc = (i) => {
       const t = D.treatments[i];
       if (t === "shao_wu") return `keeps its sources; tanh on the lag factors of products; row scale s = ${D.safety_factor} · min(1, ${D.target_gain} / g), derivative bound g = ${D.gains[i].toFixed(2)}, so s = ${D.scales[i].toFixed(3)}`;
-      if (t === "heaps") return `self-only; the tree only sets the order: a stable AR(${maxLag(i)}) from the Heaps map, every lag 1…${maxLag(i)} filled in`;
+      if (t === "heaps") return `self-only; lag support is drawn directly: 40% consecutive, 20% isolated, 40% periodic. Heaps builds a stable, additive AR without a preliminary tree`;
       return `self-only; contraction certified on |x| ≤ ${D.domain_radius}, scale ${D.scales[i].toFixed(3)}; bounded uniform noise`;
     };
     D.treatments.forEach((t, i) => {

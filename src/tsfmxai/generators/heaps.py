@@ -119,6 +119,7 @@ class HeapsVARConfig:
     num_series: int = 1
     minimum_order: int = 1
     maximum_order: int = 16
+    lag_spacing: int = 1
     unconstrained_std: float = .45
     innovation_std: float = .05
     mean_minimum: float = 0.
@@ -129,6 +130,8 @@ class HeapsVARConfig:
             raise ValueError("num_series and minimum_order must be positive.")
         if self.maximum_order < self.minimum_order:
             raise ValueError("maximum_order must be >= minimum_order.")
+        if type(self.lag_spacing) is not int or self.lag_spacing < 1:
+            raise ValueError("lag_spacing must be a positive integer.")
         if not np.isfinite(self.unconstrained_std) or self.unconstrained_std <= 0:
             raise ValueError("unconstrained_std must be finite and positive.")
         if not np.isfinite(self.innovation_std) or self.innovation_std <= 0:
@@ -195,17 +198,28 @@ class HeapsVARMechanism:
 def build_heaps_var_mechanism(
     unconstrained_matrices: np.ndarray, innovation_covariance: np.ndarray, *,
     stationary_mean: np.ndarray | None = None, seed: int = 0,
-    sample_index: int | None = None,
+    sample_index: int | None = None, lag_spacing: int = 1,
 ) -> HeapsVARMechanism:
+    if type(lag_spacing) is not int or lag_spacing < 1:
+        raise ValueError("lag_spacing must be a positive integer.")
     partials = unconstrained_to_partial_autocorrelations(unconstrained_matrices)
-    coefficients, autocov = partial_autocorrelations_to_var(partials, innovation_covariance)
-    p, n, _ = coefficients.shape
+    base_coefficients, base_autocov = partial_autocorrelations_to_var(partials, innovation_covariance)
+    base_order, n, _ = base_coefficients.shape
+    p = base_order * lag_spacing
+    coefficients = np.zeros((p, n, n), dtype=float)
+    coefficients[lag_spacing - 1::lag_spacing] = base_coefficients
     mean = np.zeros(n) if stationary_mean is None else np.asarray(stationary_mean, dtype=float)
     if mean.shape != (n,) or not np.all(np.isfinite(mean)):
         raise ValueError("stationary_mean must be a finite vector of num_series values.")
     # State order: newest lag block first, unlike chronological observations.
-    covariance = np.block([[autocov[j - i] if j >= i else autocov[i - j].T
-                            for j in range(p)] for i in range(p)])
+    # Residue classes modulo lag_spacing are independent copies of the base
+    # stationary VAR. Their covariance is zero across classes, and the
+    # seasonal lag k*spacing has the base VAR's lag-k covariance.
+    covariance = np.block([[
+        (base_autocov[(j - i) // lag_spacing] if j >= i
+         else base_autocov[(i - j) // lag_spacing].T)
+        if (j - i) % lag_spacing == 0 else np.zeros((n, n))
+        for j in range(p)] for i in range(p)])
     covariance = _sym(covariance)
     factor = np.linalg.cholesky(covariance)
     companion = var_companion_matrix(coefficients)
@@ -258,6 +272,7 @@ def sample_heaps_var_mechanism(
     return build_heaps_var_mechanism(
         matrices, np.eye(config.num_series) * config.innovation_std**2,
         stationary_mean=mean, seed=seed, sample_index=sample_index,
+        lag_spacing=config.lag_spacing,
     )
 
 
