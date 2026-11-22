@@ -190,19 +190,38 @@ def multiseries_teacher_config(generator):
         safety_factor=generator.get("safety_factor", 0.95))
 
 
-def sample_multiseries_example(config, codec, sample_index, multiseries=None):
+def sample_multiseries_example(config, codec, sample_index, multiseries=None, cache=None):
     """Encode one channel of one system drawn by the forecasting generator.
 
     The system seed and the channel choice are deterministic functions of the
     data seed and the sample index. The encoded equation is the executed one,
     with its treatment (Shao-Wu tanh and scale, Jacobian scale, Heaps AR).
+
+    With ``channels_per_system`` equal to the number of series, consecutive
+    indices encode every channel of one system (index // k is the system,
+    index % k the channel), so one sampled system yields k examples. Pass a
+    dict as ``cache`` to reuse the system across those indices. The default of
+    1 keeps the original one-channel-per-system corpus.
     """
     from tsfmxai.generators.multiseries import sample_multiseries_system
     multiseries = multiseries or multiseries_teacher_config(config["generator"])
-    system = sample_multiseries_system(
-        multiseries, seed=derive_sample_seed(config["data_seed"], sample_index))
-    key = f"channel|{config['data_seed']}|{sample_index}".encode()
-    channel = int.from_bytes(sha256(key).digest()[:8], "big") % system.num_channels
+    per_system = int(config.get("channels_per_system", 1))
+    if per_system not in (1, config["generator"]["num_series"]):
+        raise ValueError("channels_per_system must be 1 or the number of series")
+    if per_system == 1:
+        system = sample_multiseries_system(
+            multiseries, seed=derive_sample_seed(config["data_seed"], sample_index))
+        key = f"channel|{config['data_seed']}|{sample_index}".encode()
+        channel = int.from_bytes(sha256(key).digest()[:8], "big") % system.num_channels
+    else:
+        system_index, channel = divmod(sample_index, per_system)
+        if cache is not None and cache.get("index") == system_index:
+            system = cache["system"]
+        else:
+            system = sample_multiseries_system(
+                multiseries, seed=derive_sample_seed(config["data_seed"], system_index))
+            if cache is not None:
+                cache.update(index=system_index, system=system)
     example = codec.encode(system.equations[channel])
     method = system.treatments[channel].method
     example.update(sample_index=sample_index, treatment=method,

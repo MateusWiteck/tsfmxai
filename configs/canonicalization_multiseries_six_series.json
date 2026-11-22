@@ -2,7 +2,8 @@
   "experiment": "canonical_ast_multiseries_six_series",
   "ast_count": 30000000,
   "shard_size": 20000,
-  "generation_workers": 4,
+  "generation_workers": 12,
+  "channels_per_system": 6,
   "generator": {
     "source": "multiseries",
     "num_series": 6,

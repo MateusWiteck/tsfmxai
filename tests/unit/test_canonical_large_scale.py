@@ -139,6 +139,37 @@ def test_multiseries_source_encodes_executed_equations_of_the_forecasting_genera
                          lambda *args, **kwargs: None)
 
 
+def test_all_channels_per_system_encode_every_channel_and_match_uncached(tmp_path):
+    from tsfmxai.generators.multiseries import sample_multiseries_system
+    from tsfmxai.generators.random_expression import derive_sample_seed
+    from tsfmxai.symbolic_regression.canonical_data import (
+        multiseries_teacher_config, sample_multiseries_example)
+    generator = {"source": "multiseries", "num_series": 6, "minimum_operators": 1,
+                 "maximum_operators": 3, "minimum_lag": 1, "maximum_lag": 6, "max_degree": 4,
+                 "minimum_parameter_magnitude": .05, "maximum_parameter_magnitude": 1.,
+                 "dependency": "random", "max_external_sources": 2, "self_source_weight": 3.}
+    # 40 is not a multiple of 6: a system that straddles two shards is sampled in both.
+    config = {"ast_count": 120, "shard_size": 40, "generation_workers": 2,
+              "channels_per_system": 6, "data_seed": 23, "split_seed": 29,
+              "max_decode_steps": 64, "model": {"max_nodes": 64}, "generator": generator}
+    codec = generate_parquet(config, tmp_path, lambda *args, **kwargs: None)
+    rows = sorted((e for split in ("train", "validation", "test")
+                   for e in iter_shard_examples(tmp_path, split)),
+                  key=lambda e: e["sample_index"])
+    assert [e["sample_index"] for e in rows] == list(range(120))
+    multiseries = multiseries_teacher_config(generator)
+    for system_index in range(20):
+        system = sample_multiseries_system(multiseries, seed=derive_sample_seed(23, system_index))
+        expected = [codec.encode(e)["skeleton"] for e in system.equations]
+        assert [rows[6 * system_index + c]["skeleton"] for c in range(6)] == expected
+    cache = {}
+    cached = [sample_multiseries_example(config, codec, i, multiseries, cache) for i in range(12)]
+    fresh = [sample_multiseries_example(config, codec, i, multiseries) for i in range(12)]
+    assert [e["target"] for e in cached] == [e["target"] for e in fresh]
+    with pytest.raises(ValueError, match="channels_per_system"):
+        sample_multiseries_example({**config, "channels_per_system": 3}, codec, 0)
+
+
 def test_production_training_can_iterate_over_every_split(tmp_path):
     config = {"ast_count": 120, "shard_size": 40, "generation_workers": 1,
               "data_seed": 17, "split_seed": 19,

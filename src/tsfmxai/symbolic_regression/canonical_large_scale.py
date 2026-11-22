@@ -135,9 +135,10 @@ def _generate_shard(config, run_dir, shard):
     if all(path.exists() for path in paths.values()):
         return shard, min(size, (shard + 1) * shard_size) - shard * shard_size
     rows = {split: [] for split in SPLITS}
+    system_cache = {}
     for index in range(shard * shard_size, min(size, (shard + 1) * shard_size)):
         if multiseries is not None:
-            example = sample_multiseries_example(config, codec, index, multiseries)
+            example = sample_multiseries_example(config, codec, index, multiseries, system_cache)
         else:
             seed = derive_sample_seed(config["data_seed"], index)
             sampled = generator.sample(seed=seed, sample_index=index)
