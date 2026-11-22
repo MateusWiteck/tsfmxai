@@ -52,6 +52,40 @@ MULTISERIES_RULE = (
     "channel by SHA-256 of 'channel|data_seed|sample_index'; the executed equation of that "
     "channel, including its treatment, is encoded."
 )
+
+
+def multiseries_rule(channels_per_system: int, seed_name: str = "data_seed") -> str:
+    """How sample indices map to systems and channels for a multiseries corpus."""
+    if channels_per_system == 1:
+        return MULTISERIES_RULE.replace("data_seed", seed_name)
+    return (f"Sample index i encodes channel i % {channels_per_system} of system "
+            f"i // {channels_per_system}, drawn with sample_multiseries_system(seed="
+            f"derive_sample_seed({seed_name}, i // {channels_per_system})), so every "
+            "channel of each sampled system is encoded; the executed equation of that "
+            "channel, including its treatment, is encoded.")
+
+
+def _bounds_text(generator: dict) -> str:
+    """Sampling bounds, marked as pre-treatment when generator equations are present."""
+    g = generator["resolved"]
+    sizes = ("uniform over operator counts" if g.get("operator_count_distribution") == "uniform"
+             else "uniform over all trees")
+    if "multiseries" in g:  # mixed corpus: the generator part keeps its own size law
+        generator_sizes = ("uniform over operator counts"
+                           if g["multiseries"].get("operator_count_distribution") == "uniform"
+                           else "uniform over all trees")
+        sizes = f"combinatorial rows {sizes}, generator rows {generator_sizes}"
+    text = (f"{g['minimum_operators']}-{g['maximum_operators']} binary operators ({sizes}), "
+            f"{g['num_series']} series, lags {g['minimum_lag']}-{g['maximum_lag']}, degree at "
+            f"most {g['max_degree']}, sampled coefficient magnitude in "
+            f"[{g['minimum_parameter_magnitude']}, {g['maximum_parameter_magnitude']}].")
+    if "multiseries" in generator["sampler"]:
+        text += (" These bounds apply to trees before any treatment. Shao-Wu adds tanh "
+                 "factors and a gain scale, Jacobian a contraction scale, and Heaps replaces "
+                 "the tree by an autoregression with rebuilt coefficients, so executed "
+                 "equations can have more nodes (up to max_nodes) and coefficients outside "
+                 "this range, including very small scales, zeros and magnitudes above 1.")
+    return text
 SPLIT_RULE = (
     "A row goes to train, validation or test by SHA-256 of 'split_seed|skeleton digest' "
     "modulo 10000 (<7000 train, <8000 validation, otherwise test), so a canonical "
@@ -177,7 +211,10 @@ def generator_metadata(config: dict) -> dict:
         treatment = ("Each example is one channel of a system drawn by the forecasting "
                      "generator, encoded as executed: a channel with an external source "
                      "uses Shao-Wu, and a self-only channel uses Jacobian or Heaps.")
-        protection, rule = None, MULTISERIES_RULE
+        protection = None
+        rule = multiseries_rule(int(config.get("channels_per_system", 1)),
+                                "multiseries_data_seed" if "multiseries_data_seed" in config
+                                else "data_seed")
     else:
         resolved = asdict(CombinatorialTreeConfig(**configured))
         sampler = "tsfmxai.generators.CombinatorialTreeSampler"
@@ -274,10 +311,7 @@ form term by term. Defined in `src/tsfmxai/symbolic_regression/canonical_models.
 
 ## Training data
 
-Random trees from `{config_json["generator"]["sampler"]}` with
-{g["minimum_operators"]}-{g["maximum_operators"]} binary operators, {g["num_series"]} series,
-lags {g["minimum_lag"]}-{g["maximum_lag"]}, degree at most {g["max_degree"]}, coefficient
-magnitude in [{g["minimum_parameter_magnitude"]}, {g["maximum_parameter_magnitude"]}].
+Trees from `{config_json["generator"]["sampler"]}`: {_bounds_text(config_json["generator"])}
 {config_json["generator"]["sampled_asts"]:,} trees were sampled.
 {config_json["generator"]["treatment_description"]} All generator
 parameters and seeds are in `config.json` (key `generator`). Validation and test keep
@@ -387,12 +421,10 @@ configured with `generator.resolved` of `metadata.json`.
 
 ## Generator parameters
 
-- Operators per tree: {g["minimum_operators"]} to {g["maximum_operators"]}; series: {g["num_series"]};
-  lags {g["minimum_lag"]} to {g["maximum_lag"]}; maximum degree {g["max_degree"]}.
-- Coefficient magnitude in [{g["minimum_parameter_magnitude"]}, {g["maximum_parameter_magnitude"]}].
+- Sampling bounds: {_bounds_text(metadata["generator"])}
 - Sampled trees: {metadata["generator"]["sampled_asts"]:,}.
   {metadata["generator"]["treatment_description"]}
-- Seeds: data {metadata["generator"]["data_seed"]}, split {metadata["generator"]["split_seed"]}.
+- Seeds: data {metadata["generator"]["data_seed"]}, split {metadata["generator"]["split_seed"]}{f', generator rows {metadata["generator"]["resolved"]["multiseries_data_seed"]}' if "multiseries_data_seed" in metadata["generator"]["resolved"] else ""}.
 - Protection: {metadata["generator"]["protection_rule"]}
 - Split: {metadata["generator"]["split_rule"]}
   Validation and test keep one row per skeleton.

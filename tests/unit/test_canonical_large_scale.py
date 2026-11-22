@@ -222,6 +222,11 @@ def test_mixed_corpus_has_generator_equations_and_combinatorial_trees(tmp_path):
     metadata = generator_metadata(config)
     assert metadata["resolved"]["multiseries_rows"] == 60
     assert metadata["resolved"]["minimum_lag"] == 1  # release cards read the top level
+    assert "i % 6 of system i // 6" in metadata["protection_rule"]
+    assert "multiseries_data_seed" in metadata["protection_rule"]
+    from tsfmxai.symbolic_regression.canonical_release import _bounds_text
+    bounds = _bounds_text(metadata)
+    assert "before any treatment" in bounds and "generator rows uniform over all trees" in bounds
     from tsfmxai.symbolic_regression.canonical_large_scale import _small_validation
     rows_by_file = _small_validation(tmp_path, 10)
     uniform = _small_validation(tmp_path, 10_000, "uniform_rows", seed=3)
