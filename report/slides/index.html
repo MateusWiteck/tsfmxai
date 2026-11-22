@@ -645,7 +645,7 @@
 <!-- 14c. Planned comparison with LMC-Synth -->
 <section id="evalplan">
   <div class="canvas" style="height:660px">
-    <div class="crumb"><b>Comparison</b> &middot; this project's generator against LMC-Synth <span>&nbsp;&nbsp;LMC arms done; preliminary runs training; our arms pending</span></div>
+    <div class="crumb"><b>Comparison</b> &middot; this project's generator against LMC-Synth <span>&nbsp;&nbsp;LMC arms done; preliminary done, p = 0.50 selected; our arms pending</span></div>
     <div class="zoom"></div>
   </div>
 </section>
@@ -727,7 +727,7 @@
       Different test-set sizes and more training updates: this is not an equal-compute comparison.
     </div>
     <div class="box" style="font-size:0.62em;margin-top:12px">
-      <b>Next teacher:</b> trained on the equations the forecasting generator executes (Shao&ndash;Wu, Jacobian, Heaps; up to 65 nodes; absolute channel indices), skeleton-only; scheduled on VM02 after the preliminary runs.
+      <b>Next teacher:</b> trained on the equations the forecasting generator executes (Shao&ndash;Wu, Jacobian, Heaps; up to 65 nodes; absolute channel indices), skeleton-only; now running on VM02.
     </div>
     <p style="font-size:0.48em;margin-top:18px">Verified record: experiments/canonicalization/07_train_30m_six_series.ipynb · training commit 10dc844</p>
   </div>
@@ -743,12 +743,12 @@
       <tbody>
         <tr><td>Study A &middot; LMC</td><td>equal exposure, 445,433 updates</td><td>Chronos-2</td><td>VM02</td><td><b>done</b> &middot; 12.70 h</td></tr>
         <tr><td>Study B &middot; LMC</td><td>equal time, 10 h</td><td>Chronos-2</td><td>VM03</td><td><b>done</b> &middot; 299,991 updates</td></tr>
-        <tr><td>Preliminary &middot; p = 0.25</td><td>choose the KernelSynth share</td><td>Chronos-2</td><td>VM02</td><td><b class="ours">training</b> &middot; ends ~22 Nov, 12 UTC</td></tr>
-        <tr><td>Preliminary &middot; p = 0.50</td><td>choose the KernelSynth share</td><td>Chronos-2</td><td>VM03</td><td><b class="ours">training</b> &middot; ends ~22 Nov, 12 UTC</td></tr>
-        <tr><td>Throughput test</td><td>project the next runs</td><td>both backbones</td><td>VM02, VM03</td><td>scheduled after the preliminary runs</td></tr>
-        <tr><td>Six-series teacher</td><td>targets of the equation head</td><td>canonicalizer, skeleton-only</td><td>VM02</td><td>scheduled after the test</td></tr>
-        <tr><td>Study A &middot; ours, ours + head</td><td>equal exposure</td><td>Chronos-2 (+ channel index)</td><td>to decide</td><td>after p and the teacher</td></tr>
-        <tr><td>Study B &middot; ours, ours + head</td><td>equal time, principal contrasts</td><td>Chronos-2 (+ channel index)</td><td>VM03, exclusive</td><td>after p (head: after the teacher)</td></tr>
+        <tr><td>Preliminary &middot; p = 0.25</td><td>choose the KernelSynth share</td><td>Chronos-2</td><td>VM02</td><td><b>done</b> &middot; 12.69 h &middot; 2019 score 1.0490</td></tr>
+        <tr><td>Preliminary &middot; p = 0.50</td><td>choose the KernelSynth share</td><td>Chronos-2</td><td>VM03</td><td><b>done</b> &middot; 12.97 h &middot; 2019 score 1.0285, <b class="ours">selected</b></td></tr>
+        <tr><td>Throughput test</td><td>project the next runs</td><td>both backbones</td><td>VM02, VM03</td><td><b>done</b> &middot; corpus ~4 h, 0.099 s/update</td></tr>
+        <tr><td>Six-series teacher</td><td>targets of the equation head</td><td>canonicalizer, skeleton-only</td><td>VM02</td><td><b class="ours">running</b> &middot; generating its corpus</td></tr>
+        <tr><td>Study A &middot; ours, ours + head</td><td>equal exposure</td><td>Chronos-2 (+ channel index)</td><td>to decide</td><td>p = 0.50; head after the teacher</td></tr>
+        <tr><td>Study B &middot; ours, ours + head</td><td>equal time, principal contrasts</td><td>Chronos-2 (+ channel index)</td><td>VM03, exclusive</td><td>p = 0.50; head after the teacher</td></tr>
         <tr><td>Study B &middot; curriculum arms</td><td>secondary</td><td>Chronos-2 (+ channel index)</td><td>VM03</td><td>deferred</td></tr>
       </tbody>
     </table>

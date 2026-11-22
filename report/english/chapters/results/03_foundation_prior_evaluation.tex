@@ -92,8 +92,8 @@ the number of improved channels counts MAE below the seasonal naive.}
 \label{tab:lmc-dataset-relative-mae}
 \begin{tabular}{llrrr}\toprule
 Dataset & Run & Origins & Relative MAE & Improved channels \\\midrule
-Ibirapuera & Prelim.: ours, $p=0.25$ & 255 & \pending & \pending \\
-Ibirapuera & Prelim.: ours, $p=0.50$ & 255 & \pending & \pending \\
+Ibirapuera & Prelim.: ours, $p=0.25$ & 255 & 0.9565 & 4/5 \\
+Ibirapuera & Prelim.: ours, $p=0.50$ & 255 & 0.9265 & 4/5 \\
 Ibirapuera & A: LMC & 255 & 1.0175 & 3/5 \\
 Ibirapuera & A: ours & 255 & \pending & \pending \\
 Ibirapuera & A: ours + head & 255 & \pending & \pending \\
@@ -103,8 +103,8 @@ Ibirapuera & B: ours + head & 255 & \pending & \pending \\
 Ibirapuera & B: ours + curriculum & 255 & \pending & \pending \\
 Ibirapuera & B: ours + both & 255 & \pending & \pending \\
 \midrule
-Bahia & Prelim.: ours, $p=0.25$ & 357 & \pending & \pending \\
-Bahia & Prelim.: ours, $p=0.50$ & 357 & \pending & \pending \\
+Bahia & Prelim.: ours, $p=0.25$ & 357 & 1.1503 & 2/4 \\
+Bahia & Prelim.: ours, $p=0.50$ & 357 & 1.1417 & 2/4 \\
 Bahia & A: LMC & 357 & 1.2390 & 1/4 \\
 Bahia & A: ours & 357 & \pending & \pending \\
 Bahia & A: ours + head & 357 & \pending & \pending \\
@@ -128,8 +128,8 @@ Seasonal 24h & 12.3112 & 9.8112 & 9.0830 & 0.2290 & 8.8572 \\
 DLinear (supervised) & 10.2604 & 8.5991 & 7.1457 & 0.1796 & 7.6456 \\
 Chronos-2 + LMC (ES) & 12.3530 & 10.1432 & 8.1350 & 0.2200 & 7.7923 \\
 \quad LMC, final checkpoint & 13.0120 & 12.0548 & 8.8027 & 0.2331 & 8.2568 \\
-Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending & \pending \\
-Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.25$ & 11.9544 & 10.7497 & 8.1104 & 0.2184 & 7.8286 \\
+Prelim.: ours, $p=0.50$ & 11.9696 & 9.8628 & 7.9436 & 0.2108 & 7.6897 \\
 A: LMC & 13.1562 & 10.7423 & 9.0093 & 0.2279 & 8.3646 \\
 A: ours & \pending & \pending & \pending & \pending & \pending \\
 A: ours + head & \pending & \pending & \pending & \pending & \pending \\
@@ -154,8 +154,8 @@ Seasonal 24h & 56.6544 & 135.9532 & 62.4964 & 60.4782 & 69.1157 \\
 DLinear (supervised) & 47.2167 & 119.1559 & 49.1666 & 47.4201 & 59.6608 \\
 Chronos-2 + LMC (ES) & 56.8464 & 140.5527 & 55.9734 & 58.0858 & 60.8055 \\
 \quad LMC, final checkpoint & 59.8794 & 167.0412 & 60.5678 & 61.5514 & 64.4306 \\
-Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending & \pending \\
-Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.25$ & 55.0122 & 148.9565 & 55.8040 & 57.6773 & 61.0891 \\
+Prelim.: ours, $p=0.50$ & 55.0822 & 136.6670 & 54.6566 & 55.6512 & 60.0052 \\
 A: LMC & 60.5429 & 148.8541 & 61.9894 & 60.1658 & 65.2721 \\
 A: ours & \pending & \pending & \pending & \pending & \pending \\
 A: ours + head & \pending & \pending & \pending & \pending & \pending \\
@@ -179,8 +179,8 @@ Seasonal 24h & 205.2009 & 0.0980 & 0.0188 & 133.2286 \\
 DLinear (supervised) & 108.1513 & 0.0792 & 0.0275 & 215.2351 \\
 Chronos-2 + LMC (ES) & 229.9932 & 0.0947 & 0.0366 & 118.7217 \\
 \quad LMC, final checkpoint & 250.2420 & 0.0964 & 0.0338 & 119.6153 \\
-Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending \\
-Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.25$ & 216.3447 & 0.0934 & 0.0409 & 106.5248 \\
+Prelim.: ours, $p=0.50$ & 224.5861 & 0.0932 & 0.0399 & 102.1983 \\
 A: LMC & 255.6400 & 0.0961 & 0.0356 & 135.3384 \\
 A: ours & \pending & \pending & \pending & \pending \\
 A: ours + head & \pending & \pending & \pending & \pending \\
@@ -204,8 +204,8 @@ Seasonal 24h & 6.3562 & 45.0423 & 10.3275 & 8.0452 \\
 DLinear (supervised) & 3.3501 & 36.3814 & 15.1264 & 12.9973 \\
 Chronos-2 + LMC (ES) & 7.1242 & 43.5269 & 20.1574 & 7.1692 \\
 \quad LMC, final checkpoint & 7.7514 & 44.3004 & 18.6221 & 7.2231 \\
-Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending \\
-Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.25$ & 6.7014 & 42.9027 & 22.5198 & 6.4326 \\
+Prelim.: ours, $p=0.50$ & 6.9567 & 42.8464 & 21.9746 & 6.1714 \\
 A: LMC & 7.9186 & 44.1523 & 19.6162 & 8.1726 \\
 A: ours & \pending & \pending & \pending & \pending \\
 A: ours + head & \pending & \pending & \pending & \pending \\
@@ -227,8 +227,8 @@ preparation (1.64 h) is excluded from its training hours.}
 \begin{tabular}{lrrr}\toprule
 Study and generator & Machine hours & Updates & Examples \\\midrule
 Controlled corpus: LMC & 12.696 & 445,433 & 7,126,928 \\
-Preliminary: ours, $p=0.25$ & \pending & \pending & \pending \\
-Preliminary: ours, $p=0.50$ & \pending & \pending & \pending \\
+Preliminary: ours, $p=0.25$ & 12.691 & 445,433 & 7,126,928 \\
+Preliminary: ours, $p=0.50$ & 12.966 & 445,433 & 7,126,928 \\
 Controlled corpus: ours & \pending & \pending & \pending \\
 Controlled corpus: ours + head & \pending & \pending & \pending \\
 Complete pipeline: LMC & 10.003 & 299,991 & 4,799,856 \\
@@ -248,8 +248,8 @@ consumer-observed time, not a direct GPU-stall measurement.}
 \begin{tabular}{lrrr}\toprule
 Study and generator & Unique trajectories & Reuse & Batch wait (s) \\\midrule
 Controlled corpus: LMC & 34,998 & 203.64 & 24.5 \\
-Preliminary: ours, $p=0.25$ & \pending & \pending & \pending \\
-Preliminary: ours, $p=0.50$ & \pending & \pending & \pending \\
+Preliminary: ours, $p=0.25$ & 7,126,928 & 1.00 & 26.3 \\
+Preliminary: ours, $p=0.50$ & 7,126,928 & 1.00 & 23.6 \\
 Controlled corpus: ours & \pending & \pending & \pending \\
 Controlled corpus: ours + head & \pending & \pending & \pending \\
 Complete pipeline: LMC & 34,998 & 137.15 & 4,264.2 \\
@@ -260,11 +260,19 @@ Complete pipeline: ours + both & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:preliminary-selection} will record the preliminary mixture
+Table~\ref{tab:preliminary-selection} records the preliminary mixture
 selection under the prespecified rule: each dataset's geometric mean of
 channel MAE relative to the seasonal control, and their equal-weight
 geometric mean as the selection score. The realized KernelSynth fractions are
-counted in the two prepared corpora.
+counted in the two prepared corpora. Both candidates were trained from random
+weights with the Study~A exposure (445,433 updates) and evaluated on their
+final checkpoints. The rule selects $p=0.50$, with a score of 1.0285 against
+1.0490; $p=0.50$ is lower on both datasets, but the margins are small (3.1\%
+on Ibirapuera and 0.7\% on Bahia) and no interval was computed for this
+choice. Under the same exposure, both candidates also score below Study~A LMC
+on each dataset (1.0175 and 1.2390). That observation is descriptive: the 2019
+origins were inspected during development and the selection itself used them,
+so it does not replace the prespecified Study~A contrast.
 
 \begin{table}[H]
 \centering\small\setlength{\tabcolsep}{4pt}
@@ -273,8 +281,8 @@ origins. Lower scores are better; an exact tie selects the smaller $p$.}
 \label{tab:preliminary-selection}
 \begin{tabular}{lrrrrc}\toprule
 Candidate & Realized KernelSynth & Ibirapuera & Bahia & Selection score & Selected \\\midrule
-$p=0.25$ & 25.00\% & \pending & \pending & \pending & \pending \\
-$p=0.50$ & 50.00\% & \pending & \pending & \pending & \pending \\\bottomrule
+$p=0.25$ & 25.00\% & 0.9565 & 1.1503 & 1.0490 & \\
+$p=0.50$ & 50.00\% & 0.9265 & 1.1417 & 1.0285 & \checkmark \\\bottomrule
 \end{tabular}
 \end{table}
 

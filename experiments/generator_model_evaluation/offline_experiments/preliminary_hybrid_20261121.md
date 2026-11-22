@@ -5,10 +5,12 @@
 Qual fração de canais KernelSynth usar no nosso gerador nos Estudos A e B?
 Treinam-se dois Chronos-2 do zero com exposição idêntica à do LMC Estudo A:
 um com 25% de canais KernelSynth (P25) e outro com 50% (P50); os demais canais
-recebem equações autorregressivas amostradas. A escolha será feita por
-`scripts/select_preliminary_hybrid.py` nas origens de 2019. **Essa seleção
-ainda não foi executada**: este registro guarda apenas o treino e o benchmark de
-vazão. Trata-se de um experimento por script, não de um notebook executado.
+recebem equações autorregressivas amostradas. A escolha é feita por
+`scripts/select_preliminary_hybrid.py` nas origens de 2019, pela regra fixada
+em `select_hybrid_probability`, e o resultado está na seção "Seleção da mistura".
+**A regra selecionou P50 (KernelSynth 50%)**, que será a mistura usada nos
+Estudos A e B. Trata-se de um experimento por script, não de um notebook
+executado.
 
 ## Configuração e proveniência
 
@@ -45,6 +47,68 @@ SHA-256 do `model_final/model.safetensors`:
 - P25: `deb08b0d45239d46ac3eadac4668f11781aa9efe6efed30af56172a26898baaa`
 - P50: `3404e825113f7656237a188b9c0e2e67e4432ed08f87ff0788c85ce40c3c70e8`
 
+## Seleção da mistura nas origens de 2019
+
+Avaliação zero-shot dos dois checkpoints finais (`train/model_final`), sem
+nenhum ajuste nos dados reais, com contexto de 96 h, horizonte de 96 h e uma
+origem por dia. Foram usadas as 255 origens elegíveis do Ibirapuera e as 357 da
+Bahia, as mesmas da avaliação do LMC. A execução foi local, em CPU, levou 4 min
+e partiu da revisão `da53b52`. A saída fica em
+`outputs/prior_baseline/preliminary_selection_2019.json` (ignorada pelo Git),
+com SHA-256 `dd868ca90c056a080f7d7f9b61c394f6fbf7b0aeaa8af79d557689765b532f84`,
+e traz MAE, RMSE e WAPE por canal.
+
+Regra, fixada antes da execução: em cada dataset, calcula-se a média
+geométrica, entre os canais, do MAE dividido pelo MAE do seasonal naive de
+24 h. O escore de seleção é a média geométrica dos dois datasets, com peso
+igual. Vence o menor escore; um empate exato fica com o menor $p$.
+
+| Candidato | KernelSynth realizado | Ibirapuera | Bahia | Escore | Selecionado |
+|---|---:|---:|---:|---:|:---:|
+| P25 | 25,00% | 0,9565 (4/5 canais) | 1,1503 (2/4) | 1,0490 | |
+| P50 | 50,00% | **0,9265** (4/5) | **1,1417** (2/4) | **1,0285** | ✓ |
+| *Referência: LMC Estudo A, mesma exposição* | — | 1,0175 (3/5) | 1,2390 (1/4) | 1,1228 | — |
+
+Entre parênteses está o número de canais com MAE abaixo do seasonal naive.
+O escore do LMC é calculado a partir dos dois valores já registrados e não
+entra na regra.
+
+MAE por canal:
+
+| Modelo | O3 | NO | NO2 | CO | PM2.5 | Demanda | Vento | Solar | Afluência |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Seasonal 24 h | 12,3112 | 9,8112 | 9,0830 | 0,2290 | 8,8572 | 205,2009 | 0,0980 | 0,0188 | 133,2286 |
+| P25 | 11,9544 | 10,7497 | 8,1104 | 0,2184 | 7,8286 | 216,3447 | 0,0934 | 0,0409 | 106,5248 |
+| P50 | 11,9696 | 9,8628 | 7,9436 | 0,2108 | 7,6897 | 224,5861 | 0,0932 | 0,0399 | 102,1983 |
+| LMC Estudo A | 13,1562 | 10,7423 | 9,0093 | 0,2279 | 8,3646 | 255,6400 | 0,0961 | 0,0356 | 135,3384 |
+
+Unidades: O3, NO e NO2 em ppbv, CO em ppmv, PM2.5 em µg/m³, demanda em MW,
+vento e solar como fatores de capacidade e afluência em MWh.
+
+**Leitura.** O P50 tem escore menor nos dois datasets, mas a margem é pequena:
+3,1% no Ibirapuera e 0,7% na Bahia. Ele ganha em 7 dos 9 canais. O P25 só
+é melhor em O3, por menos de 0,2%, e na demanda, por 3,7%.
+Nenhum intervalo foi calculado para essa escolha, porque a regra não previa
+um; ela vale como decisão de protocolo, não como evidência de que 50% seja
+superior. Com a mesma exposição do LMC Estudo A, os dois candidatos ficam
+abaixo do LMC nos dois datasets. Essa observação é só descritiva: as origens
+de 2019 já tinham sido inspecionadas durante o desenvolvimento e foram usadas
+na própria seleção. Ela não substitui o contraste pré-especificado do Estudo A,
+que usará o braço com a mistura escolhida.
+
+Reprodução:
+
+```bash
+python scripts/select_preliminary_hybrid.py \
+  --air outputs/real_world_evaluation/ibirapuera.tsv \
+  --energy outputs/real_world_evaluation/brazil_power.zip \
+  --p25 outputs/prior_baseline/preliminary_p25_seed2021_20261121/train/model_final \
+  --p50 outputs/prior_baseline/preliminary_p50_seed2021_20261121/train/model_final \
+  --p25-corpus outputs/prior_baseline/preliminary_p25_seed2021_20261121/corpus \
+  --p50-corpus outputs/prior_baseline/preliminary_p50_seed2021_20261121/corpus \
+  --output outputs/prior_baseline/preliminary_selection_2019.json --device cpu
+```
+
 ## Benchmark de vazão para as próximas runs
 
 O benchmark rodou automaticamente depois dos treinos, com
@@ -70,8 +134,8 @@ projeções completas estão em `SUMMARY.md` e `summary.json` de cada pasta.
 
 Os dois braços terminaram o orçamento controlado sem gargalo de dados: a espera
 pela GPU ficou abaixo de 0,06%. Com o código novo, um corpus completo sai em
-cerca de 4 h, contra cerca de 1,6 h no LMC. Nenhuma conclusão sobre a mistura
-é tirada aqui; ela depende da avaliação de 2019.
+cerca de 4 h, contra cerca de 1,6 h no LMC. A mistura foi escolhida pela
+avaliação de 2019, descrita acima: P50.
 
 ## Reprodução
 
@@ -95,7 +159,7 @@ Uma preparação interrompida continua com `prepare ... --resume`.
 Os modelos estão em repositórios privados do Hugging Face. Os pesos finais
 ficam na raiz e `independent_end/` traz o checkpoint do fim do primeiro
 estágio; acompanham `result.json`, `validation.jsonl`, `corpus_manifest.json` e
-a configuração.
+a configuração; `evaluation_2019_selection.json` traz a avaliação de seleção.
 
-- [Chronos-2, preliminar P25](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-preliminary-p25-seed2021), commit Hugging Face `95d65f35ede3eb1e597f3929b5f5028b61e623d2`.
-- [Chronos-2, preliminar P50](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-preliminary-p50-seed2021), commit Hugging Face `63278d3cf025e81c055649a4cf729b2054365300`.
+- [Chronos-2, preliminar P25](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-preliminary-p25-seed2021), commit Hugging Face `b6b190a09be2d38d16c9b9217bb74f210fd52f90` (o upload dos pesos foi `95d65f35ede3eb1e597f3929b5f5028b61e623d2`).
+- [Chronos-2, preliminar P50](https://huggingface.co/mateuswiteck/tsfmxai-chronos2-preliminary-p50-seed2021), commit Hugging Face `713b3235356ca5635929e10e85d24849356835dc` (o upload dos pesos foi `63278d3cf025e81c055649a4cf729b2054365300`).

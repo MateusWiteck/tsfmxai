@@ -443,7 +443,7 @@
   // relative MAE vs the 24-hour seasonal naive (geometric mean over a dataset's channels); null = pending
   const ARMS = [
     ["LMC-Synth", col.blue, [1.0175, 1.2390], [0.9584, 1.1800], "done"],
-    ["Ours", col.ours, [null, null], [null, null], "after p is chosen"],
+    ["Ours", col.ours, [null, null], [null, null], "next, p = 0.50"],
     ["Ours + equation head", col.ours, [null, null], [null, null], "needs the teacher"],
     ["Ours + curriculum", col.ours, ["n/a", "n/a"], [null, null], "deferred"],
     ["Ours + head + curriculum", col.ours, ["n/a", "n/a"], [null, null], "deferred"],
@@ -452,7 +452,7 @@
     // top strip: preliminary choice -> two studies -> zero-shot real data
     const A = (a, b) => ease(seg(p, a, b));
     const strip = [
-      [20, 250, "① Preliminary", "KernelSynth share p = 0.25 or 0.50", "training now"],
+      [20, 250, "① Preliminary", "KernelSynth share p = 0.25 or 0.50", "done: p = 0.50 selected"],
       [290, 290, "② Study A · equal exposure", "445,433 updates, corpus on disk", "secondary"],
       [600, 290, "③ Study B · equal time", "10 h, generation inside the clock", "principal"],
       [910, 270, "Zero-shot, real data", "Ibirapuera (5 ch) · Bahia (4 ch), 2019", "96 → 96 hours"],
