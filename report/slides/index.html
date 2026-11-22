@@ -734,6 +734,32 @@
   </div>
 </section>
 
+<!-- Held-out multivariate benchmarks -->
+<section id="benchmarks-zero-shot">
+  <div class="canvas">
+    <div class="kicker">Held-out benchmarks &middot; never inspected before &middot; same checkpoints</div>
+    <h2>The advantage holds on ETTh1, ETTh2 and Weather</h2>
+    <p>Zero-shot on each benchmark's usual test split &middot; 96 h &rarr; 96 h, hourly &middot; MAE relative to the 24 h seasonal naive (below 1 beats it)</p>
+    <table style="font-size:0.6em;width:100%;margin:14px 0">
+      <thead><tr><th>Model</th><th>ETTh1 &middot; 7 channels</th><th>ETTh2 &middot; 7 channels</th><th>Weather &middot; 21 channels</th></tr></thead>
+      <tbody>
+        <tr><td>Persistence</td><td>1.321</td><td>1.066</td><td>1.031</td></tr>
+        <tr><td>LMC, Study A (same exposure)</td><td>1.080</td><td>1.040</td><td>1.041</td></tr>
+        <tr><td>LMC, Study B (10 h)</td><td>1.025</td><td>0.985</td><td>1.022</td></tr>
+        <tr><td>Ours, p = 0.25</td><td>0.984</td><td><b>0.950</b></td><td>0.967</td></tr>
+        <tr><td>Ours, p = 0.50 (selected)</td><td><b>0.975</b></td><td>0.952</td><td><b>0.965</b></td></tr>
+        <tr><td class="ours"><b>Error change, p = 0.50 vs LMC A</b></td><td class="ours"><b>&minus;9.7% &middot; 7/7 ch.</b></td><td class="ours"><b>&minus;8.4% &middot; 6/7 ch.</b></td><td class="ours"><b>&minus;7.3% &middot; 21/21 ch.</b></td></tr>
+      </tbody>
+    </table>
+    <div class="row" style="gap:18px">
+      <div class="box ours" style="flex:1;font-size:0.6em"><b>Out of sample:</b> these datasets played no part in choosing p; the 2019 pattern repeats.</div>
+      <div class="box" style="flex:1;font-size:0.6em"><b>21 channels</b> work although training used 6; the gain appears in every Weather variable.</div>
+      <div class="box" style="flex:1;font-size:0.6em"><b>Limits:</b> one seed, no interval; Weather averaged to hours, so not comparable with the 10-minute benchmark.</div>
+    </div>
+    <p style="font-size:0.45em;margin-top:10px">117, 117 and 70 daily origins. Record: experiments/generator_model_evaluation/offline_experiments/benchmark_datasets_zero_shot_20261122.md &middot; scripts/evaluate_benchmark_datasets.py</p>
+  </div>
+</section>
+
 <!-- Canonicalizer 30M: verified remote experiment -->
 <section id="canonicalizer-30m">
   <div class="canvas">
@@ -835,6 +861,8 @@
       <li>LMC-Synth generator: github.com/egetaga/TimePFN, <span class="mono">synthetic_data_generation/LMC_Synth.py</span>.</li>
       <li>Heaps, S. E. (2023). Enforcing Stationarity through the Prior in Vector Autoregressions. <i>Journal of Computational and Graphical Statistics</i>.</li>
       <li>Vaswani, A. et al. (2017). Attention Is All You Need. <i>NeurIPS</i>.</li>
+      <li>Zhou, H. et al. (2021). Informer: Beyond Efficient Transformer for Long Sequence Time-Series Forecasting. <i>AAAI</i>.</li>
+      <li>Wu, H. et al. (2021). Autoformer: Decomposition Transformers with Auto-Correlation for Long-Term Series Forecasting. <i>NeurIPS</i>.</li>
       <li>Nie, Y. et al. (2023). A Time Series is Worth 64 Words: Long-term Forecasting with Transformers. <i>ICLR</i>.</li>
     </ul>
   </div>

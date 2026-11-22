@@ -82,6 +82,74 @@ def load_brazil_energy(zip_path: str | Path, *, state: str = "BA", year: int = 2
     return _hourly_frame(pd.concat(pieces, axis=1, join="inner").loc[:, ENERGY_CHANNELS])
 
 
+ETT_CHANNELS = ("HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT")
+WEATHER_CHANNELS = (
+    "p (mbar)", "T (degC)", "Tpot (K)", "Tdew (degC)", "rh (%)", "VPmax (mbar)",
+    "VPact (mbar)", "VPdef (mbar)", "sh (g/kg)", "H2OC (mmol/mol)", "rho (g/m**3)",
+    "wv (m/s)", "max. wv (m/s)", "wd (deg)", "rain (mm)", "raining (s)", "SWDR (W/m2)",
+    "PAR (umol/m2/s)", "max. PAR (umol/m2/s)", "Tlog (degC)", "CO2 (ppm)",
+)
+WEATHER_MISSING = -9999.0
+
+
+def load_ett(path: str | Path) -> pd.DataFrame:
+    """Read an hourly ETT file (ETTh1 or ETTh2) from the ETDataset repository.
+
+    The source gives local station time without a zone; timestamps are labelled
+    UTC only to satisfy the timezone-aware grid. Daily seasonality is unaffected.
+    """
+    frame = pd.read_csv(path)
+    if tuple(frame.columns) != ("date", *ETT_CHANNELS):
+        raise ValueError("Unexpected ETT columns")
+    frame.index = pd.DatetimeIndex(pd.to_datetime(frame.pop("date"))).tz_localize("UTC")
+    return _hourly_frame(frame)
+
+
+def load_jena_weather(zip_paths) -> pd.DataFrame:
+    """Hourly means of the 21 Jena roof-station variables (Max Planck BGC, 2020).
+
+    These are the 21 variables of the Weather forecasting benchmark, read from the
+    original 10-minute files. The -9999 sentinel becomes NaN before averaging, and
+    each hour averages the six readings that end within it (labels mark the hour's
+    end). An hour with no valid reading stays NaN.
+    """
+    pieces = []
+    for path in zip_paths:
+        with ZipFile(path) as zf:
+            members = [name for name in zf.namelist() if name.lower().endswith(".csv")]
+            if len(members) != 1:
+                raise ValueError(f"Expected one CSV in {path}")
+            table = pd.read_csv(BytesIO(zf.read(members[0])), encoding="latin-1", skipinitialspace=True)
+        if table.shape[1] != len(WEATHER_CHANNELS) + 1:
+            raise ValueError("Unexpected Jena weather columns")
+        times = pd.to_datetime(table.iloc[:, 0], format="%d.%m.%Y %H:%M:%S")
+        values = table.iloc[:, 1:].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+        pieces.append(pd.DataFrame(values, index=pd.DatetimeIndex(times), columns=WEATHER_CHANNELS))
+    frame = pd.concat(pieces).sort_index()
+    frame = frame[~frame.index.duplicated(keep="first")]
+    frame = frame.mask(frame == WEATHER_MISSING)
+    hourly = frame.resample("1h", closed="right", label="right").mean()
+    hourly.index = hourly.index.tz_localize("UTC")
+    return _hourly_frame(hourly)
+
+
+def benchmark_test_period(name: str, frame: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """First and last target timestamps of the usual chronological test split.
+
+    ETTh1/ETTh2: hours 11,520 to 14,399 (12 months train, 4 validation, 4 test of
+    30 days). Weather: the last 20% of the hourly grid.
+    """
+    if name in ("etth1", "etth2"):
+        first, stop = 16 * 30 * 24, 20 * 30 * 24
+    elif name == "weather":
+        first, stop = len(frame) - int(0.2 * len(frame)), len(frame)
+    else:
+        raise ValueError(f"No benchmark split for {name!r}")
+    if stop > len(frame):
+        raise ValueError("Frame is shorter than the benchmark split")
+    return frame.index[first], frame.index[stop - 1]
+
+
 @dataclass(frozen=True)
 class WindowSet:
     context: np.ndarray  # [window, time, channel], NaN means unavailable
@@ -103,28 +171,36 @@ def concatenate_window_sets(parts: list[WindowSet]) -> WindowSet:
                      parts[0].channels, sum(part.eligible_count for part in parts))
 
 
-def select_windows(frame: pd.DataFrame, *, year: int, context_length: int = 96,
+def select_windows(frame: pd.DataFrame, *, year: int | None = None, context_length: int = 96,
                    horizon: int = 96, stride: int = 24, coverage: float = 0.8,
-                   limit: int | None = None) -> WindowSet:
+                   limit: int | None = None, period=None) -> WindowSet:
     """Select evenly spaced eligible origins without looking at target values.
 
     Eligibility uses observation masks, including the target mask, but no target
     values. A fixed grid and evenly spaced indices prevent cherry-picking dates.
+    Give either ``year`` (every target inside that calendar year) or ``period``,
+    a (first, last) pair of timestamps that must contain every target; the
+    context may precede it.
     """
     if (min(context_length, horizon, stride) < 1 or (limit is not None and limit < 1)
-            or not 0 < coverage <= 1):
+            or not 0 < coverage <= 1 or (year is None) == (period is None)):
         raise ValueError("Invalid window controls")
+    if period is not None:
+        first, last = (pd.Timestamp(item) for item in period)
+        inside = lambda start, end: first <= frame.index[start] and frame.index[end] <= last
+    else:
+        inside = lambda start, end: frame.index[start].year == year and frame.index[end].year == year
     values = frame.to_numpy(dtype=np.float32)
     present = np.isfinite(values)
     indices = []
     for origin in range(context_length, len(frame) - horizon + 1, stride):
-        if frame.index[origin].year != year or frame.index[origin+horizon-1].year != year:
+        if not inside(origin, origin + horizon - 1):
             continue
         if (present[origin-context_length:origin].mean(axis=0).min() >= coverage
                 and present[origin:origin+horizon].mean(axis=0).min() >= coverage):
             indices.append(origin)
     if not indices:
-        raise ValueError(f"No eligible windows for {year}")
+        raise ValueError(f"No eligible windows for {year if period is None else period}")
     if limit is None:
         selected = np.asarray(indices)
     else:
@@ -212,3 +288,22 @@ def forecast_chronos2(model, windows: WindowSet, *, device: str = "cpu",
             prediction = prediction.permute(0, 2, 1).cpu().numpy()
             predictions.append(prediction)
     return np.concatenate(predictions)[:, :, inverse]
+
+
+BENCHMARK_FILES = {
+    "etth1": ("ETTh1.csv",),
+    "etth2": ("ETTh2.csv",),
+    "weather": ("mpi_roof_2020a.zip", "mpi_roof_2020b.zip"),
+}
+
+
+def benchmark_windows(name: str, data_dir: str | Path, *, context_length: int = 96,
+                      horizon: int = 96, stride: int = 24, coverage: float = 0.8) -> WindowSet:
+    """Daily-grid windows whose targets lie in the dataset's benchmark test split."""
+    if name not in BENCHMARK_FILES:
+        raise ValueError(f"Unknown benchmark dataset {name!r}")
+    paths = [Path(data_dir) / file for file in BENCHMARK_FILES[name]]
+    frame = load_jena_weather(paths) if name == "weather" else load_ett(paths[0])
+    return select_windows(frame, period=benchmark_test_period(name, frame),
+                          context_length=context_length, horizon=horizon,
+                          stride=stride, coverage=coverage)

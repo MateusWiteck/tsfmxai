@@ -322,6 +322,42 @@ Bahia & Demand & 7.92 & 6.70 & 6.96 & $-12.1\%$ \\
 \end{tabular}
 \end{table}
 
+The 2019 systems have little lagged dependence between channels, and they
+were used to select the mixture. The same checkpoints were therefore also
+evaluated, without further changes, on three common multivariate benchmarks
+that had not been inspected before: ETTh1 and ETTh2, with seven channels each
+\citep{zhou2021informer}, and Weather, whose 21 variables come from the Jena
+roof station \citep{wu2021autoformer,bgcjena2020weather}. Weather has more than
+three times the six channels seen in training. Origins lie on a daily grid
+inside each dataset's usual chronological test split (117, 117 and 70
+origins). The Weather records were averaged to hours so that every dataset
+uses the same 96-hour context, 96-hour horizon and 24-hour seasonal control;
+the scores are therefore not comparable with the 10-minute benchmark.
+Table~\ref{tab:benchmark-zero-shot} reports each dataset separately. Against
+Study~A LMC, trained with the same exposure, the selected $p=0.50$ checkpoint
+lowers the geometric mean of the per-channel MAE by 9.7\% on ETTh1, 8.4\% on
+ETTh2 and 7.3\% on Weather, with lower error in 7/7, 6/7 and 21/21 channels.
+The two candidates are nearly tied, so the selection does not depend on these
+data. There is one seed and no interval, and the two ETTh transformers share
+the same test period.
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Zero-shot MAE relative to the 24-hour seasonal naive on held-out
+benchmark test splits, geometric mean over each dataset's channels; lower is
+better. In parentheses, channels better than the seasonal naive.}
+\label{tab:benchmark-zero-shot}
+\begin{tabular}{lrrr}\toprule
+Model & ETTh1 (7 ch.) & ETTh2 (7 ch.) & Weather (21 ch.) \\\midrule
+Persistence & 1.3210 (1) & 1.0659 (0) & 1.0312 (13) \\
+A: LMC & 1.0801 (2) & 1.0398 (1) & 1.0408 (15) \\
+B: LMC & 1.0246 (4) & 0.9852 (4) & 1.0222 (14) \\
+Prelim.: ours, $p=0.25$ & 0.9839 (5) & 0.9495 (6) & 0.9668 (16) \\
+Prelim.: ours, $p=0.50$ & 0.9752 (5) & 0.9522 (6) & 0.9645 (18) \\\midrule
+MAE change, $p=0.50$ vs A: LMC & $-9.7\%$ & $-8.4\%$ & $-7.3\%$ \\\bottomrule
+\end{tabular}
+\end{table}
+
 Table~\ref{tab:foundation-prior-contrasts} will hold the prespecified
 contrasts. Each entry is the ratio of two dataset-level relative-MAE
 summaries with its paired temporal-block interval. A ratio below one favors
