@@ -40,8 +40,9 @@
             <h2>Um sistema multivariado,<br />muitas realizações.</h2>
           </div>
           <p class="hero-copy">
-            Cada canal tem a sua própria equação, sorteada como árvore e cobrindo lags de si
-            mesmo e dos canais permitidos pela topologia. O que você vê abaixo é exatamente o que o
+            Cada canal é uma série KernelSynth ou tem a sua própria equação, sorteada como árvore e
+            cobrindo lags de si mesmo e dos canais permitidos pela topologia: com fonte externa, Shao–Wu;
+            sem fonte externa, Jacobiano ou Heaps. O que você vê abaixo é exatamente o que o
             gerador de treino produz: as equações, o grafo de dependências e janelas de
             <strong>contexto + horizonte</strong>, para avaliar as séries antes de gastar tempo treinando.
           </p>
@@ -51,12 +52,13 @@
 
         <section class="two-column">
           <article class="panel">
-            <div class="section-title"><div><span>TOPOLOGY</span><h3>Quem influencia quem <i class="info" data-tip="Cada seta vai da fonte para o canal que a lê. Seta cheia: a fonte realmente aparece na equação. Seta tracejada: a topologia permitia a fonte, mas a árvore sorteada não a usou. Anel duplo marca canais com tratamento Shao–Wu.">i</i></h3></div></div>
+            <div class="section-title"><div><span>TOPOLOGY</span><h3>Quem influencia quem <i class="info" data-tip="Cada seta vai da fonte para o canal que a lê. Seta cheia: a fonte realmente aparece na equação. Seta tracejada: a topologia permitia a fonte, mas a árvore sorteada não a usou. Anel duplo marca canais com tratamento Shao–Wu; contorno tracejado marca canais KernelSynth, que não têm equação.">i</i></h3></div></div>
             <div id="graph" class="graph"><p class="empty">Gere um sistema para ver sua topologia.</p></div>
             <div class="legend">
               <span><i class="swatch solid"></i>fonte usada</span>
               <span><i class="swatch dashed"></i>permitida, não usada</span>
               <span><i class="swatch ring"></i>Shao–Wu</span>
+              <span><i class="swatch kernel"></i>KernelSynth</span>
             </div>
           </article>
           <article class="panel">
@@ -66,7 +68,7 @@
         </section>
 
         <section class="panel">
-          <div class="section-title"><div><span>EQUATIONS</span><h3>Recorrências sorteadas <i class="info" data-tip="Uma equação por canal. A forma executada já inclui o tratamento do canal (saturação com tanh e escala de Shao–Wu, quando houver). A forma canônica é o polinômio normalizado que a cabeça de equação aprende a prever.">i</i></h3></div><p class="section-note">Clique em um canal para inspecionar sua árvore.</p></div>
+          <div class="section-title"><div><span>EQUATIONS</span><h3>Recorrências sorteadas <i class="info" data-tip="Uma equação por canal. A forma executada já inclui o tratamento do canal (tanh e escala de Shao–Wu, escala do Jacobiano ou o AR de Heaps). A forma canônica é o polinômio normalizado que o teacher da cabeça de equação codifica. Canais KernelSynth não têm equação.">i</i></h3></div><p class="section-note">Clique em um canal para inspecionar sua árvore.</p></div>
           <div class="equation-grid" id="equation-grid"><p class="empty">Gere um sistema para visualizar suas equações.</p></div>
         </section>
 

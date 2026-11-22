@@ -59,7 +59,7 @@ const GROUPS = [
     scope: "s", step: "02", title: "Estrutura das equações", open: false,
     fields: [
       { key: "minimum_operators", label: "Operadores mín.", type: "number", min: 0, max: 12, step: 1,
-        tip: "Menor número de operadores binários (+ e ×) da árvore de cada equação. Zero permite folhas isoladas." },
+        tip: "Menor número de operadores binários (+ e ×) da árvore de cada equação. Toda árvore tem ao menos um lag; com zero operadores, a equação é um único lag." },
       { key: "maximum_operators", label: "Operadores máx.", type: "number", min: 0, max: 12, step: 1,
         tip: "Maior número de operadores binários da árvore. A estrutura é sorteada uniformemente entre todas as árvores dentro do intervalo." },
       { key: "minimum_lag", label: "Lag mínimo", type: "number", min: 1, max: 64, step: 1,
@@ -86,7 +86,7 @@ const GROUPS = [
       { key: "safety_factor", label: "Fator de segurança", type: "number", min: 0.05, max: 0.99, step: 0.05,
         tip: "Fração extra de folga multiplicada à escala Shao–Wu. Mais perto de 1 significa menos redução." },
       { key: "noise_minimum", label: "Desvio do ruído mín.", type: "number", min: 0, max: 2, step: 0.01,
-        tip: "Cada canal recebe um desvio padrão sorteado uniformemente entre o mínimo e o máximo. A inovação gaussiana é somada a cada passo e o desvio fica fixo para todas as realizações do canal." },
+        tip: "Cada canal de equação recebe um desvio padrão sorteado uniformemente entre o mínimo e o máximo. A inovação é gaussiana (uniforme limitada nos canais Jacobiano), somada a cada passo, com o desvio fixo para todas as realizações do canal. Canais KernelSynth não têm inovação." },
       { key: "noise_maximum", label: "Desvio do ruído máx.", type: "number", min: 0, max: 2, step: 0.01,
         tip: "Limite superior do desvio padrão sorteado para cada canal." },
     ],
@@ -109,7 +109,7 @@ const GROUPS = [
       { key: "constant_minimum", label: "|Constante| mín.", type: "number", min: 0, max: 100, step: 0.1, family: true,
         tip: "Menor magnitude do nível constante. O estudo de inicialização mostrou que até ±1 é seguro para todos os métodos." },
       { key: "constant_maximum", label: "|Constante| máx.", type: "number", min: 0, max: 100, step: 0.1, family: true,
-        tip: "Maior magnitude do nível constante. Constantes maiores aumentaram um pouco a explosão da AST original (50% → 62% em ±16)." },
+        tip: "Maior magnitude do nível constante. Constantes maiores aumentam a chance de uma realização explodir." },
       { key: "white_noise_probability", label: "Chance: ruído branco", type: "range", min: 0, max: 1, step: 0.05, wide: true, percent: true, family: true,
         tip: "Probabilidade de cada canal receber ruído branco uniforme i.i.d., U(−r, r) em cada lag do histórico." },
       { key: "white_noise_minimum", label: "Raio do ruído mín.", type: "number", min: 0, max: 100, step: 0.1, family: true,
@@ -148,8 +148,10 @@ const fieldId = (field) => `${field.scope}-${field.key}`;
 const findField = (scope, key) => ALL_FIELDS.find((field) => field.scope === scope && field.key === key);
 
 const PRESETS = [
-  { label: "Config. de treino (6 canais)", values: null,
-    tip: "Os valores padrão usados pelo treinamento canônico de 6 séries." },
+  { label: "Treino P25 (KernelSynth 25%)", values: { s: { kernel_synth_probability: 0.25 }, t: {} },
+    tip: "Configuração do candidato P25 da pré-seleção: 6 canais e 25% de chance de cada canal ser KernelSynth." },
+  { label: "Treino P50 (KernelSynth 50%)", values: { s: { kernel_synth_probability: 0.5 }, t: {} },
+    tip: "Configuração do candidato P50 da pré-seleção: 6 canais e 50% de chance de cada canal ser KernelSynth." },
   { label: "Didático (3 canais)", tip: "Poucos canais, lags curtos e árvores pequenas: fácil de ler e conferir.",
     values: { s: { channels: 3, dependency: "previous_chain", minimum_operators: 1, maximum_operators: 3, maximum_lag: 4,
                    max_degree: 2 }, t: { context_length: 64, prediction_length: 16 } } },
@@ -486,6 +488,7 @@ function prettyFormula(text) {
     .replace(/\*/g, "×");
 }
 
+const HEAPS_SUPPORT_LABEL = { consecutive: "lags consecutivos", isolated: "lag isolado", periodic: "lags periódicos" };
 const TREATMENT_LABEL = { jacobian: "Jacobiano", heaps: "Heaps", original: "Original", shao_wu: "Shao–Wu", kernel_synth: "KernelSynth" };
 const DEPENDENCY_LABEL = Object.fromEntries(DEPENDENCIES.map((item) => [item.value, item.label]));
 
@@ -594,6 +597,9 @@ function renderGraph(system) {
     if (equation.treatment.method === "shao_wu") {
       group.append(svgNode("circle", { r: nodeRadius + 5, class: "ring", stroke: channelColor(index) }));
     }
+    if (equation.family === "kernel_synth") {
+      group.append(svgNode("circle", { r: nodeRadius + 5, class: "kernel", stroke: channelColor(index) }));
+    }
     const label = svgNode("text", { y: 5 });
     label.textContent = channelName(index);
     const title = svgNode("title");
@@ -659,14 +665,19 @@ function renderEquationCards(system) {
     const shao = equation.treatment.method === "shao_wu";
     const treatment = el("span", `pill${shao ? " shao" : ""}`,
       `${TREATMENT_LABEL[equation.treatment.method]}${["shao_wu", "jacobian"].includes(equation.treatment.method) ? ` - escala ${equation.treatment.scale.toPrecision(3)}` : ""}`);
+    const heaps = equation.treatment.method === "heaps";
+    if (heaps && equation.treatment.heaps_order != null) {
+      const t = equation.treatment;
+      treatment.textContent = `Heaps - ${HEAPS_SUPPORT_LABEL[t.heaps_support] ?? t.heaps_support}, ordem ${t.heaps_order}${t.heaps_period > 1 ? `, período ${t.heaps_period}` : ""}`;
+    }
     treatment.dataset.tip = equation.treatment.method === "jacobian"
-      ? "Contracao Jacobiana no dominio certificado, com inovacao uniforme limitada."
+      ? "Canal sem fonte externa. Contração Jacobiana no domínio certificado, com inovação uniforme limitada; a escala indicada multiplica a árvore."
       : equation.treatment.method === "kernel_synth"
       ? `Série KernelSynth: amostra de processo gaussiano com kernel ${equation.kernel_formula}. Não tem equação nem alvo da cabeça.`
       : equation.treatment.method === "heaps"
-      ? "AR est?vel constru?do pela parametriza??o Heaps, com inova??o gaussiana."
+      ? "Canal sem fonte externa. AR estável construído pela parametrização de Heaps, nos lags do suporte sorteado (consecutivo, isolado ou periódico), com inovação gaussiana."
       : shao
-      ? "Fatores dos produtos de lags saturados com tanh e equação multiplicada pela escala indicada para limitar o ganho."
+      ? "Canal com fonte externa: lê ao menos uma outra série. Fatores dos produtos de lags saturados com tanh e equação multiplicada pela escala indicada para limitar o ganho."
       : "Equação executada exatamente como sorteada, sem saturação nem escala.";
     const sigma = el("span", "pill sigma", `σ ${equation.innovation.std.toPrecision(2)}`);
     sigma.dataset.tip = `Inovacao ${equation.innovation.family}: desvio padrao por passo.`;
@@ -678,7 +689,8 @@ function renderEquationCards(system) {
 
     card.append(formulaRow("Equação executada", `${channelName(index)}(t) = ${prettyFormula(equation.executed_formula)}`));
     if (shao) card.append(formulaRow("Antes do tratamento", prettyFormula(equation.original_formula)));
-    card.append(formulaRow(`Forma canônica · alvo da cabeça (${equation.canonical_terms} termos)`, prettyFormula(equation.canonical_formula)));
+    card.append(formulaRow(equation.family === "kernel_synth" ? "Forma canônica"
+      : `Forma canônica · codificada pelo teacher da cabeça (${equation.canonical_terms} termos)`, prettyFormula(equation.canonical_formula)));
 
     const metrics = el("div", "equation-mini-metrics");
     [[equation.summary.operators, "operadores"], [equation.summary.depth, "níveis"], [equation.summary.degree, "grau"]]
@@ -1296,6 +1308,11 @@ async function start() {
     state.defaults = await requestJson("/api/defaults");
   } catch (error) {
     setStatus("Não foi possível carregar os valores padrão do servidor.", true);
+    return;
+  }
+  if (!("kernel_synth_probability" in state.defaults.system)) {
+    // The page is newer than the Python process serving it.
+    setStatus("O servidor do estúdio está desatualizado em relação a esta página. Feche e reinicie frontend/app.py.", true);
     return;
   }
   applyDefaults();
