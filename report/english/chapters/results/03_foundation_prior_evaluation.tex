@@ -286,6 +286,42 @@ $p=0.50$ & 50.00\% & 0.9265 & 1.1417 & 1.0285 & \checkmark \\\bottomrule
 \end{tabular}
 \end{table}
 
+Table~\ref{tab:preliminary-wape-vs-lmc} expresses the same development
+evaluation as absolute percentage error. Because the solar channel is zero at
+night and NO approaches zero, a pointwise MAPE is undefined or dominated by
+near-zero targets, so the table reports WAPE, the channel's total absolute
+error divided by its total absolute observation. The last column is the
+relative change of the selected candidate's error with respect to Study~A LMC,
+which was trained with the same exposure; on the same origins it is identical
+for MAE and WAPE. Over the channels of each dataset, the geometric mean of the
+MAE ratio is 0.911 on Ibirapuera ($-8.9\%$) and 0.922 on Bahia ($-7.8\%$), and
+the error is lower in eight of nine channels, solar being the exception. These
+figures inherit the caveats above: the 2019 origins were inspected and used
+for the selection, and there is one seed and no interval.
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{WAPE (\%) of the preliminary candidates and of Study~A LMC (same
+exposure, 445,433 updates) on the 2019 development origins. Lower is better.
+The change is the relative difference of the $p=0.50$ error with respect to
+LMC.}
+\label{tab:preliminary-wape-vs-lmc}
+\begin{tabular}{llrrrr}\toprule
+Dataset & Channel & A: LMC & $p=0.25$ & $p=0.50$ & Change, $p=0.50$ vs LMC \\\midrule
+Ibirapuera & O$_3$ & 60.54 & 55.01 & 55.08 & $-9.0\%$ \\
+ & NO & 148.85 & 148.96 & 136.67 & $-8.2\%$ \\
+ & NO$_2$ & 61.99 & 55.80 & 54.66 & $-11.8\%$ \\
+ & CO & 60.17 & 57.68 & 55.65 & $-7.5\%$ \\
+ & PM$_{2.5}$ & 65.27 & 61.09 & 60.01 & $-8.1\%$ \\
+ & Geometric mean of MAE ratios & & & & $-8.9\%$ \\\midrule
+Bahia & Demand & 7.92 & 6.70 & 6.96 & $-12.1\%$ \\
+ & Wind & 44.15 & 42.90 & 42.85 & $-3.0\%$ \\
+ & Solar & 19.62 & 22.52 & 21.97 & $+12.0\%$ \\
+ & Inflow & 8.17 & 6.43 & 6.17 & $-24.5\%$ \\
+ & Geometric mean of MAE ratios & & & & $-7.8\%$ \\\bottomrule
+\end{tabular}
+\end{table}
+
 Table~\ref{tab:foundation-prior-contrasts} will hold the prespecified
 contrasts. Each entry is the ratio of two dataset-level relative-MAE
 summaries with its paired temporal-block interval. A ratio below one favors

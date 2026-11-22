@@ -706,6 +706,34 @@
   </div>
 </section>
 
+<!-- Preliminary runs against LMC: absolute percentage error -->
+<section id="preliminary-vs-lmc">
+  <div class="canvas">
+    <div class="kicker">Preliminary &middot; our generator vs LMC-Synth &middot; same exposure</div>
+    <h2>8&ndash;9% lower absolute error, in 8 of 9 channels</h2>
+    <p>Chronos-2 from random weights, 445,433 updates, synthetic data only &middot; zero-shot on 2019 &middot; WAPE = total |error| / total |observed|</p>
+    <table style="font-size:0.56em;width:100%;margin:14px 0">
+      <thead><tr><th>Dataset</th><th>Channel</th><th>LMC, Study A</th><th>Ours, p = 0.25</th><th>Ours, p = 0.50</th><th>Error change, p = 0.50 vs LMC</th></tr></thead>
+      <tbody>
+        <tr><td>Ibirapuera</td><td>O<sub>3</sub></td><td>60.5%</td><td>55.0%</td><td><b>55.1%</b></td><td class="ours"><b>&minus;9.0%</b></td></tr>
+        <tr><td></td><td>NO</td><td>148.9%</td><td>149.0%</td><td><b>136.7%</b></td><td class="ours"><b>&minus;8.2%</b></td></tr>
+        <tr><td></td><td>NO<sub>2</sub></td><td>62.0%</td><td>55.8%</td><td><b>54.7%</b></td><td class="ours"><b>&minus;11.8%</b></td></tr>
+        <tr><td></td><td>CO</td><td>60.2%</td><td>57.7%</td><td><b>55.7%</b></td><td class="ours"><b>&minus;7.5%</b></td></tr>
+        <tr><td></td><td>PM<sub>2.5</sub></td><td>65.3%</td><td>61.1%</td><td><b>60.0%</b></td><td class="ours"><b>&minus;8.1%</b></td></tr>
+        <tr><td>Bahia</td><td>Demand</td><td>7.9%</td><td>6.7%</td><td><b>7.0%</b></td><td class="ours"><b>&minus;12.1%</b></td></tr>
+        <tr><td></td><td>Wind</td><td>44.2%</td><td>42.9%</td><td><b>42.8%</b></td><td class="ours"><b>&minus;3.0%</b></td></tr>
+        <tr><td></td><td>Solar</td><td><b>19.6%</b></td><td>22.5%</td><td>22.0%</td><td style="color:#dc2626"><b>+12.0%</b></td></tr>
+        <tr><td></td><td>Inflow</td><td>8.2%</td><td>6.4%</td><td><b>6.2%</b></td><td class="ours"><b>&minus;24.5%</b></td></tr>
+      </tbody>
+    </table>
+    <div class="row" style="gap:18px">
+      <div class="box ours" style="flex:1;font-size:0.6em"><b>Ibirapuera &minus;8.9%</b> &middot; <b>Bahia &minus;7.8%</b><br>geometric mean of the MAE ratios over each dataset's channels</div>
+      <div class="box" style="flex:1;font-size:0.6em"><b>Exploratory:</b> 2019 was inspected and chose p = 0.50; one seed, no interval. The prespecified contrasts are Studies A and B.</div>
+    </div>
+    <p style="font-size:0.45em;margin-top:10px">MAPE is undefined here (solar is zero at night). Record: experiments/generator_model_evaluation/offline_experiments/preliminary_hybrid_20261121.md &middot; report Table "WAPE of the preliminary candidates".</p>
+  </div>
+</section>
+
 <!-- Canonicalizer 30M: verified remote experiment -->
 <section id="canonicalizer-30m">
   <div class="canvas">
