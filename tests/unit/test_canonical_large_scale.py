@@ -219,7 +219,16 @@ def test_mixed_corpus_has_generator_equations_and_combinatorial_trees(tmp_path):
     assert [rows[18 + c]["skeleton"] for c in range(6)] == [
         codec.encode(e)["skeleton"] for e in system.equations]
     assert multiseries_mixture(config)[1] == 60
-    assert generator_metadata(config)["resolved"]["multiseries_rows"] == 60
+    metadata = generator_metadata(config)
+    assert metadata["resolved"]["multiseries_rows"] == 60
+    assert metadata["resolved"]["minimum_lag"] == 1  # release cards read the top level
+    from tsfmxai.symbolic_regression.canonical_large_scale import _small_validation
+    rows_by_file = _small_validation(tmp_path, 10)
+    uniform = _small_validation(tmp_path, 10_000, "uniform_rows", seed=3)
+    assert len(uniform) == sum(1 for _ in iter_shard_examples(tmp_path, "validation"))
+    assert {e["treatment"] for e in uniform} >= {"shao_wu"}
+    assert {e["treatment"] for e in uniform} & {"raw", "tanh_protection"}
+    assert rows_by_file == list(iter_shard_examples(tmp_path, "validation"))[:10]
     with pytest.raises(ValueError, match="codec"):
         multiseries_mixture({**config, "multiseries_generator": {**multiseries, "maximum_lag": 7}})
 

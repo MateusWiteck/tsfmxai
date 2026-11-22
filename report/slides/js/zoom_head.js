@@ -242,7 +242,7 @@
     const lines = [
       "Skeleton-only term F1 0.994. Joint: matched-coefficient MAE 0.024; exact uses abs./rel. tolerance 0.01.",
       "Both checkpoints selected at epoch 10; total run 15.39 h on RTX 4070. One training seed. 10M: 94.36% / 95.41% / 4.45%.",
-      "Coefficients add little: the equation-head teacher is skeleton-only; the joint variant is not retrained.",
+      "Coefficients add little: the equation head uses skeleton-only targets; the joint variant is retrained on the mixed corpus as a check.",
       "Next teacher: equations of the forecasting generator (Shao–Wu, Jacobian, Heaps; up to 65 nodes).",
       "Greedy test decoding; these scores do not measure embedding quality for Chronos.",
     ];

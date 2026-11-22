@@ -114,26 +114,39 @@ multiplies a tree by its contraction scale, giving at most $2K+3$ nodes. A Heaps
 autoregression with $p$ lags has $4p+1$ nodes. With $K=6$ operations and
 $p\le16$ lags, the largest equations have 22, 15, and 65 nodes respectively, hence
 \texttt{max\_nodes}${}=65$ in
-\path{configs/canonicalization_multiseries_six_series.json}. The codec has
+\path{configs/canonicalization_six_series_mixed.json}. The codec has
 $2SL+5$ symbols for $L$ lags and $S$ source series (197 for $L=16$, $S=6$). The
 model is defined in
 \path{src/tsfmxai/symbolic_regression/canonical_models.py}.
 
 \paragraph{Six-series teacher.}
-The teacher is trained on the equations that the forecasting generator
-executes. Each example draws one six-channel system with
-\texttt{sample\_multiseries\_system}, picks one channel deterministically from
-the sample index, and encodes that channel's executed equation, including its
-treatment. Equations therefore reference any of the six channels by absolute
-index, as the equation head requires. The generator settings match the
-forecasting arm: one to six operators, lags 1--16, degree at most four,
-parameter magnitudes between 0.05 and 1, random topology with at most two
-external sources, and the dependency-driven treatment rule. Data generation
-stops with an error if an equation exceeds \texttt{max\_nodes} or its canonical
-target exceeds the decoding length. A run with a skeleton-disjoint split measures
-generalization to unseen skeletons; the teacher used for the equation head is
-then trained on every split, for the number of epochs fixed by that run, so
-that no skeleton the generator produces is missing from its training data.
+The teacher is trained on a mixed corpus of $3\times10^7$ equations
+(\path{configs/canonicalization_six_series_mixed.json}). Half are equations
+that the forecasting generator executes: each sampled six-channel system
+(\texttt{sample\_multiseries\_system}) contributes all six of its channels,
+each encoded with its treatment (Shao--Wu, Jacobian or Heaps), so equations
+reference the six channels by absolute index, as the equation head requires.
+The generator settings match the forecasting arm: one to six operators, lags
+1--16, degree at most four, sampled parameter magnitudes between 0.05 and 1,
+random topology with at most two external sources, and the dependency-driven
+treatment rule. These rows supply the node positions up to
+\texttt{max\_nodes} and the parameter values that the treatments produce, such
+as small gain and contraction scales and Heaps coefficients outside the
+sampled range. The other half are trees from the combinatorial sampler with
+the same codec, $\tanh$ protection with probability 0.5, and an operator
+count drawn uniformly from one to six; drawing trees uniformly over all
+structures would give six operators to 99.8\% of them. Data generation stops
+with an error if an equation exceeds \texttt{max\_nodes} or its canonical
+target exceeds the decoding length. The corpus is split by canonical skeleton
+into training, validation and test partitions (70/10/20), and validation and
+test keep one row per skeleton. The epoch is selected on validation rows drawn
+uniformly over the whole mixed validation split. Two variants are trained, as
+in the earlier release: skeleton-only and joint, which also predicts one
+coefficient per term. The equation head uses the skeleton-only encoder and
+fails, rather than dropping the target, on an equation longer than the
+teacher accepts. The test split measures recovery of skeletons not seen in
+training; it does not establish coverage of every skeleton the generator can
+produce, since the training sample is finite.
 
 The earlier six-series release, trained on $3\times10^7$ trees from the
 combinatorial sampler with $\tanh$ protection, quantifies what coefficient
@@ -142,25 +155,31 @@ variant recovered the exact canonical skeleton for 97.9\% of equations (term
 F1 0.994). The joint variant, which also predicts one coefficient per term,
 recovered the skeleton for 97.3\%, but the skeleton together with every
 coefficient within 0.01 (absolute or relative, whichever is larger) for only 7.6\%;
-its mean absolute coefficient error on matched terms was 0.024. We concluded
-that predicting coefficients in this form is not useful for the equation head,
-so only the skeleton-only variant is trained. The record is
-\path{experiments/canonicalization/07_train_30m_six_series.ipynb}.
+its mean absolute coefficient error on matched terms was 0.024. The equation head
+therefore uses skeleton-only targets; the joint variant is trained again on
+the mixed corpus to check this conclusion on the generator's equations. The
+record is \path{experiments/canonicalization/07_train_30m_six_series.ipynb}.
 
-Table~\ref{tab:six-series-teacher} will report the teacher trained on the
-forecasting generator's equations. Rows come from the skeleton-disjoint
-test split, by channel treatment; the production teacher is trained on every
-split, so it has no held-out score.
+Table~\ref{tab:six-series-teacher} will report both variants of the teacher
+trained on the mixed corpus, on the skeleton-disjoint test split, by source:
+the three treatments of the forecasting generator and the combinatorial trees
+with and without $\tanh$ protection.
 
 \begin{table}[htbp]\centering\small
-\caption{Six-series teacher on the skeleton-disjoint test split, by
-treatment: exact canonical-skeleton recovery and term F1.}
+\caption{Six-series teacher on the skeleton-disjoint test split of the
+mixed corpus, by source. Skeleton-only variant: exact canonical-skeleton
+recovery and term F1. Joint variant: exact skeleton, and exact skeleton with
+every coefficient within 0.01.}
 \label{tab:six-series-teacher}
-\begin{tabular}{lrrr}\toprule
-Treatment & Test equations & Exact skeleton (\%) & Term F1 \\\midrule
-Shao--Wu & \pending & \pending & \pending \\
-Jacobian & \pending & \pending & \pending \\
-Heaps & \pending & \pending & \pending \\
-All & \pending & \pending & \pending \\\bottomrule
+\begin{tabular}{lrrrrr}\toprule
+ & & \multicolumn{2}{c}{Skeleton-only} & \multicolumn{2}{c}{Joint} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Source & Test equations & Exact (\%) & Term F1 & Exact (\%) & With coef. (\%) \\\midrule
+Shao--Wu & \pending & \pending & \pending & \pending & \pending \\
+Jacobian & \pending & \pending & \pending & \pending & \pending \\
+Heaps & \pending & \pending & \pending & \pending & \pending \\
+Trees, raw & \pending & \pending & \pending & \pending & \pending \\
+Trees, $\tanh$ & \pending & \pending & \pending & \pending & \pending \\
+All & \pending & \pending & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}

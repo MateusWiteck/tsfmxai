@@ -182,6 +182,7 @@ class CanonicalEncoder(nn.Module):
         model.load_state_dict(load_file(str(weights_path), device='cpu'))
         for parameter in model.parameters():
             parameter.requires_grad_(False)
+        model.release_config = config
         return model.eval()
 
 

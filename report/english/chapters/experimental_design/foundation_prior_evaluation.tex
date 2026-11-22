@@ -324,20 +324,22 @@ of that series's executed equation. The target describes the skeleton,
 including cross-series references by absolute channel index and lags, without
 requiring parameter prediction; the channel-index embedding of
 Section~\ref{sec:chronos-explainability-modifications} makes the absolute index
-learnable. The teacher is trained on equations drawn by the forecasting
-generator itself, one channel per sampled system, encoded as executed: Shao--Wu
-equations with their tanh factors and gain scale, Jacobian equations with their
-scale, and Heaps autoregressions
-(\path{configs/canonicalization_multiseries_six_series.json}). Its input
+learnable. The teacher is trained on a mixed corpus: half are equations drawn
+by the forecasting generator itself, all six channels of each sampled system,
+encoded as executed (Shao--Wu equations with their tanh factors and gain scale,
+Jacobian equations with their scale, and Heaps autoregressions), and half are
+combinatorial trees with one to six operators
+(\path{configs/canonicalization_six_series_mixed.json}). Its input
 capacity, \texttt{max\_nodes}${}=65$, covers the largest equation of each
 treatment (22 nodes for Shao--Wu, 15 for Jacobian, and 65 for a 16-lag Heaps
 autoregression), and its decoding length covers the longest canonical target.
-Its repository, revision, checkpoint digest, vocabulary, and embedding
-normalization are recorded with each run; the head compares L2-normalized
+Its repository, revision, checkpoint digest, codec, and embedding
+normalization are recorded with each run, and the run stops unless the
+teacher's codec (series, lag range, degree and token convention) equals the
+generator's; the head compares L2-normalized
 embeddings. The teacher's weights do not receive gradients. An equation that
-still exceeded the teacher's capacity would have its skeleton target masked
-rather than truncated, and the corpus manifest counts covered and masked
-targets separately for each treatment. The head reads the backbone through a
+still exceeded the teacher's capacity stops the run instead of losing its
+target, and the corpus manifest counts covered targets for each treatment. The head reads the backbone through a
 learned attention pooling over the context tokens of its series, initialized
 as their mean. A second auxiliary output predicts the innovation standard
 deviation for each series. Since the forecasting backbone normalizes each

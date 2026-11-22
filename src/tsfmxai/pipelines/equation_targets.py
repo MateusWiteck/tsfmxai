@@ -9,11 +9,12 @@ import torch
 
 from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec
 from tsfmxai.symbolic_regression.canonical_models import CanonicalEncoder
+from tsfmxai.symbolic_regression.canonical_release import codec_contract
 
 
 class EquationTargetTeacher:
     def __init__(self, source: str, revision: str, *, channels=6, max_lag=16,
-                 max_degree=4, device="cpu", on_overflow="mask"):
+                 max_degree=4, device="cpu", on_overflow="raise"):
         if not source:
             raise ValueError("Pin the skeleton-only teacher source")
         if on_overflow not in ("mask", "raise"):
@@ -28,10 +29,19 @@ class EquationTargetTeacher:
         self.codec = CanonicalCodec(channels, 1, max_lag, max_degree)
         if self.encoder.source_embedding.num_embeddings != self.codec.vocab_size:
             raise ValueError("Teacher vocabulary differs from generator vocabulary")
+        # Equal sizes can still map ids to different atoms (6 series x 16 lags and
+        # 3 series x 32 lags both give 197 tokens), so the whole codec must match.
+        released = getattr(self.encoder, "release_config", {}).get("codec")
+        expected = codec_contract(self.codec)
+        if released is None:
+            raise ValueError("Teacher release has no codec block; cannot check token meaning")
+        differing = sorted(k for k in expected if released.get(k) != expected[k])
+        if differing:
+            raise ValueError(f"Teacher codec differs from generator codec in {differing}")
         self.device = device
         self.dimension = self.encoder.dimension
         self.provenance = {"source": source, "revision": revision,
-                           "variant": "transformer_skeleton"}
+                           "variant": "transformer_skeleton", "on_overflow": on_overflow}
         if local.exists():
             folder = next((p for p in (local / "transformer_skeleton",
                                         local / "models" / "transformer_skeleton", local)

@@ -63,15 +63,17 @@ def test_preliminary_hybrid_config_generates_training_batch(probability):
     assert any("kernel_synth" in item["channel_families"] for item in batch["metadata"])
 
 
-def tiny_teacher(tmp_path, max_nodes=20):
+def tiny_teacher(tmp_path, max_nodes=65, codec=(6, 1, 16, 4)):
     from safetensors.torch import save_file
     from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec
     from tsfmxai.symbolic_regression.canonical_models import CanonicalEncoder
+    from tsfmxai.symbolic_regression.canonical_release import codec_contract
     source = tmp_path / "teacher" / "transformer_skeleton"
     source.mkdir(parents=True)
-    kwargs = dict(vocab_size=CanonicalCodec(6, 1, 16, 4).vocab_size,
+    kwargs = dict(vocab_size=CanonicalCodec(*codec).vocab_size,
                   dimension=8, heads=2, encoder_layers=1, max_nodes=max_nodes)
-    source.joinpath("config.json").write_text(json.dumps({"model_kwargs": kwargs}))
+    source.joinpath("config.json").write_text(json.dumps(
+        {"model_kwargs": kwargs, "codec": codec_contract(CanonicalCodec(*codec))}))
     save_file({key: value.contiguous() for key, value in
                CanonicalEncoder(**kwargs).state_dict().items()},
               str(source / "encoder.safetensors"))
@@ -306,7 +308,7 @@ def test_teacher_targets_scale_noise_and_follow_example_channel_order(tmp_path):
     source = tiny_teacher(tmp_path)
     protocol = PriorProtocol(**{**small_protocol(tmp_path).__dict__, "own_kernel_probability": .5})
     item = OnlineBatchDataset(own_plan(protocol, "independent", 1))[0]
-    teacher = EquationTargetTeacher(str(source.parent), "")
+    teacher = EquationTargetTeacher(str(source.parent), "", on_overflow="mask")
     coverage = {}
     targets = teacher.targets(item, coverage=coverage)
     context = np.asarray(item["context"])
@@ -320,10 +322,16 @@ def test_teacher_targets_scale_noise_and_follow_example_channel_order(tmp_path):
                 expected = system.innovations[channel].std / context[example, :, channel].std()
                 assert targets["noise_std"][example, channel] == pytest.approx(expected, rel=1e-5)
     assert sum(c["covered"] + c["masked"] for c in coverage.values()) == targets["noise_mask"].sum()
-    strict = EquationTargetTeacher(str(tiny_teacher(tmp_path / "small", max_nodes=3).parent), "",
-                                   on_overflow="raise")
+    strict = EquationTargetTeacher(str(tiny_teacher(tmp_path / "small", max_nodes=3).parent), "")
+    assert strict.provenance["on_overflow"] == "raise"
     with pytest.raises(ValueError, match="teacher accepts 3"):
         strict.targets(item)
+    # Same vocabulary size (197), different token meaning.
+    from tsfmxai.symbolic_regression.canonical_data import CanonicalCodec
+    assert CanonicalCodec(3, 1, 32, 4).vocab_size == CanonicalCodec(6, 1, 16, 4).vocab_size
+    other = tiny_teacher(tmp_path / "other", codec=(3, 1, 32, 4))
+    with pytest.raises(ValueError, match="codec differs"):
+        EquationTargetTeacher(str(other.parent), "")
 
 
 def test_head_arm_shares_the_corpus_of_the_arm_without_head():

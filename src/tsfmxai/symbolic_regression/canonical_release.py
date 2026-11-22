@@ -191,7 +191,9 @@ def generator_metadata(config: dict) -> dict:
         sampler = f"{sampler} + {part['sampler']}"
         treatment = (f"Rows 0..{count - 1} ({config['multiseries_fraction']:.0%}): {part['treatment_description']} "
                      f"Remaining rows: {treatment}")
-        resolved = {"combinatorial": resolved, "multiseries": part["resolved"],
+        # Codec and size keys stay at the top level (combinatorial values); the
+        # generator part is nested.
+        resolved = {**resolved, "multiseries": part["resolved"],
                     "multiseries_rows": count,
                     "multiseries_data_seed": config["multiseries_data_seed"],
                     "channels_per_system": int(config.get("channels_per_system", 1))}
@@ -216,7 +218,12 @@ def generator_metadata(config: dict) -> dict:
 
 def codec_metadata(config: dict) -> dict:
     g = config["generator"]
-    codec = CanonicalCodec(g["num_series"], g["minimum_lag"], g["maximum_lag"], g["max_degree"])
+    return codec_contract(CanonicalCodec(g["num_series"], g["minimum_lag"],
+                                         g["maximum_lag"], g["max_degree"]))
+
+
+def codec_contract(codec) -> dict:
+    """Everything that fixes the meaning of each token id, not only their count."""
     return {
         "num_series": codec.num_series, "minimum_lag": codec.minimum_lag,
         "maximum_lag": codec.maximum_lag, "max_degree": codec.max_degree,
@@ -232,6 +239,15 @@ def _model_card(name: str, config_json: dict) -> str:
     g, ev = config_json["generator"]["resolved"], config_json["evaluation"]
     metrics = "\n".join(f"| {k} | {v} |" for k, v in ev.items()
                         if isinstance(v, (int, float)) and not isinstance(v, bool))
+    groups = ev.get("by_treatment") or {}
+    if groups:
+        metrics += ("\n\nBy treatment (test split):\n\n"
+                    "| treatment | rows | skeleton exact | term F1 | joint exact |\n"
+                    "|---|---:|---:|---:|---:|\n")
+        metrics += "\n".join(
+            f"| {name} | {g['count']:,} | {g['skeleton_exact']:.4f} | {g['term_f1']:.4f} | "
+            f"{'n/a' if g['joint_exact'] is None else format(g['joint_exact'], '.4f')} |"
+            for name, g in groups.items())
     return f"""---
 license: cc-by-4.0
 library_name: pytorch

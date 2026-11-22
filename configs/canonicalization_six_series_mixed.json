@@ -55,6 +55,7 @@
   "max_decode_steps": 64,
   "validation_examples_per_epoch": 10000,
   "validation_greedy_size": 2048,
+  "validation_sampling": "uniform_rows",
   "coefficient_atol": 0.01,
   "coefficient_rtol": 0.01,
   "cpu_threads": 4,
@@ -77,5 +78,5 @@
       "coefficients": true
     }
   ],
-  "note": "Teacher in the 30M skeleton/joint protocol on a mixed corpus. Half the rows are executed equations of the forecasting generator (Shao-Wu, Jacobian, Heaps; all six channels of each sampled system), so every node position up to max_nodes and the treated parameter values are seen in training. The other half are combinatorial trees with an operator count uniform over 1-6, half of them with tanh protection. Test metrics are reported per treatment."
+  "note": "Teacher in the 30M skeleton/joint protocol on a mixed corpus. Half the rows are executed equations of the forecasting generator (Shao-Wu, Jacobian, Heaps; all six channels of each sampled system), so every node position up to max_nodes and the treated parameter values are seen in training. The other half are combinatorial trees with an operator count uniform over 1-6, half of them with tanh protection. Test metrics are reported per treatment. Epoch selection uses validation rows drawn uniformly over the whole mixed validation split (validation_sampling), not only generator equations."
 }

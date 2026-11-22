@@ -285,9 +285,35 @@ def iter_shard_examples(run_dir, split, seed=None):
             yield _example(row)
 
 
-def _small_validation(run_dir, limit):
+def _small_validation(run_dir, limit, sampling="first_rows", seed=0):
+    """Fixed validation sample for epoch selection.
+
+    ``first_rows`` (historical runs) takes rows in file order, which in a mixed
+    corpus is only the first source. ``uniform_rows`` draws ``limit`` rows
+    uniformly over the whole validation split with ``seed``, so the sample keeps
+    the corpus mixture; its order is random, so any prefix is also uniform.
+    """
+    import bisect
     from itertools import islice
-    return list(islice(iter_shard_examples(run_dir, "validation"), limit))
+    if sampling == "first_rows":
+        return list(islice(iter_shard_examples(run_dir, "validation"), limit))
+    if sampling != "uniform_rows":
+        raise ValueError("validation_sampling must be 'first_rows' or 'uniform_rows'")
+    files = _files(run_dir, "validation")
+    starts = [0]
+    for file in files:
+        starts.append(starts[-1] + pq.ParquetFile(file).metadata.num_rows)
+    chosen = random.Random(seed).sample(range(starts[-1]), min(limit, starts[-1]))
+    wanted = defaultdict(list)
+    for position, row in enumerate(chosen):
+        file = bisect.bisect_right(starts, row) - 1
+        wanted[file].append((row - starts[file], position))
+    sample = [None] * len(chosen)
+    for file, items in wanted.items():
+        rows = pq.read_table(files[file]).to_pylist()
+        for local, position in items:
+            sample[position] = _example(rows[local])
+    return sample
 
 
 @torch.no_grad()
@@ -383,7 +409,9 @@ def train_parquet_variant(config, run_dir, codec, variant, status, device="cpu")
             torch.cuda.set_rng_state_all(checkpoint["cuda_rng"])
         history, best_loss = checkpoint["history"], checkpoint["best_loss"]
         bad_epochs, start_epoch = checkpoint["bad_epochs"], checkpoint["epoch"] + 1
-    validation = _small_validation(run_dir, config["validation_examples_per_epoch"])
+    validation = _small_validation(run_dir, config["validation_examples_per_epoch"],
+                                   config.get("validation_sampling", "first_rows"),
+                                   config["training_seed"])
     for epoch in range(start_epoch, config["epochs"] + 1):
         if bad_epochs >= config["patience"]:
             break
