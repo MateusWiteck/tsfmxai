@@ -358,6 +358,61 @@ MAE change, $p=0.50$ vs A: LMC & $-9.7\%$ & $-8.4\%$ & $-7.3\%$ \\\bottomrule
 \end{tabular}
 \end{table}
 
+\paragraph{Trajectory reuse and overfitting.}
+The two generators were compared as their recipes prescribe. LMC-Synth, as
+proposed by its authors, materializes a finite bank and draws every training
+window from it: TimePFN generated 15,000 synthetic datasets of length 1,024
+with 160 channels, added independent-variate datasets amounting to about 25\%
+of them, and extracted roughly 1.5 million input--output pairs with a sliding
+window of 192 steps \citep[Sec.~4, p.~5 of the arXiv version]{taga2025timepfn}.
+That is roughly 80 windows per synthetic dataset. Our adaptation kept this
+design with a bank of 19,998 independent and 15,000 correlated trajectories.
+The proposed generator instead samples a new system for every window, so each
+of its 7,126,928 windows comes from a distinct trajectory.
+Table~\ref{tab:reuse-overfitting} sets this reuse against the synthetic
+validation of each run. In both LMC runs, the validation loss of the
+independent stage reaches its minimum early and then rises for the rest of the
+stage, by 12\% in Study~A and 4\% in Study~B, which stops earlier and reuses
+each trajectory less often. The preliminary runs of the proposed generator
+keep improving until the end of the same stage. Synthetic validation is
+measured on each generator's own distribution, so it is not comparable across
+generators; the comparison here is only the shape of each curve.
+
+Under the same model and the same update budget, the proposed generator
+performed better than LMC-Synth as its authors propose it: across the five
+real datasets, three of which took no part in any decision, the selected
+$p=0.50$ checkpoint lowered the per-channel geometric-mean MAE by 7\% to 10\%
+relative to Study~A LMC (Tables~\ref{tab:preliminary-wape-vs-lmc}
+and~\ref{tab:benchmark-zero-shot}). Overfitting to the finite bank is a likely
+cause of part of this difference, not a demonstrated one. Study~A exposes the
+LMC bank to about 204 windows per trajectory, more than the roughly 80 of the
+original recipe, so a reader may object that LMC-Synth was trained beyond its
+design. Study~B is closer to the original reuse, with about 137 windows per
+trajectory, and its LMC model is still worse than the proposed generator on
+all five datasets, by 3\% to 6\%. Equal budgets are the basis of the
+comparison, and a generator that must stop early to avoid overfitting cannot
+use additional compute. These results remain exploratory, with one seed per
+run and no interval; the prespecified contrasts of Studies~A and~B await the
+proposed-generator arms.
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Trajectory reuse and the synthetic validation loss of the independent
+stage. Reuse is windows per distinct source trajectory. The rise is the
+relative increase from the minimum to the last validation of the stage.
+Losses are on each generator's own data and are not comparable across rows
+of different generators.}
+\label{tab:reuse-overfitting}
+\begin{tabular}{lrrrrr}\toprule
+Run & Distinct trajectories & Reuse & Minimum (update) & Last (update) & Rise \\\midrule
+TimePFN, original recipe & $\approx$18,750 & $\approx$80 & -- & -- & -- \\
+A: LMC & 34,998 & 203.6 & 6.193 (107,500) & 6.941 (346,996) & 12.1\% \\
+B: LMC & 34,998 & 137.2 & 6.063 (125,000) & 6.319 (241,898) & 4.2\% \\
+Prelim.: ours, $p=0.25$ & 7,126,928 & 1.0 & 7.887 (335,000) & 7.891 (346,996) & 0.1\% \\
+Prelim.: ours, $p=0.50$ & 7,126,928 & 1.0 & 7.115 (317,500) & 7.124 (346,996) & 0.1\% \\\bottomrule
+\end{tabular}
+\end{table}
+
 Table~\ref{tab:foundation-prior-contrasts} will hold the prespecified
 contrasts. Each entry is the ratio of two dataset-level relative-MAE
 summaries with its paired temporal-block interval. A ratio below one favors
