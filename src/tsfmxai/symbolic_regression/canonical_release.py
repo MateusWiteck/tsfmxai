@@ -184,6 +184,19 @@ def generator_metadata(config: dict) -> dict:
         protection = config.get("protection_probability", 0.5)
         treatment = f"Each tree is protected with probability {protection}."
         rule = PROTECTION_RULE
+    if config.get("multiseries_generator") is not None:
+        from tsfmxai.symbolic_regression.canonical_large_scale import multiseries_mixture
+        mixed, count = multiseries_mixture(config)
+        part = generator_metadata(mixed)
+        sampler = f"{sampler} + {part['sampler']}"
+        treatment = (f"Rows 0..{count - 1} ({config['multiseries_fraction']:.0%}): {part['treatment_description']} "
+                     f"Remaining rows: {treatment}")
+        resolved = {"combinatorial": resolved, "multiseries": part["resolved"],
+                    "multiseries_rows": count,
+                    "multiseries_data_seed": config["multiseries_data_seed"],
+                    "channels_per_system": int(config.get("channels_per_system", 1))}
+        configured = {"combinatorial": configured, "multiseries": part["configured"]}
+        rule = f"{rule} {part['protection_rule']}"
     return {
         "sampler": sampler,
         "configured": configured,

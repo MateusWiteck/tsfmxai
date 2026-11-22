@@ -122,11 +122,45 @@ def deduplicate_evaluation_in_place(run_dir, status):
         status("deduplicating", deduplicated_split=split, unique_skeletons=len(seen))
 
 
+CODEC_KEYS = ("num_series", "minimum_lag", "maximum_lag", "max_degree")
+
+
+def multiseries_mixture(config):
+    """Configuration and row count of the generator part of a mixed corpus.
+
+    A mixed corpus has a combinatorial ``generator`` and a ``multiseries_generator``
+    with ``multiseries_fraction``. Indices below the returned count encode
+    equations of the forecasting generator (all channels of each system); the
+    rest are combinatorial trees. Returns (None, 0) for a single-source corpus.
+    """
+    ms = config.get("multiseries_generator")
+    if ms is None:
+        return None, 0
+    g = config["generator"]
+    if g.get("source") == "multiseries" or ms.get("source", "multiseries") != "multiseries":
+        raise ValueError("A mixed corpus needs a combinatorial generator and a multiseries one.")
+    if any(ms[key] != g[key] for key in CODEC_KEYS):
+        raise ValueError(f"Both generators must share the codec settings {CODEC_KEYS}.")
+    fraction = float(config["multiseries_fraction"])
+    if not 0 < fraction < 1:
+        raise ValueError("multiseries_fraction must lie strictly between 0 and 1.")
+    per_system = int(config.get("channels_per_system", 1))
+    count = int(config["ast_count"] * fraction) // per_system * per_system
+    part = {key: value for key, value in config.items() if key != "multiseries_generator"}
+    return {**part, "generator": {**ms, "source": "multiseries"},
+            "data_seed": config["multiseries_data_seed"]}, count
+
+
 def _generate_shard(config, run_dir, shard):
     run_dir = Path(run_dir)
     g = config["generator"]
-    multiseries = (multiseries_teacher_config(g) if g.get("source") == "multiseries" else None)
-    generator = (None if multiseries else
+    mixed_config, mixed_count = multiseries_mixture(config)
+    if mixed_config is not None:
+        multiseries = multiseries_teacher_config(mixed_config["generator"])
+    else:
+        multiseries = (multiseries_teacher_config(g) if g.get("source") == "multiseries" else None)
+        mixed_count = config["ast_count"] if multiseries is not None else 0
+    generator = (None if g.get("source") == "multiseries" else
                  CombinatorialTreeSampler(CombinatorialTreeConfig(**g)))
     codec = CanonicalCodec(g["num_series"], g["minimum_lag"], g["maximum_lag"], g["max_degree"])
     size, shard_size = config["ast_count"], config["shard_size"]
@@ -137,8 +171,9 @@ def _generate_shard(config, run_dir, shard):
     rows = {split: [] for split in SPLITS}
     system_cache = {}
     for index in range(shard * shard_size, min(size, (shard + 1) * shard_size)):
-        if multiseries is not None:
-            example = sample_multiseries_example(config, codec, index, multiseries, system_cache)
+        if index < mixed_count:
+            example = sample_multiseries_example(mixed_config or config, codec, index,
+                                                 multiseries, system_cache)
         else:
             seed = derive_sample_seed(config["data_seed"], index)
             sampled = generator.sample(seed=seed, sample_index=index)
@@ -260,6 +295,7 @@ def evaluate_parquet_test(model, run_dir, codec, config, device="cpu"):
     """Stream all test rows; metric uses free decoding and no target prefix."""
     model.eval()
     totals = defaultdict(int)
+    by_treatment = defaultdict(lambda: defaultdict(int))
     batch = []
 
     def accumulate(examples):
@@ -269,12 +305,15 @@ def evaluate_parquet_test(model, run_dir, codec, config, device="cpu"):
             decoded = codec.decode(tokens[i].tolist(),
                                    coefficients[i].tolist() if coefficients is not None else None)
             expected, predicted = set(truth["skeleton"]), set(decoded["skeleton"])
-            totals["count"] += 1
-            totals["exact"] += int(decoded["valid"] and decoded["skeleton"] == truth["skeleton"])
-            totals["valid"] += int(decoded["valid"])
-            totals["tp"] += len(expected & predicted)
-            totals["fp"] += len(predicted - expected)
-            totals["fn"] += len(expected - predicted)
+            exact = int(decoded["valid"] and decoded["skeleton"] == truth["skeleton"])
+            group = by_treatment[truth.get("treatment") or "unknown"]
+            for counter in (totals, group):
+                counter["count"] += 1
+                counter["exact"] += exact
+                counter["valid"] += int(decoded["valid"])
+                counter["tp"] += len(expected & predicted)
+                counter["fp"] += len(predicted - expected)
+                counter["fn"] += len(expected - predicted)
             if model.predict_coefficients:
                 actual = dict(zip(truth["skeleton"], truth["coefficients"]))
                 forecast = dict(zip(decoded["skeleton"], decoded["coefficients"])) if decoded["valid"] else {}
@@ -286,9 +325,11 @@ def evaluate_parquet_test(model, run_dir, codec, config, device="cpu"):
                 for term in actual.keys() & forecast.keys():
                     totals["matched_absolute"] += abs(forecast[term] - actual[term])
                     totals["matched_count"] += 1
-                totals["joint"] += int(joint and all(math.isclose(forecast[t], v,
+                hit = int(joint and all(math.isclose(forecast[t], v,
                     abs_tol=config["coefficient_atol"], rel_tol=config["coefficient_rtol"])
                     for t, v in actual.items()))
+                totals["joint"] += hit
+                group["joint"] += hit
 
     for row in iter_shard_examples(run_dir, "test"):
         batch.append(row)
@@ -298,7 +339,13 @@ def evaluate_parquet_test(model, run_dir, codec, config, device="cpu"):
     if batch:
         accumulate(batch)
     n = totals["count"]
-    return {"count": n, "skeleton_exact": totals["exact"] / n,
+    treatments = {name: {
+        "count": c["count"], "skeleton_exact": c["exact"] / c["count"],
+        "valid_rate": c["valid"] / c["count"],
+        "term_f1": 2 * c["tp"] / max(1, 2 * c["tp"] + c["fp"] + c["fn"]),
+        "joint_exact": c["joint"] / c["count"] if model.predict_coefficients else None}
+        for name, c in sorted(by_treatment.items())}
+    return {"count": n, "by_treatment": treatments, "skeleton_exact": totals["exact"] / n,
             "valid_rate": totals["valid"] / n,
             "term_f1": 2 * totals["tp"] / max(1, 2 * totals["tp"] + totals["fp"] + totals["fn"]),
             "joint_exact": totals["joint"] / n if model.predict_coefficients else None,

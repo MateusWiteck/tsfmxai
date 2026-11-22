@@ -1,0 +1,81 @@
+{
+  "experiment": "canonical_ast_six_series_mixed",
+  "ast_count": 30000000,
+  "shard_size": 20000,
+  "generation_workers": 12,
+  "channels_per_system": 6,
+  "multiseries_fraction": 0.5,
+  "generator": {
+    "minimum_operators": 1,
+    "maximum_operators": 6,
+    "num_series": 6,
+    "minimum_lag": 1,
+    "maximum_lag": 16,
+    "max_degree": 4,
+    "minimum_parameter_magnitude": 0.05,
+    "maximum_parameter_magnitude": 1.0,
+    "operator_count_distribution": "uniform"
+  },
+  "multiseries_generator": {
+    "num_series": 6,
+    "minimum_operators": 1,
+    "maximum_operators": 6,
+    "minimum_lag": 1,
+    "maximum_lag": 16,
+    "max_degree": 4,
+    "minimum_parameter_magnitude": 0.05,
+    "maximum_parameter_magnitude": 1.0,
+    "dependency": "random",
+    "max_external_sources": 2,
+    "self_source_weight": 3.0,
+    "self_only_treatment_probs": {
+      "jacobian": 0.5,
+      "heaps": 0.5
+    }
+  },
+  "data_seed": 20261221,
+  "multiseries_data_seed": 20261224,
+  "split_seed": 20261222,
+  "training_seed": 20261223,
+  "protection_probability": 0.5,
+  "unique_eval_skeletons": true,
+  "split": {
+    "train": 0.7,
+    "validation": 0.1,
+    "test": 0.2
+  },
+  "batch_size": 256,
+  "epochs": 10,
+  "patience": 3,
+  "learning_rate": 0.0005,
+  "weight_decay": 0.0001,
+  "coefficient_weight": 2.0,
+  "gradient_clip": 1.0,
+  "min_delta": 0.0001,
+  "max_decode_steps": 64,
+  "validation_examples_per_epoch": 10000,
+  "validation_greedy_size": 2048,
+  "coefficient_atol": 0.01,
+  "coefficient_rtol": 0.01,
+  "cpu_threads": 4,
+  "model": {
+    "dimension": 96,
+    "heads": 4,
+    "encoder_layers": 2,
+    "dropout": 0.1,
+    "max_nodes": 65
+  },
+  "variants": [
+    {
+      "name": "transformer_skeleton",
+      "encoder": "transformer",
+      "coefficients": false
+    },
+    {
+      "name": "transformer_joint",
+      "encoder": "transformer",
+      "coefficients": true
+    }
+  ],
+  "note": "Teacher in the 30M skeleton/joint protocol on a mixed corpus. Half the rows are executed equations of the forecasting generator (Shao-Wu, Jacobian, Heaps; all six channels of each sampled system), so every node position up to max_nodes and the treated parameter values are seen in training. The other half are combinatorial trees with an operator count uniform over 1-6, half of them with tanh protection. Test metrics are reported per treatment."
+}

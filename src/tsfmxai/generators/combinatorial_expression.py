@@ -32,6 +32,10 @@ class CombinatorialTreeConfig:
     require_lag: bool = True
     minimum_parameter_magnitude: float = 0.05
     maximum_parameter_magnitude: float = 0.90
+    # "trees": uniform over all trees, so the largest size dominates.
+    # "uniform": operator count uniform over sizes that have trees, then a
+    # uniform tree of that size.
+    operator_count_distribution: str = "trees"
 
     def __post_init__(self) -> None:
         for name in ("minimum_operators", "maximum_operators", "num_series",
@@ -50,6 +54,8 @@ class CombinatorialTreeConfig:
                 and isfinite(self.maximum_parameter_magnitude)
                 and 0 < self.minimum_parameter_magnitude <= self.maximum_parameter_magnitude):
             raise ValueError("Parameter magnitudes must be finite and positive.")
+        if self.operator_count_distribution not in ("trees", "uniform"):
+            raise ValueError("operator_count_distribution must be 'trees' or 'uniform'.")
 
 
 @dataclass(frozen=True)
@@ -205,5 +211,22 @@ class CombinatorialTreeSampler:
     def sample(self, *, seed: int, sample_index: int | None = None) -> SampledMechanism:
         """Draw one AST with replacement, without float-rounded count weights."""
 
-        rank = random.Random(int(seed)).randrange(self.total_structures)
+        rng = random.Random(int(seed))
+        if self.config.operator_count_distribution == "uniform":
+            sizes = self._size_offsets()
+            offset, count = sizes[rng.randrange(len(sizes))]
+            rank = offset + rng.randrange(count)
+        else:
+            rank = rng.randrange(self.total_structures)
         return self.unrank(rank, seed=int(seed), sample_index=sample_index)
+
+    def _size_offsets(self) -> list[tuple[int, int]]:
+        """(first rank, tree count) per operator count; root states are ordered by size."""
+        if not hasattr(self, "_sizes"):
+            sizes, offset = {}, 0
+            for state in self.root_states:
+                first, count = sizes.get(state[0], (offset, 0))
+                sizes[state[0]] = (first, count + self.counts[state].trees)
+                offset += self.counts[state].trees
+            self._sizes = list(sizes.values())
+        return self._sizes

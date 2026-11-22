@@ -170,6 +170,60 @@ def test_all_channels_per_system_encode_every_channel_and_match_uncached(tmp_pat
         sample_multiseries_example({**config, "channels_per_system": 3}, codec, 0)
 
 
+def test_uniform_operator_count_covers_every_size():
+    from collections import Counter
+    from tsfmxai.generators.combinatorial_expression import (
+        CombinatorialTreeConfig, CombinatorialTreeSampler)
+    from tsfmxai.representations.expression import operator_count as count_operators
+    base = dict(minimum_operators=1, maximum_operators=6, num_series=6, maximum_lag=16)
+    trees = CombinatorialTreeSampler(CombinatorialTreeConfig(**base))
+    uniform = CombinatorialTreeSampler(CombinatorialTreeConfig(
+        **base, operator_count_distribution="uniform"))
+    sizes = lambda sampler: Counter(count_operators(sampler.sample(seed=s).expression)
+                                    for s in range(3000))
+    assert sizes(trees)[6] > 2900
+    counts = sizes(uniform)
+    assert set(counts) == set(range(1, 7)) and min(counts.values()) > 400
+    with pytest.raises(ValueError, match="operator_count_distribution"):
+        CombinatorialTreeConfig(operator_count_distribution="other")
+
+
+def test_mixed_corpus_has_generator_equations_and_combinatorial_trees(tmp_path):
+    from tsfmxai.generators.multiseries import sample_multiseries_system
+    from tsfmxai.generators.random_expression import derive_sample_seed
+    from tsfmxai.symbolic_regression.canonical_data import multiseries_teacher_config
+    from tsfmxai.symbolic_regression.canonical_large_scale import multiseries_mixture
+    from tsfmxai.symbolic_regression.canonical_release import generator_metadata
+    shared = {"num_series": 6, "minimum_operators": 1, "maximum_operators": 3,
+              "minimum_lag": 1, "maximum_lag": 6, "max_degree": 4,
+              "minimum_parameter_magnitude": .05, "maximum_parameter_magnitude": 1.}
+    multiseries = {**shared, "dependency": "random", "max_external_sources": 2,
+                   "self_source_weight": 3.}
+    config = {"ast_count": 120, "shard_size": 40, "generation_workers": 2,
+              "data_seed": 23, "split_seed": 29, "multiseries_data_seed": 31,
+              "split": {"train": 0.7, "validation": 0.1, "test": 0.2},
+              "max_decode_steps": 64, "model": {"max_nodes": 64},
+              "channels_per_system": 6, "multiseries_fraction": 0.5,
+              "generator": {**shared, "operator_count_distribution": "uniform"},
+              "multiseries_generator": multiseries}
+    generate_parquet(config, tmp_path, lambda *args, **kwargs: None)
+    rows = sorted((e for split in ("train", "validation", "test")
+                   for e in iter_shard_examples(tmp_path, split)),
+                  key=lambda e: e["sample_index"])
+    assert [e["sample_index"] for e in rows] == list(range(120))
+    assert {e["treatment"] for e in rows[:60]} <= {"shao_wu", "jacobian", "heaps"}
+    assert {e["treatment"] for e in rows[60:]} <= {"raw", "tanh_protection"}
+    codec = CanonicalCodec(6, 1, 6, 4)
+    system = sample_multiseries_system(multiseries_teacher_config(multiseries),
+                                       seed=derive_sample_seed(31, 3))
+    assert [rows[18 + c]["skeleton"] for c in range(6)] == [
+        codec.encode(e)["skeleton"] for e in system.equations]
+    assert multiseries_mixture(config)[1] == 60
+    assert generator_metadata(config)["resolved"]["multiseries_rows"] == 60
+    with pytest.raises(ValueError, match="codec"):
+        multiseries_mixture({**config, "multiseries_generator": {**multiseries, "maximum_lag": 7}})
+
+
 def test_production_training_can_iterate_over_every_split(tmp_path):
     config = {"ast_count": 120, "shard_size": 40, "generation_workers": 1,
               "data_seed": 17, "split_seed": 19,
