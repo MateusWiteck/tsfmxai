@@ -645,7 +645,7 @@
 <!-- 14c. Planned comparison with LMC-Synth -->
 <section id="evalplan">
   <div class="canvas" style="height:660px">
-    <div class="crumb"><b>Comparison</b> &middot; this project's generator against LMC-Synth <span>&nbsp;&nbsp;LMC arms completed; our generator and real-data comparisons pending</span></div>
+    <div class="crumb"><b>Comparison</b> &middot; this project's generator against LMC-Synth <span>&nbsp;&nbsp;LMC arms done; preliminary runs training; our arms pending</span></div>
     <div class="zoom"></div>
   </div>
 </section>
@@ -706,30 +706,6 @@
   </div>
 </section>
 
-<!-- 15. References -->
-<section id="refs">
-  <div class="canvas">
-    <div class="kicker">Sources</div>
-    <h2>References</h2>
-    <ul class="refs">
-      <li>Ansari, A. F. et al. (2024). Chronos: Learning the Language of Time Series. <i>TMLR</i>.</li>
-      <li>Ansari, A. F. et al. (2025). Chronos-2: From Univariate to Universal Forecasting. arXiv:2510.15821.</li>
-      <li>Bahrpeyma, F. et al. (2021). A methodology for validating diversity in synthetic time series generation. <i>MethodsX</i> 8:101459.</li>
-      <li>Shao, X. and Wu, W. B. (2007). Asymptotic spectral theory for nonlinear time series. <i>Annals of Statistics</i> 35(4).</li>
-      <li>D&rsquo;Ascoli, S. et al. (2022). Deep symbolic regression for recurrent sequences. <i>ICML</i>.</li>
-      <li>Hyndman, R. J. and Athanasopoulos, G. (2018). <i>Forecasting: Principles and Practice</i>, 2nd ed. OTexts.</li>
-      <li>Rasmussen, C. E. and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.</li>
-      <li>Devlin, J. et al. (2019). BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. <i>NAACL</i>.</li>
-      <li>Lewis, M. et al. (2020). BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension. <i>ACL</i>.</li>
-      <li>Raffel, C. et al. (2020). Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer. <i>JMLR</i> 21.</li>
-      <li>KernelSynth generator: github.com/amazon-science/chronos-forecasting, <span class="mono">scripts/kernel-synth.py</span> (Apache-2.0).</li>
-      <li>Taga, E. G., Ildiz, M. E. and Oymak, S. (2025). TimePFN: Effective Multivariate Time Series Forecasting with Synthetic Data. <i>AAAI</i>. arXiv:2502.16294.</li>
-      <li>Nagpal, A. et al. (2026). Mix, Don&rsquo;t Pick: Why Synthetic Corpus Composition Matters for Time Series Foundation Model Pretraining. arXiv:2606.09912.</li>
-      <li>LMC-Synth generator: github.com/egetaga/TimePFN, <span class="mono">synthetic_data_generation/LMC_Synth.py</span>.</li>
-    </ul>
-  </div>
-</section>
-
 <!-- Canonicalizer 30M: verified remote experiment -->
 <section id="canonicalizer-30m">
   <div class="canvas">
@@ -750,9 +726,92 @@
       Forecasting teacher: <b>skeleton-only</b>, without coefficient prediction.<br>
       Different test-set sizes and more training updates: this is not an equal-compute comparison.
     </div>
+    <div class="box" style="font-size:0.62em;margin-top:12px">
+      <b>Next teacher:</b> trained on the equations the forecasting generator executes (Shao&ndash;Wu, Jacobian, Heaps; up to 65 nodes; absolute channel indices), skeleton-only; scheduled on VM02 after the preliminary runs.
+    </div>
     <p style="font-size:0.48em;margin-top:18px">Verified record: experiments/canonicalization/07_train_30m_six_series.ipynb · training commit 10dc844</p>
   </div>
 </section>
+
+<!-- Runs: done, running, next -->
+<section id="runs-status">
+  <div class="canvas">
+    <div class="kicker">Status &middot; 22 Nov 2026</div>
+    <h2>Runs: done, training, next</h2>
+    <table style="font-size:0.56em;width:100%;margin:14px 0">
+      <thead><tr><th>Run</th><th>Purpose</th><th>Model</th><th>Machine</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Study A &middot; LMC</td><td>equal exposure, 445,433 updates</td><td>Chronos-2</td><td>VM02</td><td><b>done</b> &middot; 12.70 h</td></tr>
+        <tr><td>Study B &middot; LMC</td><td>equal time, 10 h</td><td>Chronos-2</td><td>VM03</td><td><b>done</b> &middot; 299,991 updates</td></tr>
+        <tr><td>Preliminary &middot; p = 0.25</td><td>choose the KernelSynth share</td><td>Chronos-2</td><td>VM02</td><td><b class="ours">training</b> &middot; ends ~22 Nov, 12 UTC</td></tr>
+        <tr><td>Preliminary &middot; p = 0.50</td><td>choose the KernelSynth share</td><td>Chronos-2</td><td>VM03</td><td><b class="ours">training</b> &middot; ends ~22 Nov, 12 UTC</td></tr>
+        <tr><td>Throughput test</td><td>project the next runs</td><td>both backbones</td><td>VM02, VM03</td><td>scheduled after the preliminary runs</td></tr>
+        <tr><td>Six-series teacher</td><td>targets of the equation head</td><td>canonicalizer, skeleton-only</td><td>VM02</td><td>scheduled after the test</td></tr>
+        <tr><td>Study A &middot; ours, ours + head</td><td>equal exposure</td><td>Chronos-2 (+ channel index)</td><td>to decide</td><td>after p and the teacher</td></tr>
+        <tr><td>Study B &middot; ours, ours + head</td><td>equal time, principal contrasts</td><td>Chronos-2 (+ channel index)</td><td>VM03, exclusive</td><td>after p (head: after the teacher)</td></tr>
+        <tr><td>Study B &middot; curriculum arms</td><td>secondary</td><td>Chronos-2 (+ channel index)</td><td>VM03</td><td>deferred</td></tr>
+      </tbody>
+    </table>
+    <div class="box ours" style="font-size:0.6em;margin-top:8px">
+      Arms without the equation head train the <b>unmodified Chronos-2</b>, like the completed LMC runs, which therefore stay the LMC arms of both studies.
+    </div>
+  </div>
+</section>
+
+<!-- Generation speedup -->
+<section id="generation-speedup">
+  <div class="canvas">
+    <div class="kicker">Engineering &middot; corpus generation</div>
+    <h2>4&times; faster, same data on any machine</h2>
+    <div class="row" style="gap:24px;align-items:stretch">
+      <div class="box" style="flex:1;font-size:0.6em"><b>Profile:</b> 70% of the time evaluating trees node by node; KernelSynth only 5%</div>
+      <div class="box" style="flex:1;font-size:0.6em"><b>① Compile each tree once</b> into one Python expression: same operations, same order, <b>bitwise identical</b> series</div>
+      <div class="box" style="flex:1;font-size:0.6em"><b>② One thread per worker</b> in BLAS/OpenMP: 12 workers had opened ~150 threads; 57&ndash;60% of the CPU went to the kernel</div>
+    </div>
+    <table style="font-size:0.6em;width:100%;margin:16px 0">
+      <thead><tr><th>Batches per second</th><th>Local, 8 workers (P25)</th><th>Remote VM, one process</th></tr></thead>
+      <tbody>
+        <tr><td>Original code</td><td>6.84 (1.00&times;)</td><td>0.96 (1.00&times;)</td></tr>
+        <tr><td>One thread per worker</td><td>6.68 (0.98&times;)</td><td>2.23 (2.32&times;)</td></tr>
+        <tr><td>Compiled trees</td><td>8.67 (1.27&times;)</td><td>1.01 (1.05&times;)</td></tr>
+        <tr><td><b>Both</b></td><td><b>9.68 (1.42&times;)</b></td><td><b>3.85 (4.01&times;)</b></td></tr>
+      </tbody>
+    </table>
+    <div class="row" style="gap:18px">
+      <div class="box ours" style="flex:1;font-size:0.6em"><b>Real preparations, resumed in place:</b> P25 9.8 &rarr; 32 batches/s (3.3&times;), P50 7.7 &rarr; 36 batches/s (4.7&times;)</div>
+      <div class="box" style="flex:1;font-size:0.6em"><b>Side effect fixed:</b> the BLAS thread count changed KernelSynth values (16% of values, up to 5%); the corpus depended on the core count</div>
+    </div>
+    <p style="font-size:0.45em;margin-top:10px">Single exploratory measurements, fixed order; the remote figures shared the machine with a running preparation. Commit 86b6844; report Section 9.3.1.</p>
+  </div>
+</section>
+
+<!-- 15. References -->
+<section id="refs">
+  <div class="canvas">
+    <div class="kicker">Sources</div>
+    <h2>References</h2>
+    <ul class="refs" style="columns:2;column-gap:40px;font-size:0.92em">
+      <li>Ansari, A. F. et al. (2024). Chronos: Learning the Language of Time Series. <i>TMLR</i>.</li>
+      <li>Ansari, A. F. et al. (2025). Chronos-2: From Univariate to Universal Forecasting. arXiv:2510.15821.</li>
+      <li>Bahrpeyma, F. et al. (2021). A methodology for validating diversity in synthetic time series generation. <i>MethodsX</i> 8:101459.</li>
+      <li>Shao, X. and Wu, W. B. (2007). Asymptotic spectral theory for nonlinear time series. <i>Annals of Statistics</i> 35(4).</li>
+      <li>D&rsquo;Ascoli, S. et al. (2022). Deep symbolic regression for recurrent sequences. <i>ICML</i>.</li>
+      <li>Hyndman, R. J. and Athanasopoulos, G. (2018). <i>Forecasting: Principles and Practice</i>, 2nd ed. OTexts.</li>
+      <li>Rasmussen, C. E. and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.</li>
+      <li>Devlin, J. et al. (2019). BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. <i>NAACL</i>.</li>
+      <li>Lewis, M. et al. (2020). BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension. <i>ACL</i>.</li>
+      <li>Raffel, C. et al. (2020). Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer. <i>JMLR</i> 21.</li>
+      <li>KernelSynth generator: github.com/amazon-science/chronos-forecasting, <span class="mono">scripts/kernel-synth.py</span> (Apache-2.0).</li>
+      <li>Taga, E. G., Ildiz, M. E. and Oymak, S. (2025). TimePFN: Effective Multivariate Time Series Forecasting with Synthetic Data. <i>AAAI</i>. arXiv:2502.16294.</li>
+      <li>Nagpal, A. et al. (2026). Mix, Don&rsquo;t Pick: Why Synthetic Corpus Composition Matters for Time Series Foundation Model Pretraining. arXiv:2606.09912.</li>
+      <li>LMC-Synth generator: github.com/egetaga/TimePFN, <span class="mono">synthetic_data_generation/LMC_Synth.py</span>.</li>
+      <li>Heaps, S. E. (2023). Enforcing Stationarity through the Prior in Vector Autoregressions. <i>Journal of Computational and Graphical Statistics</i>.</li>
+      <li>Vaswani, A. et al. (2017). Attention Is All You Need. <i>NeurIPS</i>.</li>
+      <li>Nie, Y. et al. (2023). A Time Series is Worth 64 Words: Long-term Forecasting with Transformers. <i>ICLR</i>.</li>
+    </ul>
+  </div>
+</section>
+
 
 </div>
 </div>

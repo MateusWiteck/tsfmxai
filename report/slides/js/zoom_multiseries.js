@@ -22,8 +22,8 @@
   const sub = (n) => String(n).split("").map((c) => SUBS[+c]).join("");
   const xs = (i) => "x" + sub(i + 1);
   const lagS = (s, l) => `${xs(s)}(t${MINUS}${l})`;
-  const NAME = { shao_wu: "Shao–Wu", heaps: "Heaps", jacobian: "Jacobian", original: "plain tree" };
-  const TONE = { shao_wu: col.ours, heaps: col.blue, jacobian: col.teal, original: col.muted };
+  const NAME = { shao_wu: "Shao–Wu", heaps: "Heaps", jacobian: "Jacobian" };
+  const TONE = { shao_wu: col.ours, heaps: col.blue, jacobian: col.teal };
   const n = D.channels, fmtInt = (v) => v.toLocaleString("en-US");
   const STAGES = ["① Topology", "② Trees, sources", "③ Fix per channel", "④ Noise, start", "⑤ Simulate, retry", "⑥ Labels, batch"];
   const maxLag = (i) => Math.max.apply(null, D.canonical[i].flatMap((t) => t.atoms.map((a) => a[1])));
@@ -203,7 +203,7 @@
     ctx.globalAlpha = ease(seg(p, 0.45, 0.7));
     box(ctx, 20, 306, 560, 142);
     text(ctx, "The draw for this system (random topology)", 36, 334, 17, col.ink, { weight: 700 });
-    D.permissions_before.forEach((src, i) => {
+    D.allowed.forEach((src, i) => {
       const y = 344 + i * 26;
       text(ctx, xs(i) + " may read", 40, y + 17, 15, CH[i], { weight: 700 });
       let x = 150;
@@ -215,7 +215,7 @@
       "its own past is always permitted",
       `number of other sources: uniform from 0 to min(${D.max_external}, candidates)`,
       "a permission is not an edge: the source counts only if the tree draws it",
-      "x₂ may read x₃ and x₃ may read x₂: a cycle, fine, since only the past is read",
+      "cycles are allowed: every equation reads only the past",
     ].forEach((s, i) => {
       ctx.fillStyle = col.blue;
       ctx.beginPath(); ctx.arc(622, 334 + i * 30 - 5, 4.5, 0, Math.PI * 2); ctx.fill();
@@ -223,7 +223,7 @@
     });
     ctx.globalAlpha = 1;
     ctx.globalAlpha = ease(seg(p, 0.85, 1));
-    text(ctx, "Each system draws one topology and a random channel order; the four topologies share one code path.", 20, 478, 15.5, col.muted);
+    text(ctx, "Each system draws a random channel order; training uses the random topology, with six channels.", 20, 478, 15.5, col.muted);
     ctx.globalAlpha = 1;
   }
 
@@ -231,7 +231,7 @@
   const DEMO_CH = D.treatments.indexOf("shao_wu");
   function sources(ctx, p) {
     chips(ctx, 1);
-    const tree = D.original_trees[DEMO_CH], srcs = D.permissions_before[DEMO_CH], sw = D.source_weights[DEMO_CH];
+    const tree = D.original_trees[DEMO_CH], srcs = D.allowed[DEMO_CH], sw = D.source_weights[DEMO_CH];
     box(ctx, 20, 60, 660, 388);
     text(ctx, `Channel ${xs(DEMO_CH)}: grow a tree for one placeholder series`, 40, 96, 20, col.ink, { weight: 700 });
     text(ctx, "the same combinatorial sampler as before; then every lag leaf draws its source", 40, 120, 15, col.muted);
@@ -269,12 +269,9 @@
     });
     ctx.globalAlpha = ease(seg(p, 0.5, 0.75));
     box(ctx, 716, 282, 448, 150, { fill: col.soft, stroke: col.blue });
-    text(ctx, "Plain-tree channels only: more lag leaves", 732, 308, 16, col.blue, { weight: 700 });
-    wrap(ctx, "The more series a channel may read, the more often a leaf becomes a lag, so products can mix series:", 732, 332, 420, 20, 14.5, col.ink);
-    D.lag_sampling.by_external.forEach((r, k) => {
-      text(ctx, `${k} other${k === 1 ? "" : "s"}: ${(100 * r).toFixed(r * 100 % 1 ? 2 : 0)}%`, 732 + k * 140, 386, 16, col.ink, { weight: 700 });
-    });
-    text(ctx, "inactive in the default mix: plain trees have probability 0", 732, 416, 14, col.muted);
+    text(ctx, "At least one lag reads another series", 732, 308, 16, col.blue, { weight: 700 });
+    wrap(ctx, "A channel with a permitted external source is a Shao–Wu channel. One of its lag leaves, chosen at random, takes an external source; the others use the weights above. So every such channel really reads another series.", 732, 332, 420, 20, 14.5, col.ink);
+    text(ctx, "every tree has at least one lag", 732, 424, 14, col.muted);
     ctx.globalAlpha = 1;
   }
 
@@ -282,24 +279,22 @@
   function treatments(ctx, p) {
     chips(ctx, 2);
     box(ctx, 20, 60, 1160, 58);
-    text(ctx, "One fix drawn per channel", 40, 96, 20, col.ink, { weight: 700 });
-    const probs = [["shao_wu", D.treatment_probs.shao_wu], ["heaps", D.treatment_probs.heaps], ["jacobian", D.treatment_probs.jacobian]];
-    let bx = 330;
-    const bw = 700, ba = ease(seg(p, 0, 0.25));
-    probs.forEach(([k, v]) => {
-      const w = bw * v * ba;
-      ctx.fillStyle = TONE[k];
-      ctx.fillRect(bx, 74, w, 30);
-      if (ba > 0.9) text(ctx, `${NAME[k]} ${Math.round(100 * v)}%`, bx + w / 2, 95, 15, col.panel, { align: "center", weight: 700 });
-      bx += w;
-    });
-    text(ctx, `plain tree ${Math.round(100 * (D.treatment_probs.original || 0))}%`, 1160, 95, 14, col.muted, { align: "right" });
+    text(ctx, "The topology sets the fix", 40, 96, 20, col.ink, { weight: 700 });
+    const so = D.self_only_treatment_probs, ba = ease(seg(p, 0, 0.25));
+    ctx.globalAlpha = ba;
+    pill(ctx, "another series permitted → Shao–Wu", 330, 76, TONE.shao_wu, { size: 15 });
+    pill(ctx, `only itself → Jacobian ${Math.round(100 * so.jacobian)}% · Heaps ${Math.round(100 * so.heaps)}%`, 690, 76, col.teal, { size: 15 });
+    ctx.globalAlpha = 1;
 
     const desc = (i) => {
       const t = D.treatments[i];
-      if (t === "shao_wu") return `keeps its sources; tanh on the lag factors of products; row scale s = ${D.safety_factor} · min(1, ${D.target_gain} / g), derivative bound g = ${D.gains[i].toFixed(2)}, so s = ${D.scales[i].toFixed(3)}`;
-      if (t === "heaps") return `self-only; lag support is drawn directly: 40% consecutive, 20% isolated, 40% periodic. Heaps builds a stable, additive AR without a preliminary tree`;
-      return `self-only; contraction certified on |x| ≤ ${D.domain_radius}, scale ${D.scales[i].toFixed(3)}; bounded uniform noise`;
+      if (t === "shao_wu") return `reads ${D.effective[i].filter((j) => j !== i).map(xs).join(", ")}; tanh on the lag factors of products; row scale s = ${D.safety_factor} · min(1, ${D.target_gain} / g), derivative bound g = ${D.gains[i].toFixed(2)}, so s = ${D.scales[i].toFixed(3)}`;
+      if (t === "heaps") {
+        const h = D.heaps[i], kind = { consecutive: "consecutive lags", isolated: "one isolated lag", periodic: "periodic lags" }[h.support];
+        return `no external source; stable additive AR on ${kind}, order ${h.order}${h.period > 1 ? `, period ${h.period}` : ""}, drawn directly (40% consecutive, 20% isolated, 40% periodic)`;
+      }
+      const s = D.scales[i];
+      return `no external source; contraction certified on |x| ≤ ${D.domain_radius}, scale ${s < 0.001 ? s.toExponential(1) : s.toFixed(3)}; bounded uniform noise`;
     };
     D.treatments.forEach((t, i) => {
       const y = 132 + i * 72, a = ease(seg(p, 0.2 + i * 0.13, 0.45 + i * 0.13));
@@ -308,24 +303,16 @@
       text(ctx, xs(i), 40, y + 42, 26, CH[i], { weight: 700 });
       pill(ctx, NAME[t], 92, y + 19, TONE[t], { size: 15 });
       let x = 216;
-      D.permissions_before[i].forEach((j) => {
-        const kept = D.allowed[i].includes(j);
-        const w = pill(ctx, xs(j), x, y + 20, kept ? CH[j] : col.muted, { size: 13, fill: kept ? CSOFT[j] : col.grey });
-        if (!kept) {
-          ctx.strokeStyle = col.ours;
-          ctx.lineWidth = 2.6;
-          ctx.beginPath(); ctx.moveTo(x - 2, y + 44); ctx.lineTo(x + w + 2, y + 22); ctx.stroke();
-        }
-        x += w + 6;
-      });
+      D.allowed[i].forEach((j) => { x += pill(ctx, xs(j), x, y + 20, CH[j], { size: 13, fill: CSOFT[j] }) + 6; });
       const one = Z.measure(ctx, desc(i), 15) <= 760;
       wrap(ctx, desc(i), 400, y + (one ? 38 : 27), 760, 20, 15, col.ink);
       ctx.globalAlpha = 1;
     });
+    const sh = S.treatment_shares;
     ctx.globalAlpha = ease(seg(p, 0.8, 1));
     box(ctx, 20, 428, 1160, 66, { fill: col.osoft, stroke: col.ours });
-    text(ctx, "Each channel is certified on its own; the mixed system has no joint certificate.", 40, 456, 17, col.ours, { weight: 700 });
-    text(ctx, "Jacobian and Heaps channels drop their permitted sources (struck out). So every trajectory is still checked when it runs (⑤).", 40, 480, 15, col.ink);
+    text(ctx, `Six channels, at most ${D.max_external} external sources: ${Math.round(100 * sh.shao_wu)}% Shao–Wu, ${Math.round(100 * sh.jacobian)}% Jacobian, ${Math.round(100 * sh.heaps)}% Heaps (measured).`, 40, 456, 17, col.ours, { weight: 700 });
+    text(ctx, "Each channel is certified on its own; the mixed system has no joint certificate, so every trajectory is still checked (⑤).", 40, 480, 15, col.ink);
     ctx.globalAlpha = 1;
   }
 
@@ -420,30 +407,27 @@
     ctx.globalAlpha = 1;
     step(40, 354, 580, 78, "replace the whole system", "a new seed draws new trees for every channel; its accepted trajectories are dropped too", "ours", A(0.62, 0.74));
 
-    const d = S.default, g = S.diagnostic;
+    const d = S;
     const rescued = (s) => (s.failures_by_attempt["0"] || 0) - (s.failures_by_attempt["3"] || 0);
     ctx.globalAlpha = A(0.7, 0.85);
     box(ctx, 660, 60, 520, 388);
     text(ctx, "Measured", 680, 96, 20, col.ink, { weight: 700 });
     text(ctx, `${S.systems} systems of ${S.channels} channels × 2 trajectories`, 680, 120, 15, col.muted);
-    text(ctx, "default mix", 1000, 152, 14.5, col.teal, { align: "right", weight: 700 });
-    text(ctx, `with ${Math.round(100 * g.treatment_probs.original)}% plain trees`, 1164, 152, 14.5, col.ours, { align: "right", weight: 700 });
     [
-      ["trajectories failing a first try", d.failures_by_attempt["0"] || 0, g.failures_by_attempt["0"] || 0],
-      ["rescued by a new history", rescued(d), rescued(g)],
-      ["systems replaced", d.replaced_systems, g.replaced_systems],
-      ["equations redrawn", d.resampled_equations, g.resampled_equations],
-      ["of them plain trees", d.resampled_original_equations, g.resampled_original_equations],
+      ["trajectories failing a first try", d.failures_by_attempt["0"] || 0],
+      ["rescued by a new history", rescued(d)],
+      ["systems replaced", d.replaced_systems],
+      ["equations redrawn", d.resampled_equations],
+      ["channels reading another series", `${Math.round(100 * d.cross_series_share)}%`],
     ].forEach((r, i) => {
-      const y = 186 + i * 40;
+      const y = 166 + i * 40;
       ctx.strokeStyle = col.line;
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(680, y + 12); ctx.lineTo(1164, y + 12); ctx.stroke();
       text(ctx, r[0], 680, y, 15.5, col.ink);
-      text(ctx, fmtInt(r[1]), 1000, y, 18, col.teal, { align: "right", weight: 700 });
-      text(ctx, fmtInt(r[2]), 1164, y, 18, col.ours, { align: "right", weight: 700 });
+      text(ctx, typeof r[1] === "number" ? fmtInt(r[1]) : r[1], 1164, y, 18, col.teal, { align: "right", weight: 700 });
     });
-    wrap(ctx, `The default mix of certified fixes needed no retry. The retries and replacements catch plain trees and mixed systems, which carry no joint certificate. Either way, every run yields ${fmtInt(d.windows)} windows.`, 680, 392, 484, 20, 14.5, col.ink);
+    wrap(ctx, `With certified fixes and the forecasting arm's settings, no trajectory needed a retry and no system was replaced. The retry and replacement remain because the mixed system has no joint certificate. The run yields ${fmtInt(d.windows)} windows.`, 680, 372, 484, 20, 14.5, col.ink);
     ctx.globalAlpha = 1;
   }
 
@@ -465,7 +449,7 @@
     wrap(ctx, "The equation actually executed, after its fix. The sources it reads come from the canonical terms, not from the permissions.", 52, 405, 620, 19, 14.5, col.ink);
     ctx.globalAlpha = 1;
 
-    const sh = S.default.batch_shapes;
+    const sh = S.batch_shapes;
     ctx.globalAlpha = ease(seg(p, 0.45, 0.7));
     box(ctx, 720, 60, 460, 388);
     text(ctx, "One training batch", 740, 96, 20, col.ink, { weight: 700 });
@@ -483,21 +467,21 @@
       text(ctx, "[" + r[1].join(", ") + "]", 1160, y + 14, 15.5, col.ink, { align: "right", weight: 700, family: "Consolas, monospace" });
       text(ctx, r[2], 740, y + 32, 13.5, col.muted);
     });
-    wrap(ctx, "Channels are padded to the largest count of the config. The head learns the skeleton, not the coefficients.", 740, 414, 420, 19, 14.5, col.ink);
+    wrap(ctx, "Training fixes six channels, so no channel is padding. The head learns the skeleton, not the coefficients.", 740, 414, 420, 19, 14.5, col.ink);
     ctx.globalAlpha = 1;
   }
 
-  const DEMO_FOOT = `Real system: sample_multiseries_system, seed ${D.seed}, ${n} channels, random topology, default per-channel prior; simulated by generate_training_batches. Exported by report/slides/scripts/export_multiseries_demo.py.`;
-  const STATS_FOOT = `${S.systems} systems × ${S.channels} channels × 2 trajectories of 128 steps, the four topologies equally likely, lags 1–16, ≤ 4 operators, degree 4, seed ${S.seed}; second column: original 0.4, Shao–Wu 0.3, Jacobian 0.1, Heaps 0.2 (export_multiseries_demo.py).`;
+  const DEMO_FOOT = `Real system: sample_multiseries_system, seed ${D.seed}, ${n} channels for legibility (training uses six), random topology, ≤ 4 operators, dependency-driven treatments; simulated by generate_training_batches. Exported by report/slides/scripts/export_multiseries_demo.py.`;
+  const STATS_FOOT = `${S.systems} systems × ${S.channels} channels × 2 trajectories of 128 steps, random topology, 1–6 operators, lags 1–16, degree 4, magnitudes 0.05–1, seed ${S.seed} (export_multiseries_demo.py).`;
   window.ZMULTI = {
     steps: [
       { narr: "Many series", sub: "one system of coupled equations, one label per channel", dur: 6500, foot: DEMO_FOOT, run: overview },
       { narr: "Many series · ① topology", sub: "which series a channel is allowed to read", dur: 6500, foot: DEMO_FOOT + " Topology rules: src/tsfmxai/generators/multiseries.py.", run: topology },
       { narr: "Many series · ② trees and sources", sub: "a scalar tree first, then one source drawn per lag", dur: 6500, foot: DEMO_FOOT, run: sources },
-      { narr: "Many series · ③ one fix per channel", sub: "drawn independently; only Shao–Wu keeps other series", dur: 7000, foot: DEMO_FOOT, run: treatments },
+      { narr: "Many series · ③ one fix per channel", sub: "Shao–Wu where another series is permitted; Jacobian or Heaps otherwise", dur: 7000, foot: DEMO_FOOT + " Shares: " + STATS_FOOT, run: treatments },
       { narr: "Many series · ④ noise and startup", sub: "per-channel noise scale, random startup history", dur: 6500, foot: DEMO_FOOT, run: start },
       { narr: "Many series · ⑤ simulate and retry", sub: "three new histories, then a new system", dur: 7500, foot: STATS_FOOT, run: simulate },
-      { narr: "Many series · ⑥ labels and batch", sub: "the canonical equation of every channel goes with the windows", dur: 6000, foot: DEMO_FOOT + " Shapes: first batch of the default-mix run.", run: labels },
+      { narr: "Many series · ⑥ labels and batch", sub: "the canonical equation of every channel goes with the windows", dur: 6000, foot: DEMO_FOOT + " Shapes: first batch of the six-channel statistics run.", run: labels },
     ],
   };
 })();

@@ -45,3 +45,62 @@ and conversion to the output dtype. After an initial attempt and three new
 histories, an exhausted trajectory causes the entire configuration-sampled
 system to be replaced. Accepted trajectories from that discarded system are
 also discarded. Explicitly supplied systems cannot be replaced.
+
+\subsubsection{Generation performance}
+\label{sec:multivariate-generation-performance}
+Profiling one process that generates batches of the preliminary P25
+configuration located the cost. The recursive evaluation of the bound trees,
+one call per node, channel, and time step, took about 70\% of the time. The
+KernelSynth draws, which include a Cholesky factorization, took about 5\%.
+Two changes followed, both in commit \texttt{86b6844}.
+\begin{enumerate}
+\item Each bound tree is compiled once per system into a single Python
+ expression that applies the same operations in the same order. Parameters
+ become exact float literals, and $\tanh$ keeps the NumPy implementation.
+ The resulting trajectories are bitwise identical to those of the recursive
+ evaluator; a unit test checks this on sampled Shao--Wu, Jacobian, and Heaps
+ channels.
+\item Every data worker of the own generator runs its numerical libraries
+ (OpenBLAS, OpenMP, PyTorch) on one thread. By default, each worker started
+ thread pools as wide as the machine. With one worker per logical core, the
+ CPU was oversubscribed: on the remote machines, 57--60\% of CPU time was
+ spent in the kernel rather than in generation.
+\end{enumerate}
+The thread count also changes the data. Multithreaded BLAS alters the
+KernelSynth factor in the last bits, and the recurrences amplify the
+difference. Comparing default threads with one thread, about 16\% of the
+values in eight P25 batches differed, by up to 5\% in relative terms. Before
+this change, a corpus therefore depended on the core count of the machine that
+prepared it. With one thread per worker, it no longer does.
+Table~\ref{tab:generation-speedup} reports steady-state throughput, excluding
+worker start-up, for the original code, each change separately, and both.
+\begin{table}[htbp]\centering
+\caption{Batch generation throughput in batches per second, with speedup over
+the original code in parentheses. Local: Windows, eight logical cores, eight
+workers, 200 batches of the preliminary configuration. Remote: one process
+with ten P25 batches, run while the corpus preparation occupied the machine.}
+\label{tab:generation-speedup}
+\begin{tabular}{lrrrr}\hline
+ & \multicolumn{2}{c}{Local, eight workers} & Local, & Remote, \\
+Variant & P25 & P50 & one process & one process \\\hline
+Original code & 6.84 (1.00) & 6.31 (1.00) & 1.94 (1.00) & 0.96 (1.00) \\
+One thread per worker & 6.68 (0.98) & 7.23 (1.15) & 2.15 (1.11) & 2.23 (2.32) \\
+Compiled trees & 8.67 (1.27) & 7.96 (1.26) & -- & 1.01 (1.05) \\
+Both changes & 9.68 (1.42) & 8.93 (1.42) & 3.11 (1.60) & 3.85 (4.01) \\\hline
+\end{tabular}\end{table}
+On the local Windows machine, the oversubscription cost little, and the
+compiled trees gave most of the gain. On the Linux machines that prepare the
+corpora, each change alone gave little, and both together gave about four
+times the original throughput. The two changes interact: without the thread
+limit, the faster workers only call into the oversubscribed BLAS pools more
+often. The preliminary corpus preparations confirmed the gain. They were
+interrupted and resumed from the saved batches with the new code. Throughput
+rose from 9.8 to 32 batches per second on the twelve-core machine (P25,
+$3.3\times$) and from 7.7 to 36 batches per second on the sixteen-core machine
+(P50, $4.7\times$). Kernel CPU time fell to 1--2\%. The batches saved before
+the resumption were generated with default thread counts. They therefore
+differ in the last bits from a single-threaded regeneration, and the corpus
+manifest records the batch index at which each stage resumed.
+These are single exploratory measurements. Each variant ran once, in a fixed
+order, and the remote single-process figures shared the machine with the
+running preparation.

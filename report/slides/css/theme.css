@@ -252,3 +252,10 @@ html, body { background: var(--bg); }
 
 .dep-open { margin-left: auto; flex: none; white-space: nowrap; font: inherit; font-size: 15px; font-weight: 650; border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent); padding: 5px 16px; border-radius: 999px; cursor: pointer; }
 .dep-open:hover { background: var(--accent); color: #fff; }
+
+/* Data tables */
+.reveal table { border-collapse: collapse; }
+.reveal table th { text-align: left; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--muted); padding: 4px 12px 4px 0; }
+.reveal table td { border-bottom: 1px solid var(--line); padding: 3px 12px 3px 0; }
+.reveal table tbody tr:last-child td { border-bottom: 2px solid var(--muted); }
+.refs li { break-inside: avoid; }

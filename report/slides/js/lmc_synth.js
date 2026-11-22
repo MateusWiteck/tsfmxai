@@ -6,8 +6,8 @@
  * scripts/export_lmc_demo.py (illustrative sizes: 5 channels, 4 latents; official: 160 channels).
  * Corpus and training numbers, and the ablation bars, are transcribed from the paper.
  *
- * Slide "evalplan": the planned comparative evaluation. NOTHING in it has been run: it is a design,
- * and every cell that would hold a result is drawn as a hypothesis.
+ * Slide "evalplan": the comparative evaluation (preliminary mixture, Studies A and B). The LMC rows
+ * are measured; every cell of our generator that is still pending is a red dash.
  */
 (function () {
   const D = window.LMC_DATA, Z = window.ZC;
@@ -380,7 +380,7 @@
 
   // ---- step 7: what it can and cannot express ----
   const CAN = [
-    ["Dependence between channels", "shared latent functions", true, "any series, any lag", true],
+    ["Dependence between channels", "shared latent functions", true, "lagged reads of up to two other series", true],
     ["Form of the dependence", "linear, a convex combination", false, "sums, products, tanh of lags", true],
     ["Lags between channels", "none: same time step", false, "x_j(t − ℓ) is a leaf", true],
     ["Products between channels", "none", false, "x_i(t − a) · x_j(t − b)", true],
@@ -438,76 +438,80 @@
   LSTEPS[6].foot = "Zero-shot MSE of TimePFN and of TimePFN trained on independent channels only, as reported in the paper (transcribed; check against the paper's table before citing).";
   LSTEPS[7].foot = "Left column: LMC_Synth.py. Right column: src/tsfmxai/generators (AST over Lag(variable, lag), Multiply, Tanh) and the recorded seeds of the experiments. The paper also mentions multiplicative Gaussian noise (σ = 0.1); the script has no noise term.";
 
-  // ================= comparison with LMC-Synth on the TimePFN benchmarks (plan: no results yet) =================
-  const DATASETS = ["ETTh1", "ETTh2", "ETTm1", "ETTm2", "Weather", "Solar", "ECL", "Exchange", "Traffic"];
+  // ================= comparison with LMC-Synth: Studies A and B, zero-shot on Ibirapuera and Bahia =================
+  const RED = "#dc2626";
+  // relative MAE vs the 24-hour seasonal naive (geometric mean over a dataset's channels); null = pending
+  const ARMS = [
+    ["LMC-Synth", col.blue, [1.0175, 1.2390], [0.9584, 1.1800], "done"],
+    ["Ours", col.ours, [null, null], [null, null], "after p is chosen"],
+    ["Ours + equation head", col.ours, [null, null], [null, null], "needs the teacher"],
+    ["Ours + curriculum", col.ours, ["n/a", "n/a"], [null, null], "deferred"],
+    ["Ours + head + curriculum", col.ours, ["n/a", "n/a"], [null, null], "deferred"],
+  ];
   function compare(ctx, p) {
-    // top strip: two corpora -> same model -> real benchmarks
-    const boxes = [
-      [20, 62, 300, 38, "Corpus of LMC-Synth", col.blue, col.soft],
-      [20, 108, 300, 38, "Corpus of this project's generator", col.ours, col.osoft],
+    // top strip: preliminary choice -> two studies -> zero-shot real data
+    const A = (a, b) => ease(seg(p, a, b));
+    const strip = [
+      [20, 250, "① Preliminary", "KernelSynth share p = 0.25 or 0.50", "training now"],
+      [290, 290, "② Study A · equal exposure", "445,433 updates, corpus on disk", "secondary"],
+      [600, 290, "③ Study B · equal time", "10 h, generation inside the clock", "principal"],
+      [910, 270, "Zero-shot, real data", "Ibirapuera (5 ch) · Bahia (4 ch), 2019", "96 → 96 hours"],
     ];
-    boxes.forEach((b, i) => {
-      ctx.globalAlpha = ease(seg(p, i * 0.1, i * 0.1 + 0.2));
-      box(ctx, b[0], b[1], b[2], b[3], { fill: b[6], stroke: b[5], lw: 2 });
-      text(ctx, b[4], b[0] + b[2] / 2, b[1] + 25, 16.5, b[5], { align: "center", weight: 700 });
-    });
-    const m = ease(seg(p, 0.2, 0.4));
-    ctx.globalAlpha = m;
-    arrow(ctx, 322, 81, 400, 104, col.muted, 2.2);
-    arrow(ctx, 322, 127, 400, 104, col.muted, 2.2);
-    box(ctx, 404, 70, 330, 68, { stroke: col.teal, lw: 2.4 });
-    text(ctx, "Same model, same budget, same seeds", 569, 98, 16.5, col.teal, { align: "center", weight: 700 });
-    text(ctx, "trained on synthetic data only", 569, 122, 15, col.ink, { align: "center" });
-    ctx.globalAlpha = ease(seg(p, 0.35, 0.55));
-    arrow(ctx, 736, 104, 790, 104, col.muted, 2.2);
-    box(ctx, 794, 70, 386, 68, { stroke: "#6d5bd0", lw: 2.4 });
-    text(ctx, "Zero-shot on real multivariate data", 987, 98, 16.5, "#6d5bd0", { align: "center", weight: 700 });
-    text(ctx, "the 9 datasets of TimePFN; input 96, horizon 96", 987, 122, 15, col.ink, { align: "center" });
-    ctx.globalAlpha = 1;
-
-    // table of the metrics: empty until measured
-    const x0 = 20, y0 = 168, rowH = 28, cw = [150, 130, 130, 130, 130];
-    const heads = ["Dataset", "LMC-Synth MSE", "LMC-Synth MAE", "Ours MSE", "Ours MAE"];
-    const colors = [col.ink, col.blue, col.blue, col.ours, col.ours];
-    let x = x0;
-    ctx.globalAlpha = ease(seg(p, 0.5, 0.65));
-    heads.forEach((h, i) => {
-      text(ctx, h, x + (i ? cw[i] / 2 : 8), y0 + 20, 15, colors[i], { align: i ? "center" : "left", weight: 700 });
-      x += cw[i];
-    });
-    ctx.beginPath();
-    ctx.moveTo(x0, y0 + 30);
-    ctx.lineTo(x0 + 670, y0 + 30);
-    ctx.strokeStyle = col.muted;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    DATASETS.forEach((d, r) => {
-      const a = ease(seg(p, 0.55 + r * 0.035, 0.7 + r * 0.035)), y = y0 + 34 + r * rowH;
-      ctx.globalAlpha = a;
-      if (r % 2 === 0) { ctx.fillStyle = col.grey; ctx.fillRect(x0, y, 670, rowH); }
-      text(ctx, d, x0 + 8, y + 19, 16, col.ink, { weight: 600 });
-      let cx = x0 + cw[0];
-      for (let i = 1; i < 5; i++) {
-        text(ctx, "–", cx + cw[i] / 2, y + 19, 16, col.muted, { align: "center" });
-        cx += cw[i];
-      }
+    strip.forEach((s, i) => {
+      ctx.globalAlpha = A(i * 0.08, i * 0.08 + 0.2);
+      box(ctx, s[0], 62, s[1], 78, { stroke: i === 3 ? "#6d5bd0" : col.teal, lw: 2.2 });
+      text(ctx, s[2], s[0] + 14, 88, 16.5, i === 3 ? "#6d5bd0" : col.teal, { weight: 700 });
+      text(ctx, s[3], s[0] + 14, 110, 14, col.ink);
+      text(ctx, s[4], s[0] + 14, 130, 13, col.muted);
+      if (i < 3) arrow(ctx, s[0] + s[1] + 2, 101, strip[i + 1][0] - 2, 101, col.muted, 2);
       ctx.globalAlpha = 1;
     });
 
+    // table: relative MAE per study and dataset
+    const x0 = 20, y0 = 160, rowH = 40, cw = [250, 110, 110, 110, 110, 150];
+    ctx.globalAlpha = A(0.35, 0.5);
+    text(ctx, "Study A", x0 + cw[0] + cw[1], y0 + 14, 14, col.teal, { align: "center", weight: 700 });
+    text(ctx, "Study B", x0 + cw[0] + cw[1] * 2 + cw[3], y0 + 14, 14, col.teal, { align: "center", weight: 700 });
+    ["Arm (same Chronos-2, random start)", "Ibirapuera", "Bahia", "Ibirapuera", "Bahia", "Status"].forEach((h, i) => {
+      const x = x0 + cw.slice(0, i).reduce((s, v) => s + v, 0);
+      text(ctx, h, i ? x + cw[i] / 2 : x + 8, y0 + 38, 14, col.ink, { align: i ? "center" : "left", weight: 700 });
+    });
+    ctx.strokeStyle = col.muted;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0, y0 + 48); ctx.lineTo(x0 + 840, y0 + 48); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ARMS.forEach((r, k) => {
+      const y = y0 + 52 + k * rowH;
+      ctx.globalAlpha = A(0.45 + k * 0.06, 0.6 + k * 0.06);
+      if (k % 2 === 0) { ctx.fillStyle = col.grey; ctx.fillRect(x0, y, 840, rowH); }
+      text(ctx, r[0], x0 + 8, y + 26, 16, r[1], { weight: 700 });
+      const cells = [...r[2], ...r[3]];
+      let x = x0 + cw[0];
+      cells.forEach((v, i) => {
+        const s = v === null ? "–" : typeof v === "number" ? v.toFixed(4) : v;
+        text(ctx, s, x + cw[i + 1] / 2, y + 26, v === null ? 20 : 16, v === null ? RED : typeof v === "number" ? col.ink : col.muted, { align: "center", weight: v === null ? 700 : 600 });
+        x += cw[i + 1];
+      });
+      text(ctx, r[4], x + cw[5] / 2, y + 26, 14, r[4] === "done" ? col.teal : col.muted, { align: "center", weight: 600 });
+      ctx.globalAlpha = 1;
+    });
+    ctx.globalAlpha = A(0.75, 0.9);
+    text(ctx, "MAE relative to the 24-hour seasonal naive, geometric mean over the dataset's channels; below 1 beats it. Red dash: not run yet.", x0, y0 + 52 + ARMS.length * rowH + 22, 13.5, col.muted);
+    ctx.globalAlpha = 1;
+
     // right-hand notes
-    ctx.globalAlpha = ease(seg(p, 0.7, 1));
-    box(ctx, 720, 168, 460, 296, { fill: col.osoft, stroke: col.ours });
-    text(ctx, "What the comparison shows", 740, 200, 19, col.ours, { weight: 700 });
-    [["Both models see only synthetic data in training; the real datasets are never used to fit."],
-      ["The two columns differ in one thing: which generator made the training corpus."],
-      ["MSE and MAE per dataset, lower is better, for both generators side by side."],
-      ["Cells are empty: no forecasting model has been trained or measured yet."]].forEach((s, i) => wrap(ctx, s[0], 740, 236 + i * 56, 420, 21, 16, i === 3 ? col.ours : col.ink, { weight: i === 3 ? 700 : 400 }));
+    ctx.globalAlpha = A(0.7, 1);
+    box(ctx, 880, 160, 300, 304, { fill: col.osoft, stroke: col.ours });
+    text(ctx, "What is compared", 898, 190, 18, col.ours, { weight: 700 });
+    ["Only synthetic data in training; the real series are never fitted.",
+      "Without a head: unmodified Chronos-2. With a head: plus a channel index.",
+      "Principal: ours vs LMC, and head vs no head, in Study B, per dataset.",
+      "2019 was inspected during development: exploratory, not confirmatory."].forEach((s, i) => wrap(ctx, s, 898, 222 + i * 60, 266, 19, 14.5, col.ink));
     ctx.globalAlpha = 1;
   }
   Z.mount({
-    id: "evalplan", W, H, foot: "Design only; no forecasting model has been trained on either generator. Benchmarks and metrics follow Taga, Ildiz and Oymak (2025, TimePFN): ETTh1, ETTh2, ETTm1, ETTm2, Weather, Solar, ECL, Exchange, Traffic. Dataset list to be checked against the paper's table.",
-    steps: [{ narr: "Next: compare with LMC-Synth on real multivariate data", sub: "both trained on synthetic data only", dur: 7000 }],
+    id: "evalplan", W, H, foot: "Design: report/english/chapters/experimental_design/foundation_prior_evaluation.tex. LMC rows: final checkpoints of the completed Study A and Study B runs, scripts/evaluate_lmc_checkpoints.py; 255 origins at Ibirapuera, 357 in Bahia.",
+    steps: [{ narr: "Our generator against LMC-Synth", sub: "same model, same budgets, zero-shot on two real systems", dur: 7000 }],
     paint(ctx, step, p) { compare(ctx, p); },
   });
 })();

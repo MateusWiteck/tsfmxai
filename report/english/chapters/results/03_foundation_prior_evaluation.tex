@@ -11,8 +11,8 @@ SHA-256 is
 The code revision was \texttt{1add431}; TimePFN was pinned to \texttt{e11d5c2}.
 All 463 remote SHA-256 entries per run matched the received local files.
 The full records are in
-\texttt{experiments/generator\_model\_evaluation/prior\_lmc\_study\_a\_20261118.md}
-and \texttt{prior\_lmc\_study\_b\_20261118.md}. The model repositories are
+\texttt{experiments/generator\_model\_evaluation/offline\_experiments/prior\_lmc\_study\_a\_20261118.md}
+and \texttt{online\_techniques/prior\_lmc\_study\_b\_20261118.md} in the same directory. The model repositories are
 \url{https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-a-seed2021}
 and \url{https://huggingface.co/mateuswiteck/tsfmxai-chronos2-lmc-study-b-seed2021}
 (private at publication).
@@ -56,7 +56,7 @@ The new seasonal and Study A/B LMC rows come from
 \texttt{scripts/evaluate\_lmc\_checkpoints.py}, applied to the received final
 checkpoints. All use 2019: 255 eligible daily-grid windows at Ibirapuera and
 357 in Bahia,
-each with 96 context and 96 forecast hours. A dash denotes a model that has
+each with 96 context and 96 forecast hours. A red dash denotes a model that has
 not yet been trained and evaluated; it is not a zero error. The principal
 generator comparisons will use LMC-Synth and this project's generator with
 the same Chronos-2 backbone. The DLinear architecture is from
@@ -72,7 +72,7 @@ protocol uses its final budget checkpoint as the primary result. Neither
 historical row represents a new matched-budget arm. The new LMC rows are
 zero-shot evaluations of the two final checkpoints. The seasonal control
 was evaluated on the same origins. Our generator has no measured entries
-yet; dashes mark missing executions, not zero errors. The abbreviated A/B
+yet; red dashes mark missing executions, not zero errors. The abbreviated A/B
 labels denote the exposure-controlled and time-controlled studies; the
 combined condition means equation head plus additional curriculum.
 
@@ -86,16 +86,33 @@ proposed-generator runs have not been evaluated.
 
 \begin{table}[H]
 \centering\small
-\caption{Exploratory 2019 zero-shot adequacy of the two completed LMC runs,
+\caption{Exploratory 2019 zero-shot adequacy of every synthetic-prior run,
 reported separately for each dataset. Lower relative MAE is better;
 the number of improved channels counts MAE below the seasonal naive.}
 \label{tab:lmc-dataset-relative-mae}
 \begin{tabular}{llrrr}\toprule
-Dataset & LMC run & Origins & Relative MAE & Improved channels \\\midrule
-Ibirapuera & Study A & 255 & 1.0175 & 3/5 \\
-Ibirapuera & Study B & 255 & 0.9584 & 4/5 \\
-Bahia & Study A & 357 & 1.2390 & 1/4 \\
-Bahia & Study B & 357 & 1.1800 & 2/4 \\\bottomrule
+Dataset & Run & Origins & Relative MAE & Improved channels \\\midrule
+Ibirapuera & Prelim.: ours, $p=0.25$ & 255 & \pending & \pending \\
+Ibirapuera & Prelim.: ours, $p=0.50$ & 255 & \pending & \pending \\
+Ibirapuera & A: LMC & 255 & 1.0175 & 3/5 \\
+Ibirapuera & A: ours & 255 & \pending & \pending \\
+Ibirapuera & A: ours + head & 255 & \pending & \pending \\
+Ibirapuera & B: LMC & 255 & 0.9584 & 4/5 \\
+Ibirapuera & B: ours & 255 & \pending & \pending \\
+Ibirapuera & B: ours + head & 255 & \pending & \pending \\
+Ibirapuera & B: ours + curriculum & 255 & \pending & \pending \\
+Ibirapuera & B: ours + both & 255 & \pending & \pending \\
+\midrule
+Bahia & Prelim.: ours, $p=0.25$ & 357 & \pending & \pending \\
+Bahia & Prelim.: ours, $p=0.50$ & 357 & \pending & \pending \\
+Bahia & A: LMC & 357 & 1.2390 & 1/4 \\
+Bahia & A: ours & 357 & \pending & \pending \\
+Bahia & A: ours + head & 357 & \pending & \pending \\
+Bahia & B: LMC & 357 & 1.1800 & 2/4 \\
+Bahia & B: ours & 357 & \pending & \pending \\
+Bahia & B: ours + head & 357 & \pending & \pending \\
+Bahia & B: ours + curriculum & 357 & \pending & \pending \\
+Bahia & B: ours + both & 357 & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -111,14 +128,16 @@ Seasonal 24h & 12.3112 & 9.8112 & 9.0830 & 0.2290 & 8.8572 \\
 DLinear (supervised) & 10.2604 & 8.5991 & 7.1457 & 0.1796 & 7.6456 \\
 Chronos-2 + LMC (ES) & 12.3530 & 10.1432 & 8.1350 & 0.2200 & 7.7923 \\
 \quad LMC, final checkpoint & 13.0120 & 12.0548 & 8.8027 & 0.2331 & 8.2568 \\
+Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending & \pending \\
 A: LMC & 13.1562 & 10.7423 & 9.0093 & 0.2279 & 8.3646 \\
-A: ours & -- & -- & -- & -- & -- \\
-A: ours + head & -- & -- & -- & -- & -- \\
+A: ours & \pending & \pending & \pending & \pending & \pending \\
+A: ours + head & \pending & \pending & \pending & \pending & \pending \\
 B: LMC & 12.7529 & 9.7218 & 8.3857 & 0.2190 & 7.9072 \\
-B: ours & -- & -- & -- & -- & -- \\
-B: ours + head & -- & -- & -- & -- & -- \\
-B: ours + curriculum & -- & -- & -- & -- & -- \\
-B: ours + both & -- & -- & -- & -- & -- \\\bottomrule
+B: ours & \pending & \pending & \pending & \pending & \pending \\
+B: ours + head & \pending & \pending & \pending & \pending & \pending \\
+B: ours + curriculum & \pending & \pending & \pending & \pending & \pending \\
+B: ours + both & \pending & \pending & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -135,14 +154,16 @@ Seasonal 24h & 56.6544 & 135.9532 & 62.4964 & 60.4782 & 69.1157 \\
 DLinear (supervised) & 47.2167 & 119.1559 & 49.1666 & 47.4201 & 59.6608 \\
 Chronos-2 + LMC (ES) & 56.8464 & 140.5527 & 55.9734 & 58.0858 & 60.8055 \\
 \quad LMC, final checkpoint & 59.8794 & 167.0412 & 60.5678 & 61.5514 & 64.4306 \\
+Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending & \pending \\
 A: LMC & 60.5429 & 148.8541 & 61.9894 & 60.1658 & 65.2721 \\
-A: ours & -- & -- & -- & -- & -- \\
-A: ours + head & -- & -- & -- & -- & -- \\
+A: ours & \pending & \pending & \pending & \pending & \pending \\
+A: ours + head & \pending & \pending & \pending & \pending & \pending \\
 B: LMC & 58.6868 & 134.7143 & 57.6982 & 57.8170 & 61.7028 \\
-B: ours & -- & -- & -- & -- & -- \\
-B: ours + head & -- & -- & -- & -- & -- \\
-B: ours + curriculum & -- & -- & -- & -- & -- \\
-B: ours + both & -- & -- & -- & -- & -- \\\bottomrule
+B: ours & \pending & \pending & \pending & \pending & \pending \\
+B: ours + head & \pending & \pending & \pending & \pending & \pending \\
+B: ours + curriculum & \pending & \pending & \pending & \pending & \pending \\
+B: ours + both & \pending & \pending & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -158,14 +179,16 @@ Seasonal 24h & 205.2009 & 0.0980 & 0.0188 & 133.2286 \\
 DLinear (supervised) & 108.1513 & 0.0792 & 0.0275 & 215.2351 \\
 Chronos-2 + LMC (ES) & 229.9932 & 0.0947 & 0.0366 & 118.7217 \\
 \quad LMC, final checkpoint & 250.2420 & 0.0964 & 0.0338 & 119.6153 \\
+Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending \\
 A: LMC & 255.6400 & 0.0961 & 0.0356 & 135.3384 \\
-A: ours & -- & -- & -- & -- \\
-A: ours + head & -- & -- & -- & -- \\
+A: ours & \pending & \pending & \pending & \pending \\
+A: ours + head & \pending & \pending & \pending & \pending \\
 B: LMC & 238.6866 & 0.0976 & 0.0361 & 115.6647 \\
-B: ours & -- & -- & -- & -- \\
-B: ours + head & -- & -- & -- & -- \\
-B: ours + curriculum & -- & -- & -- & -- \\
-B: ours + both & -- & -- & -- & -- \\\bottomrule
+B: ours & \pending & \pending & \pending & \pending \\
+B: ours + head & \pending & \pending & \pending & \pending \\
+B: ours + curriculum & \pending & \pending & \pending & \pending \\
+B: ours + both & \pending & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -181,14 +204,16 @@ Seasonal 24h & 6.3562 & 45.0423 & 10.3275 & 8.0452 \\
 DLinear (supervised) & 3.3501 & 36.3814 & 15.1264 & 12.9973 \\
 Chronos-2 + LMC (ES) & 7.1242 & 43.5269 & 20.1574 & 7.1692 \\
 \quad LMC, final checkpoint & 7.7514 & 44.3004 & 18.6221 & 7.2231 \\
+Prelim.: ours, $p=0.25$ & \pending & \pending & \pending & \pending \\
+Prelim.: ours, $p=0.50$ & \pending & \pending & \pending & \pending \\
 A: LMC & 7.9186 & 44.1523 & 19.6162 & 8.1726 \\
-A: ours & -- & -- & -- & -- \\
-A: ours + head & -- & -- & -- & -- \\
+A: ours & \pending & \pending & \pending & \pending \\
+A: ours + head & \pending & \pending & \pending & \pending \\
 B: LMC & 7.3935 & 44.8705 & 19.9063 & 6.9846 \\
-B: ours & -- & -- & -- & -- \\
-B: ours + head & -- & -- & -- & -- \\
-B: ours + curriculum & -- & -- & -- & -- \\
-B: ours + both & -- & -- & -- & -- \\\bottomrule
+B: ours & \pending & \pending & \pending & \pending \\
+B: ours + head & \pending & \pending & \pending & \pending \\
+B: ours + curriculum & \pending & \pending & \pending & \pending \\
+B: ours + both & \pending & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -196,19 +221,21 @@ B: ours + both & -- & -- & -- & -- \\\bottomrule
 \centering\small\setlength{\tabcolsep}{3pt}
 \caption{Prospective protocol records. Controlled-corpus runs match exposed
 examples and updates; pipeline runs match elapsed active machine hours with
-empty run-specific caches. Dashes await the proposed-generator arms. Study A
+empty run-specific caches. Red dashes await the proposed-generator arms. Study A
 preparation (1.64 h) is excluded from its training hours.}
 \label{tab:foundation-prior-budget}
 \begin{tabular}{lrrr}\toprule
 Study and generator & Machine hours & Updates & Examples \\\midrule
 Controlled corpus: LMC & 12.696 & 445,433 & 7,126,928 \\
-Controlled corpus: ours & -- & -- & -- \\
-Controlled corpus: ours + head & -- & -- & -- \\
+Preliminary: ours, $p=0.25$ & \pending & \pending & \pending \\
+Preliminary: ours, $p=0.50$ & \pending & \pending & \pending \\
+Controlled corpus: ours & \pending & \pending & \pending \\
+Controlled corpus: ours + head & \pending & \pending & \pending \\
 Complete pipeline: LMC & 10.003 & 299,991 & 4,799,856 \\
-Complete pipeline: ours & -- & -- & -- \\
-Complete pipeline: ours + head & -- & -- & -- \\
-Complete pipeline: ours + curriculum & -- & -- & -- \\
-Complete pipeline: ours + both & -- & -- & -- \\\bottomrule
+Complete pipeline: ours & \pending & \pending & \pending \\
+Complete pipeline: ours + head & \pending & \pending & \pending \\
+Complete pipeline: ours + curriculum & \pending & \pending & \pending \\
+Complete pipeline: ours + both & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 
@@ -221,13 +248,91 @@ consumer-observed time, not a direct GPU-stall measurement.}
 \begin{tabular}{lrrr}\toprule
 Study and generator & Unique trajectories & Reuse & Batch wait (s) \\\midrule
 Controlled corpus: LMC & 34,998 & 203.64 & 24.5 \\
-Controlled corpus: ours & -- & -- & -- \\
-Controlled corpus: ours + head & -- & -- & -- \\
+Preliminary: ours, $p=0.25$ & \pending & \pending & \pending \\
+Preliminary: ours, $p=0.50$ & \pending & \pending & \pending \\
+Controlled corpus: ours & \pending & \pending & \pending \\
+Controlled corpus: ours + head & \pending & \pending & \pending \\
 Complete pipeline: LMC & 34,998 & 137.15 & 4,264.2 \\
-Complete pipeline: ours & -- & -- & -- \\
-Complete pipeline: ours + head & -- & -- & -- \\
-Complete pipeline: ours + curriculum & -- & -- & -- \\
-Complete pipeline: ours + both & -- & -- & -- \\\bottomrule
+Complete pipeline: ours & \pending & \pending & \pending \\
+Complete pipeline: ours + head & \pending & \pending & \pending \\
+Complete pipeline: ours + curriculum & \pending & \pending & \pending \\
+Complete pipeline: ours + both & \pending & \pending & \pending \\\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:preliminary-selection} will record the preliminary mixture
+selection under the prespecified rule: each dataset's geometric mean of
+channel MAE relative to the seasonal control, and their equal-weight
+geometric mean as the selection score. The realized KernelSynth fractions are
+counted in the two prepared corpora.
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Preliminary KernelSynth-mixture selection on the 2019 development
+origins. Lower scores are better; an exact tie selects the smaller $p$.}
+\label{tab:preliminary-selection}
+\begin{tabular}{lrrrrc}\toprule
+Candidate & Realized KernelSynth & Ibirapuera & Bahia & Selection score & Selected \\\midrule
+$p=0.25$ & 25.00\% & \pending & \pending & \pending & \pending \\
+$p=0.50$ & 50.00\% & \pending & \pending & \pending & \pending \\\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:foundation-prior-contrasts} will hold the prespecified
+contrasts. Each entry is the ratio of two dataset-level relative-MAE
+summaries with its paired temporal-block interval. A ratio below one favors
+the numerator, and an interval containing one is inconclusive.
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Per-dataset contrasts with paired temporal-block intervals. The
+complete-pipeline generator contrast and the equation-head contrast are
+principal; the others are secondary.}
+\label{tab:foundation-prior-contrasts}
+\begin{tabular}{lllcc}\toprule
+Contrast & Study & Role & Ibirapuera & Bahia \\\midrule
+Ours / LMC & B & principal & \pending & \pending \\
+Ours + head / ours & B & principal & \pending & \pending \\
+Ours / LMC & A & secondary & \pending & \pending \\
+Ours + head / ours & A & secondary & \pending & \pending \\
+Ours + curriculum / ours & B & secondary & \pending & \pending \\
+Head $\times$ curriculum interaction & B & secondary & \pending & \pending \\\bottomrule
+\end{tabular}
+\end{table}
+
+The equation head is assessed on disjoint synthetic data, separately from
+real-data forecasting (Table~\ref{tab:equation-head-diagnostics}). Because a
+head-bearing backbone receives a channel index, its real-data forecasts are
+also repeated under several channel permutations
+(Table~\ref{tab:channel-permutation-sensitivity}).
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Synthetic diagnostics of the equation head. Losses are the
+validation skeleton-embedding and innovation log-scale terms; the relative
+error is $|\hat\sigma/\sigma-1|$; coverage is the share of AST channels with
+a teacher target.}
+\label{tab:equation-head-diagnostics}
+\begin{tabular}{lrrrr}\toprule
+Run & Skeleton loss & Innovation loss & $|\hat\sigma/\sigma-1|$ & Target coverage \\\midrule
+A: ours + head & \pending & \pending & \pending & \pending \\
+B: ours + head & \pending & \pending & \pending & \pending \\
+B: ours + both & \pending & \pending & \pending & \pending \\\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering\small\setlength{\tabcolsep}{4pt}
+\caption{Sensitivity of head-bearing forecasts to the order in which real
+channels are supplied: relative MAE under the supplied order and the range
+over the evaluated permutations.}
+\label{tab:channel-permutation-sensitivity}
+\begin{tabular}{lcccc}\toprule
+ & \multicolumn{2}{c}{Ibirapuera} & \multicolumn{2}{c}{Bahia} \\
+Run & Supplied order & Range & Supplied order & Range \\\midrule
+A: ours + head & \pending & \pending & \pending & \pending \\
+B: ours + head & \pending & \pending & \pending & \pending \\
+B: ours + both & \pending & \pending & \pending & \pending \\\bottomrule
 \end{tabular}
 \end{table}
 

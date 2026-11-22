@@ -146,3 +146,21 @@ its mean absolute coefficient error on matched terms was 0.024. We concluded
 that predicting coefficients in this form is not useful for the equation head,
 so only the skeleton-only variant is trained. The record is
 \path{experiments/canonicalization/07_train_30m_six_series.ipynb}.
+
+Table~\ref{tab:six-series-teacher} will report the teacher trained on the
+forecasting generator's equations. Rows come from the skeleton-disjoint
+test split, by channel treatment; the production teacher is trained on every
+split, so it has no held-out score.
+
+\begin{table}[htbp]\centering\small
+\caption{Six-series teacher on the skeleton-disjoint test split, by
+treatment: exact canonical-skeleton recovery and term F1.}
+\label{tab:six-series-teacher}
+\begin{tabular}{lrrr}\toprule
+Treatment & Test equations & Exact skeleton (\%) & Term F1 \\\midrule
+Shao--Wu & \pending & \pending & \pending \\
+Jacobian & \pending & \pending & \pending \\
+Heaps & \pending & \pending & \pending \\
+All & \pending & \pending & \pending \\\bottomrule
+\end{tabular}
+\end{table}

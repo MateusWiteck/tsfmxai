@@ -2,8 +2,8 @@
  *
  * The target and the example come from the project library through
  * scripts/export_generator_demo.py (canonicalize_polynomial, CanonicalCodec).
- * The last step reports the verified 10M six-series run.
- * Record: experiments/canonicalization/06_train_10m_six_series.ipynb.
+ * The last step reports the verified 30M six-series run (and the 10M figures).
+ * Records: experiments/canonicalization/07_train_30m_six_series.ipynb, 06_train_10m_six_series.ipynb.
  */
 (function () {
   const D = window.GEN_DATA, Z = window.ZC;
@@ -234,17 +234,17 @@
   }
   function scene6(ctx, p) {
     box(ctx, 20, 60, 1160, 65, { fill: col.soft, stroke: col.blue, lw: 2.2 });
-    text(ctx, "10M trees / six source series / 197 tokens / 1,998,712 test skeletons", 44, 101, 22, col.blue);
-    stat(ctx, 20, 145, 376, "94.36%", "Exact skeleton: skeleton-only model", col.teal, 1, false);
-    stat(ctx, 412, 145, 376, "95.41%", "Exact skeleton: joint model", col.teal, 1, false);
-    stat(ctx, 804, 145, 376, "4.45%", "Exact structure + coefficients: joint model", col.ours, 1, false);
+    text(ctx, "30M trees / six source series / 197 tokens / 5,998,787 test skeletons", 44, 101, 22, col.blue);
+    stat(ctx, 20, 145, 376, "97.88%", "Exact skeleton: skeleton-only model", col.teal, 1, false);
+    stat(ctx, 412, 145, 376, "97.29%", "Exact skeleton: joint model", col.teal, 1, false);
+    stat(ctx, 804, 145, 376, "7.63%", "Exact structure + coefficients: joint model", col.ours, 1, false);
     box(ctx, 20, 315, 1160, 165, { fill: col.grey });
     const lines = [
-      "Term F1: 98.73% / 98.78%. Valid output: 97.38% / 98.26% (skeleton / joint).",
-      "Both checkpoints selected at epoch 10; total run 5.19 h on RTX 4070. One training seed.",
-      "Coefficient matched MAE: 0.03023; joint exact uses absolute/relative tolerance 0.01.",
+      "Skeleton-only term F1 0.994. Joint: matched-coefficient MAE 0.024; exact uses abs./rel. tolerance 0.01.",
+      "Both checkpoints selected at epoch 10; total run 15.39 h on RTX 4070. One training seed. 10M: 94.36% / 95.41% / 4.45%.",
+      "Coefficients add little: the equation-head teacher is skeleton-only; the joint variant is not retrained.",
+      "Next teacher: equations of the forecasting generator (Shao–Wu, Jacobian, Heaps; up to 65 nodes).",
       "Greedy test decoding; these scores do not measure embedding quality for Chronos.",
-      "30M run in progress (user report); no results available yet.",
     ];
     lines.forEach((line, i) => text(ctx, line, 44, 345 + i * 28, 17, col.muted));
   }
@@ -256,8 +256,8 @@
     { narr: "③ RAW and TANH factors", sub: "protection changes the symbols, not the idea", dur: 4200 },
     { narr: "④ A sequence the model can write", sub: "factors, end of term, coefficient", dur: 5200 },
     { narr: "⑤ The model", sub: "encoder reads, decoder writes", dur: 6500 },
-    { narr: "Six-series results: 10M", sub: "Verified remote run; 30M results pending", dur: 6500,
-      foot: "Record: experiments/canonicalization/06_train_10m_six_series.ipynb. Training commit 44a975a; RTX 4070; six-series vocabulary. Test metrics from the received remote manifest; archive checksum, source provenance, Parquet counts and checkpoints verified locally." },
+    { narr: "Six-series results: 30M", sub: "verified remote run; skeleton-only is enough", dur: 6500,
+      foot: "Record: experiments/canonicalization/07_train_30m_six_series.ipynb (training commit 10dc844; RTX 4070) and 06_train_10m_six_series.ipynb for the 10M figures. Combinatorial sampler with tanh protection; the next teacher is trained on the forecasting generator's equations." },
   ];
 
   // The scenes are shown inside the pipeline slide (pipeline_canon.js), each at its own place.

@@ -70,7 +70,7 @@
       ctx.globalAlpha = 1;
     });
     ctx.globalAlpha = ease(seg(p, 0.6, 0.85));
-    text(ctx, "③ is a switch: for each series, one of four constructions is drawn at random, so the data mixes different kinds of stability.", 20, 272, 19, col.ink, { weight: 700 });
+    text(ctx, "③ follows the topology: Shao–Wu if the series may read another, else Jacobian or Heaps. The plain tree is only a reference.", 20, 272, 19, col.ink, { weight: 700 });
     [["Plain tree", 20], ["Jacobian", 190], ["Shao–Wu", 360], ["Heaps VAR", 530]].forEach(([n, x]) => pill(ctx, x, 292, 150, n, n === "Plain tree" ? col.muted : col.ours));
     wrap(ctx, "Each is a black box with the same contract: random numbers in, a recurrence and its series out. Series that diverge are discarded.", 700, 308, 480, 22, 16, col.muted);
     ctx.globalAlpha = ease(seg(p, 0.8, 1));
@@ -132,7 +132,7 @@
     box(ctx, 700, 60, 480, 380);
     text(ctx, "Where the numbers come from", 722, 98, 22, col.ink, { weight: 700 });
     text(ctx, "P  coefficient", 722, 142, 20, col.blue, { weight: 700 });
-    wrap(ctx, "magnitude uniform in [0.05, 0.90], random sign", 722, 168, 430, 24, 18, col.ink);
+    wrap(ctx, "magnitude uniform in [0.05, 0.90], random sign (this example; the forecasting arm uses [0.05, 1])", 722, 168, 430, 24, 18, col.ink);
     text(ctx, "L  lag", 722, 224, 20, col.teal, { weight: 700 });
     wrap(ctx, "integer uniform in {1, …, 16}", 722, 250, 430, 24, 18, col.ink);
     const a = ease(seg(p, 0.7, 1));
@@ -239,7 +239,7 @@
       ctx.globalAlpha = 1;
     });
     ctx.globalAlpha = ease(seg(p, 0.7, 1));
-    text(ctx, "The plain tree is kept as one option: 49.2 % of its sampled paths crossed the threshold. Click a card for details.", 20, 482, 17, col.ink, { weight: 600 });
+    text(ctx, "The plain tree is only the reference (49.2 % of its paths crossed the threshold); training uses the three fixes. Click a card for details.", 20, 482, 17, col.ink, { weight: 600 });
     ctx.globalAlpha = 1;
   }
 

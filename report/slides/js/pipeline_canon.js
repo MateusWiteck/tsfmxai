@@ -450,7 +450,7 @@
     ctx.globalAlpha = 1;
 
     box(ctx, 600, 60, 580, 390);
-    text(ctx, "One of four fixes, drawn per series", 620, 96, 22, col.ink, { weight: 700 });
+    text(ctx, "No fix against the three fixes", 620, 96, 22, col.ink, { weight: 700 });
     const rows = [["Plain tree", 52.24, 10.36], ["Jacobian", 0, 56.22], ["Shao–Wu", 0, 23.68], ["Heaps VAR", 0, 41.54]];
     rows.forEach((r, i) => {
       const y = 124 + i * 70, a = ease(seg(p, 0.2 + i * 0.12, 0.5 + i * 0.12));
