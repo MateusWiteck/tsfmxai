@@ -1,0 +1,79 @@
+\section{Using the generator to evaluate post-hoc explanations}
+\label{sec:generator-post-hoc-explainability}
+
+The generator makes it possible to evaluate whether a forecast explanation
+highlights the inputs that appear in a known data-generating equation. We
+specify the equations and coefficients before generating any trajectories, so
+each scenario has an explicit reference: the set of direct parents of the
+target. A parent is a lag in the univariate case and a channel--lag pair in
+the multivariate case. The notebooks under
+\texttt{experiments/chronos2\_explainability/} display the equations and record
+the seeds, generator settings, and model revision.
+
+\subsection{Forecast and evaluation protocol}
+
+For each equation or system, we generate eight trajectories with independent
+Gaussian innovations and evaluate six windows per trajectory. Each window
+contains 128 observations. We use the frozen Amazon Chronos-2 checkpoint
+\citep{ansari2025chronos2} to forecast the one-step-ahead median for one target
+channel. We compare the gradient of that forecast with respect to each
+observed input and the same gradient multiplied by the input value. We compute
+both on the original input scale. In each scenario, we check the differentiable
+forecast against the official pipeline and check selected derivatives by
+finite differences.
+
+If the equation has $k$ direct parents, we rank the inputs by absolute
+attribution and count how many of those parents appear in the top $k$.
+The count is $k$ times recall at $k$. Ties at the cutoff receive the expected
+number of hits under uniform tie breaking. We average the count over windows
+within each trajectory and then over trajectories. In the multivariate case,
+an attribution must identify both the correct channel and the correct lag.
+
+\subsection{Recovery of direct dependencies}
+
+The first two notebooks use fixed linear equations chosen to keep propagated
+effects below the direct effects. Table~\ref{tab:post-hoc-top-k} reports their
+average counts. Plain gradients recovered more direct parents in all four
+scenarios. Even in the best scenario, the average was about three of seven.
+These measurements describe the agreement between the Chronos-2 explanations
+and the specified generator equations. An explanation can reflect the
+forecast's sensitivity accurately while disagreeing with the generator.
+
+\begin{table}[htbp]
+\centering
+\caption{Mean number of direct parents recovered in the top $k$.}
+\label{tab:post-hoc-top-k}
+\begin{tabular}{lrrr}
+\toprule
+Scenario & $k$ & Gradient & Gradient $\times$ input \\
+\midrule
+Univariate, consecutive lags & 7 & 3.0625 & 2.1250 \\
+Univariate, sparse lags & 7 & 1.8542 & 1.2292 \\
+Multivariate, cross-channel parents & 2 & 0.1250 & 0.0208 \\
+Multivariate, own and cross-channel parents & 2 & 0.3958 & 0.3125 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{What the direct reference leaves out}
+
+The third notebook varies mediation in a three-channel system,
+\begin{align*}
+A_t &= \varepsilon_t^A, \\
+B_t &= b A_{t-1} + \varepsilon_t^B, \\
+Y_t &= 0.8 B_{t-1} + d A_{t-2} + \varepsilon_t^Y.
+\end{align*}
+Increasing $A_{t-2}$ by one yields a controlled direct effect of $d$ when
+$B_{t-1}$ is held fixed. With the innovations held fixed and the mediator
+allowed to respond, the effect on $Y_t$ is $d+0.8b$. The experiment uses
+$(b,d)=(0.05,0.05)$, $(0.8,0.05)$, and $(0.8,0)$. In the final case,
+$A_{t-2}$ has an effect of $0.64$ through $B_{t-1}$ and receives no credit
+under the direct-parent reference, even if an explanation highlights it.
+
+This example explains why the direct-recovery experiment selects equations
+with controlled propagation. Its score answers which inputs enter the target
+equation directly. It cannot establish whether an explanation recovers
+influence transmitted through earlier states. A complementary evaluation could
+derive a reference for propagated effects by intervening in the known
+generator and allowing descendants to respond. The intervention and forecast
+horizon would then define precisely which influence the score measures.
